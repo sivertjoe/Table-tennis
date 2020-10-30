@@ -23,5 +23,8 @@ table {
   border: solid 1px #ebf0f2;
   border-radius: 0.5rem;
   border-spacing: 1rem;
+}
 
+ul {
+  list-style: none;
 }

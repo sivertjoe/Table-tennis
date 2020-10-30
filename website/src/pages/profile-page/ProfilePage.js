@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
+import SearchBar from '../../components/search-bar/SearchBar'
 
 function formatDate(ms) {
   const d = new Date(ms)
@@ -11,9 +12,9 @@ function formatDate(ms) {
 }
 
 class Profile extends Component {
-  constructor(user) {
+  constructor(args) {
     super()
-    Api.getUser(user.user).then((user) => {
+    Api.getUser(args.user).then((user) => {
       this.setState({ user: user })
     })
   }
@@ -53,11 +54,39 @@ class Profile extends Component {
 }
 
 class Profiles extends Component {
+  users = []
+  filtered = []
+
+  constructor() {
+    super()
+    Api.getUsers().then((users) => {
+      this.users = users
+      this.filtered = users
+      this.setState({})
+    })
+
+    this.searchUsers = this.searchUsers.bind(this)
+  }
+
+  searchUsers = (search) => {
+    this.filtered = this.users.filter((u) => u.name.includes(search))
+    this.setState({})
+  }
+
   render() {
-    Api.getUsers().then((x) => console.log(x))
     return (
-      <div>
-        <p>All profiles</p>
+      <div className="container">
+        <h1>Profiles</h1>
+        <SearchBar callback={this.searchUsers} />
+        <ul>
+          {this.filtered.map((user) => (
+            <li>
+              <h2>
+                <a href={'/profiles/' + user.name}>{user.name}</a>
+              </h2>
+            </li>
+          ))}
+        </ul>
       </div>
     )
   }
