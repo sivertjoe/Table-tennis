@@ -121,12 +121,11 @@ impl DataBase
         let users = stmt.query_map(NO_PARAMS, |row|
         {
             let name: String = row.get(1)?;
-            let mh = self.get_matches(&name)?.collect();
             Ok(User {
                 id: row.get(0)?,
                 name: name,
                 elo: row.get(2)?,
-                match_history: mh
+                match_history: Vec::new()
             })
         })?;
 
