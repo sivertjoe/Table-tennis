@@ -7,6 +7,5 @@ pub struct Match
 {
     pub winner: String,
     pub loser: String,
-    pub epoch: u32
+    pub epoch: i64
 }
-
