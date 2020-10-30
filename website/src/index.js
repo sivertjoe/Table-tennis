@@ -4,12 +4,16 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import reportWebVitals from './reportWebVitals'
 import Routes from './Routes'
+import Navbar from './components/navbar/Navbar'
 
 class App extends Component {
   render() {
     return (
       <Suspense fallback={<div>Loading...</div>}>
-        <Routes />
+        <Navbar />
+        <div class="main">
+          <Routes />
+        </div>
       </Suspense>
     )
   }
