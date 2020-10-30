@@ -19,26 +19,32 @@ class Profile extends Component {
   }
 
   render() {
-    console.log(this.state?.user)
+    let wins = 0
+    let losses = 0
+    const history = this.state?.user.match_history.map((elem) => {
+      elem.winner === this.state?.user.name ? (wins += 1) : (losses += 1)
+      return (
+        <tr>
+          <td>{elem.winner}</td>
+          <td>{elem.loser}</td>
+          <td>{formatDate(elem.epoch)}</td>
+        </tr>
+      )
+    })
+
     return (
       <div className="container">
         <h1 className="name">{this.state?.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.state?.user.elo ?? 0)}</h2>
-        <h2 className="history">Match history</h2>
+        <h2 className="history">Match history {wins + losses}</h2>
         <table>
           <tbody>
             <tr>
-              <th>Winner</th>
-              <th>Loser</th>
+              <th>Winner ({wins})</th>
+              <th>Loser ({losses})</th>
               <th>Date</th>
             </tr>
-            {this.state?.user.match_history.map((elem) => (
-              <tr>
-                <td>{elem.winner}</td>
-                <td>{elem.loser}</td>
-                <td>{formatDate(elem.epoch)}</td>
-              </tr>
-            ))}
+            {history}
           </tbody>
         </table>
       </div>

@@ -24,7 +24,4 @@ table {
   border-radius: 0.5rem;
   border-spacing: 1rem;
 
-  tr {
-    border: solid 1px white;
-  }
 }
