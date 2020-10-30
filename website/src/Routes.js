@@ -1,13 +1,14 @@
 import { React, lazy } from 'react'
 import { Switch, Route } from 'react-router-dom'
 
-const HomePage = lazy(() => import('./pages/HomePage'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const HomePage = lazy(() => import('./pages/home-page/HomePage'))
+const ProfilePage = lazy(() => import('./pages/profile-page/ProfilePage'))
 
 const Routes = () => (
   <Switch>
     <Route exact path="/" component={HomePage} />
-    <Route exact path="/profile/:id" component={ProfilePage} />
+    <Route exact path="/profiles" component={ProfilePage} />
+    <Route exact path="/profiles/:id" component={ProfilePage} />
   </Switch>
 )
 
