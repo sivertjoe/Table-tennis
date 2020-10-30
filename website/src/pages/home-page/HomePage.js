@@ -1,10 +1,12 @@
 import { React, Component } from 'react'
+import * as Api from '../../api/Api'
+import './HomePage.css'
 
 class HomePage extends Component {
   render() {
     return (
       <div>
-        <p>Home</p>
+        <p className="test">Home</p>
       </div>
     )
   }
