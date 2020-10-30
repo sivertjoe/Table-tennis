@@ -1,0 +1,18 @@
+version: '3.5'
+services:
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    ports:
+      - '11000:80'
+  # server:
+  #   build:
+  #     context: ./server
+  #     context: Dockerfile
+  #   port:
+  #     - '58642:80'
+
+networks:
+  default:
+    name: table_tennis_network
