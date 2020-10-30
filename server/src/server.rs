@@ -111,6 +111,7 @@ impl DataBase
                 vec.push(u);
             };
         }
+        vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
         Ok(vec.into_iter())
     }
 

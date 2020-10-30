@@ -1,13 +1,12 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './HomePage.css'
+import Leaderboard from '../../components/leaderboard/Leaderboard'
 
 class HomePage extends Component {
   render() {
     return (
-      <div>
-        <p className="test">Home</p>
-      </div>
+        <Leaderboard />
     )
   }
 }
