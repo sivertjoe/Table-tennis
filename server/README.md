@@ -34,35 +34,13 @@
     "id": 2,
     "elo": 1501.4695015289756,
     "name": "Ola",
-    "match_history": [
-      {
-        "winner": "Kari",
-        "loser": "Ola",
-        "epoch": 1604050993
-      },
-      {
-        "winner": "Ola",
-        "loser": "Kari",
-        "epoch": 1604050993
-      }
-    ]
+    "match_history": []
   },
   {
     "id": 1,
     "elo": 1498.5304984710244,
     "name": "Kari",
-    "match_history": [
-      {
-        "winner": "Kari",
-        "loser": "Ola",
-        "epoch": 1604050993
-      },
-      {
-        "winner": "Ola",
-        "loser": "Kari",
-        "epoch": 1604050993
-      }
-    ]
+    "match_history": []
   }
   ]
 }
