@@ -1494,6 +1494,7 @@ dependencies = [
  "itertools",
  "rusqlite",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

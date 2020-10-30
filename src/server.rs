@@ -1,11 +1,7 @@
 use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
 use crate::user::User;
 use elo::EloRank;
-use itertools::join;
 use crate::r#match::Match;
-
-
-
 
 
 const DATABASE_FILE: &'static str = "db.db";
@@ -37,7 +33,8 @@ impl DataBase
         conn.execute(
              "create table if not exists matches (
                 winner VARCHAR(20) not null references users(name),
-                loser VARCHAR(20) not null references users(name)
+                loser VARCHAR(20) not null references users(name),
+                date datetime not null
                 )",
                 NO_PARAMS,).expect("Failed to create database");
 
@@ -54,16 +51,14 @@ impl DataBase
             )
     }
 
-    pub fn get_profile(&self, user: String) -> Result<String>
+    pub fn get_profile(&self, user: String) -> Result<User>
     {
         self.get_user(&user)
-            .map(|u| u.to_string())
     }
 
-    pub fn get_users(&self)  -> Result<String>
+    pub fn get_users(&self)  -> Result<Vec<User>>
     {
-        let users = self.get_all_users()?;
-        Ok(format!("{}\n", join(users.map(|u| u.name), "\n")))
+        Ok(self.get_all_users()?.collect())
     }
 
     pub fn register_match(&self, winner: String, loser: String) -> Result<usize>
@@ -124,11 +119,13 @@ impl DataBase
         let mut stmt = self.conn.prepare("select * from users;")?;
         let users = stmt.query_map(NO_PARAMS, |row|
         {
+            let name: String = row.get(1)?;
+            let mh = self.get_matches(&name)?.collect();
             Ok(User {
                 id: row.get(0)?,
-                name: row.get(1)?,
+                name: name,
                 elo: row.get(2)?,
-                match_history: vec![]
+                match_history: mh
             })
         })?;
 
@@ -140,6 +137,7 @@ impl DataBase
                 vec.push(u);
             };
         }
+        vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
         Ok(vec.into_iter())
     }
 

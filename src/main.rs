@@ -53,24 +53,23 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<
     }
 }
 
-
 #[get("/users")]
-async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> impl Responder
+async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
     {
-        Ok(data) => data,
-        Err(e) => format!("Something went wrong {}\n", e)
+        Ok(data) => HttpResponse::Ok().json(data), 
+        Err(_) => HttpResponse::NotFound().finish()
     }
 }
 
-#[get("/profile/{name}")]
-async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> impl Responder
+#[get("/user/{name}")]
+async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
 {
     match DATABASE!(data).get_profile(name)
     {
-        Ok(data) => data,
-        Err(e) => format!("Something went wrong {}\n", e)
+        Ok(data) => HttpResponse::Ok().json(data), 
+        Err(_) => HttpResponse::InternalServerError().finish()
     }
 }
 
