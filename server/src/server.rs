@@ -25,7 +25,7 @@ impl DataBase
         conn.execute(
             "create table if not exists users (
                 id integer primary key autoincrement,
-                name VARCHAR(20) not null,
+                name VARCHAR(20) not null unique,
                 elo float  default 1500.0
                 )",
                 NO_PARAMS,).expect("Failed to create database");
@@ -34,7 +34,7 @@ impl DataBase
              "create table if not exists matches (
                 winner VARCHAR(20) not null references users(name),
                 loser VARCHAR(20) not null references users(name),
-                date datetime not null
+                epoch int not null
                 )",
                 NO_PARAMS,).expect("Failed to create database");
 
@@ -61,15 +61,15 @@ impl DataBase
         Ok(self.get_all_users()?.collect())
     }
 
-    pub fn register_match(&self, winner: String, loser: String) -> Result<usize>
+    pub fn register_match(&self, m: Match) -> Result<usize>
     {
-        let (winner_elo, loser_elo) = self.get_elo_scores(&winner, &loser)?;
+        let (winner_elo, loser_elo) = self.get_elo_scores(&m.winner, &m.loser)?;
         let elo = EloRank { k: 32 };
         let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
     
-        self.update_elo(&winner, new_winner_elo)?;
-        self.update_elo(&loser, new_loser_elo)?;
-        self.create_match(&winner, &loser)?;
+        self.update_elo(&m.winner, new_winner_elo)?;
+        self.update_elo(&m.loser, new_loser_elo)?;
+        self.create_match(&m)?;
         Ok(0)
     }
 }
@@ -78,11 +78,11 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
-    fn create_match(&self, winner: &String, loser: &String) -> Result<usize>
+    fn create_match(&self, m: &Match) -> Result<usize>
     {
         self.conn.execute(
-            "insert into matches (winner, loser) values (?1, ?2)",
-            params![winner, loser],)
+            "insert into matches (winner, loser, epoch) values (?1, ?2, ?3)",
+            params![m.winner, m.loser, m.epoch],)
     }
 
     fn update_elo(&self, name: &String, elo: f64) -> Result<usize>
@@ -99,6 +99,7 @@ impl DataBase
             Ok(Match {
                 winner: row.get(0)?,
                 loser: row.get(1)?,
+                epoch: row.get(2)?,
             })
         })?;
 
@@ -163,7 +164,7 @@ impl DataBase
                 Ok(user)
             },
             Some(Err(e)) => Err(e),
-            None => panic!("something went wrong")
+            None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
         }
     }
 

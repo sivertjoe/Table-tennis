@@ -4,11 +4,10 @@ mod user;
 mod r#match;
 
 use server::DataBase;
+use r#match::Match;
 
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_web::middleware::Logger;
-
-use serde::Deserialize;
 
 use std::sync::{Mutex, Arc};
 
@@ -24,32 +23,25 @@ macro_rules! DATABASE
 
 
 #[post("/create-user/{name}")]
-async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> impl Responder
+async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse 
 {
     match DATABASE!(data).create_user(name.to_string())
     {
-        Ok(_) => format!("Created user"),
-        Err(e) => format!("Error: {}", e)
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => HttpResponse::Conflict().body(format!("{}", e))
     }
 }
 
 
-#[derive(Deserialize)]
-struct MatchRes 
-{
-    winner: String,
-    loser: String,
-}
-
 #[post("/register-match")]
-async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<MatchRes>)-> impl Responder
+async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<Match>) -> HttpResponse
 {
     let res = info.into_inner();
 
-    match DATABASE!(data).register_match(res.winner, res.loser)
+    match DATABASE!(data).register_match(res)
     {
-        Ok(_) => format!("Updated elos"),
-        Err(e) => format!("Error: {}", e)
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => HttpResponse::Conflict().body(format!("{}", e))
     }
 }
 
@@ -69,7 +61,7 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
     match DATABASE!(data).get_profile(name)
     {
         Ok(data) => HttpResponse::Ok().json(data), 
-        Err(_) => HttpResponse::InternalServerError().finish()
+        Err(e) => HttpResponse::NotFound().body(format!("{}", e))
     }
 }
 
