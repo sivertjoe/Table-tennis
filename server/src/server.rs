@@ -154,7 +154,6 @@ impl DataBase
                 match_history: vec![]
             })
         })?;
-        // @TODO: Get match history
 
         match users.next()
         {

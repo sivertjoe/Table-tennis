@@ -1,2 +1,2 @@
 /server/target
-/server/src/db.db
+**/*.db
