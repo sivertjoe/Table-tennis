@@ -34,7 +34,7 @@ impl DataBase
              "create table if not exists matches (
                 winner VARCHAR(20) not null references users(name),
                 loser VARCHAR(20) not null references users(name),
-                epoch int not null
+                epoch bigint not null
                 )",
                 NO_PARAMS,).expect("Failed to create database");
 
