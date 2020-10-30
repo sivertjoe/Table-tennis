@@ -11,7 +11,7 @@ class App extends Component {
     return (
       <Suspense fallback={<div>Loading...</div>}>
         <Navbar />
-        <div class="main">
+        <div className="main">
           <Routes />
         </div>
       </Suspense>

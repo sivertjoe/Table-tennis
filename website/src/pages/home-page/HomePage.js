@@ -5,7 +5,7 @@ class HomePage extends Component {
   render() {
     return (
       <div>
-        <p class="test">Home</p>
+        <p className="test">Home</p>
       </div>
     )
   }

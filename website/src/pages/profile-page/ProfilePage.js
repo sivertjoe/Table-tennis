@@ -2,7 +2,6 @@ import { React, Component } from 'react'
 
 class ProfilePage extends Component {
   render() {
-    console.log(this)
     return (
       <div>
         <p>Profile</p>
