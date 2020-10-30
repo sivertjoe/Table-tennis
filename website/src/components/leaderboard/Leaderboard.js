@@ -1,16 +1,41 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
+import './Leaderboard.css'
 
 class Leaderboard extends Component {
+  constructor() {
+    super()
+    Api.getUsers().then((users) => this.setState({ users: users }))
+  }
   render() {
-        Api.getUsers().then((users) => (this.users = users));
-      return
-      <h1>Leaderboard</h1>
-        {this.users.map(user => {
-            <p>user.name</p>
-        })}
-    }
+    let ranking = 0
+    return (
+      <div className="container">
+        <h1 class="center">Leaderboard</h1>
+        <table>
+          <tbody>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Elo</th>
+            </tr>
+            {this.state?.users.map((user) => {
+              ranking += 1
+              return (
+                <tr>
+                  <td>{ranking}</td>
+                  <td>
+                    <a href={'/profiles/' + user.name}>{user.name}</a>
+                  </td>
+                  <td>{Math.trunc(user.elo)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 }
 
 export default Leaderboard
-
