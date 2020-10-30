@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
+import SearchBar from '../../components/search-bar/SearchBar'
 
 function formatDate(ms) {
   const d = new Date(ms)
@@ -11,34 +12,40 @@ function formatDate(ms) {
 }
 
 class Profile extends Component {
-  constructor(user) {
+  constructor(args) {
     super()
-    Api.getUser(user.user).then((user) => {
+    Api.getUser(args.user).then((user) => {
       this.setState({ user: user })
     })
   }
 
   render() {
-    console.log(this.state?.user)
+    let wins = 0
+    let losses = 0
+    const history = this.state?.user.match_history.map((elem) => {
+      elem.winner === this.state?.user.name ? (wins += 1) : (losses += 1)
+      return (
+        <tr>
+          <td>{elem.winner}</td>
+          <td>{elem.loser}</td>
+          <td>{formatDate(elem.epoch)}</td>
+        </tr>
+      )
+    })
+
     return (
       <div className="container">
         <h1 className="name">{this.state?.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.state?.user.elo ?? 0)}</h2>
-        <h2 className="history">Match history</h2>
+        <h2 className="history">Match history {wins + losses}</h2>
         <table>
           <tbody>
             <tr>
-              <th>Winner</th>
-              <th>Loser</th>
+              <th>Winner ({wins})</th>
+              <th>Loser ({losses})</th>
               <th>Date</th>
             </tr>
-            {this.state?.user.match_history.map((elem) => (
-              <tr>
-                <td>{elem.winner}</td>
-                <td>{elem.loser}</td>
-                <td>{formatDate(elem.epoch)}</td>
-              </tr>
-            ))}
+            {history}
           </tbody>
         </table>
       </div>
@@ -47,11 +54,39 @@ class Profile extends Component {
 }
 
 class Profiles extends Component {
+  users = []
+  filtered = []
+
+  constructor() {
+    super()
+    Api.getUsers().then((users) => {
+      this.users = users
+      this.filtered = users
+      this.setState({})
+    })
+
+    this.searchUsers = this.searchUsers.bind(this)
+  }
+
+  searchUsers = (search) => {
+    this.filtered = this.users.filter((u) => u.name.includes(search))
+    this.setState({})
+  }
+
   render() {
-    Api.getUsers().then((x) => console.log(x))
     return (
-      <div>
-        <p>All profiles</p>
+      <div className="container">
+        <h1>Profiles</h1>
+        <SearchBar callback={this.searchUsers} />
+        <ul>
+          {this.filtered.map((user) => (
+            <li>
+              <h2>
+                <a href={'/profiles/' + user.name}>{user.name}</a>
+              </h2>
+            </li>
+          ))}
+        </ul>
       </div>
     )
   }
