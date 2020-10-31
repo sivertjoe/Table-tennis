@@ -15,6 +15,9 @@ class Navbar extends Component {
           <h2 className="item">
             <a href="/">Home</a>
           </h2>
+          <h2 className="item">
+            <a href="/match">Match</a>
+          </h2>
         </div>
       </div>
     )

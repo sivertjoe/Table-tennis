@@ -16,3 +16,20 @@ export const register = async (username) =>
   fetch(apiUrl + '/create-user/' + username, {
     method: 'POST',
   }).then((req) => req.status === 200)
+
+export const registerMatch = async (winner, loser, epoch) => {
+  const req = await fetch(
+    apiUrl +
+      '/register-match?winner=' +
+      winner +
+      '&loser=' +
+      loser +
+      '&epoch=' +
+      epoch,
+    {
+      method: 'POST',
+    },
+  )
+
+  return await req
+}
