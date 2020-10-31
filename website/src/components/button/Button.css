@@ -1,0 +1,23 @@
+.button {
+  width: 100%;
+  margin: 2rem auto;
+  text-align: center;
+}
+
+button {
+  height: 3rem;
+  width: 10rem;
+  min-width: fit-content;
+  border-radius: 1rem;
+  font-size: 1.5rem;
+  background-size: 100% 200%;
+  background-image: linear-gradient(to top, #232730 50%, #ebf0f2 0);
+  transition: background-position 200ms, color 200ms;
+}
+
+button:hover {
+  background-position: bottom;
+  border: solid 2px #ebf0f2;
+  color: #ebf0f2;
+  cursor: pointer;
+}

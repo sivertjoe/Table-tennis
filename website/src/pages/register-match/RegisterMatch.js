@@ -3,6 +3,7 @@ import * as Api from '../../api/Api'
 import './RegisterMatch.css'
 import Select from 'react-select'
 import PropTypes from 'prop-types'
+import Button from '../../components/button/Button'
 
 class RegisterMatch extends Component {
   users = []
@@ -95,10 +96,7 @@ class RegisterMatch extends Component {
             </tr>
           </tbody>
         </table>
-        <div>
-          <button onClick={this.pressButton}>Register Match</button>
-          <label id="infoLabel"></label>
-        </div>
+        <Button placeholder="Register match" callback={this.pressButton} />
       </div>
     )
   }
