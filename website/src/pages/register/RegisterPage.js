@@ -2,6 +2,7 @@ import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './RegisterPage.css'
 import SearchBar from '../../components/search-bar/SearchBar'
+import Button from '../../components/button/Button'
 
 class RegisterPage extends Component {
   error = ''
@@ -13,11 +14,16 @@ class RegisterPage extends Component {
   }
 
   onClick() {
-    Api.register(this.input).then((res) => {
-      if (res) this.props.history.push('/profiles/' + this.input)
-      this.error = 'This username is unavailable'
+    if (this.input)
+      Api.register(this.input).then((res) => {
+        if (res) this.props.history.push('/profiles/' + this.input)
+        this.error = 'This username is unavailable'
+        this.setState({})
+      })
+    else {
+      this.error = 'Username cannot be empty'
       this.setState({})
-    })
+    }
   }
 
   saveInput(input) {
@@ -30,9 +36,7 @@ class RegisterPage extends Component {
         <h1>Create a new user</h1>
         <SearchBar placeholder="Username" callback={this.saveInput} />
         {this.error && <h2 className="error"> {this.error} </h2>}
-        <div className="button">
-          <button onClick={this.onClick}>Register</button>
-        </div>
+        <Button placeholder="Register" callback={this.onClick} />
       </div>
     )
   }
