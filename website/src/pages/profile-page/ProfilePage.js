@@ -79,8 +79,8 @@ class Profiles extends Component {
         <h1>Profiles</h1>
         <SearchBar callback={this.searchUsers} />
         <ul>
-          {this.filtered.map((user) => (
-            <li>
+          {this.filtered.map((user, i) => (
+            <li key={i}>
               <h2>
                 <a href={'/profiles/' + user.name}>{user.name}</a>
               </h2>
