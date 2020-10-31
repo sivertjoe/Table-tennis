@@ -2,12 +2,17 @@ import React from 'react'
 
 const apiUrl = 'http://localhost:58642'
 
-export const getUsers = async () => {
-  const req = await fetch(apiUrl + '/users')
-  return await req.json()
-}
+export const getUsers = async () =>
+  fetch(apiUrl + '/users')
+    .then((req) => req.json())
+    .then((res) => res)
 
-export const getUser = async (username) => {
-  const req = await fetch(apiUrl + '/user/' + username)
-  return await req.json()
-}
+export const getUser = async (username) =>
+  fetch(apiUrl + '/user/' + username)
+    .then((req) => req.json())
+    .then((res) => res)
+
+export const register = async (username) =>
+  fetch(apiUrl + '/create-user/' + username, {
+    method: 'POST',
+  }).then((req) => req.status === 200)
