@@ -7,11 +7,6 @@ import PropTypes from 'prop-types'
 class RegisterMatch extends Component {
   constructor() {
     super()
-    this.state = {
-      users: [],
-      winner: undefined,
-      loser: undefined,
-    }
     Api.getUsers().then((users) =>
       this.setState({
         users: users.map((u) => ({
@@ -20,47 +15,46 @@ class RegisterMatch extends Component {
         })),
       }),
     )
+    this.setWinner = this.setWinner.bind(this)
+    this.setLoser = this.setLoser.bind(this)
+    this.pressButton = this.pressButton.bind(this)
+  }
 
-    this.handleChangeWinner = (selectedOption) => {
-      this.setState({ winner: selectedOption.value })
-    }
-    this.handleChangeLoser = (selectedOption) => {
-      this.setState({ loser: selectedOption.value })
-    }
+  pressButton(e) {
+    let label = document.getElementById('infoLabel')
+    label.innerHTML = ''
 
-    this.pressButton = () => {
-      let label = document.getElementById('infoLabel')
-      label.innerHTML = ''
-      console.log(this.state?.winner) //????
-      const dummyvalue1 = 'Sivert'
-      const dummyvalue2 = 'Sivert'
-      const time = document.getElementById('time')
-      const epoch = new Date(time.value).getTime()
+    console.log(this.winner) //????
+    const dummyvalue1 = 'Sivert'
+    const dummyvalue2 = 'Sivert'
+    const time = document.getElementById('time')
+    const epoch = new Date(time.value).getTime()
 
-      if (epoch === NaN) {
-        label.style = 'color: rgb(255, 0, 0);'
-        label.innerHTML = 'Must select a time'
-        return
-      }
-
-      if (dummyvalue1 == dummyvalue2) {
-        label.style = 'color: rgb(255, 0, 0);'
-        label.innerHTML = "Can't be the same person"
-        return
-      }
-      if (dummyvalue1 == undefined || dummyvalue2 == undefined) {
-        label.style = 'color: rgb(255, 0, 0);'
-        label.innerHTML = 'Select two people'
-        return
-      }
-
-      Api.registerMatch(dummyvalue1, dummyvalue2, epoch).then(() => {
-        label.style = 'color: rgb(0, 255, 0);'
-        label.innerHTML = 'Added match'
-      })
+    if (epoch === NaN) {
+      label.style = 'color: rgb(255, 0, 0);'
+      label.innerHTML = 'Must select a time'
+      return
     }
 
-    this.customStyles = {
+    if (dummyvalue1 == dummyvalue2) {
+      label.style = 'color: rgb(255, 0, 0);'
+      label.innerHTML = "Can't be the same person"
+      return
+    }
+    if (dummyvalue1 == undefined || dummyvalue2 == undefined) {
+      label.style = 'color: rgb(255, 0, 0);'
+      label.innerHTML = 'Select two people'
+      return
+    }
+
+    Api.registerMatch(dummyvalue1, dummyvalue2, epoch).then(() => {
+      label.style = 'color: rgb(0, 255, 0);'
+      label.innerHTML = 'Added match'
+    })
+  }
+
+  customStyles() {
+    return {
       option: (provided) => ({
         ...provided,
         color: 'black',
@@ -74,6 +68,14 @@ class RegisterMatch extends Component {
         color: 'black',
       }),
     }
+  }
+
+  setWinner(e) {
+      console.log("uhh") // ????????
+    this.winner = e.value
+  }
+  setLoser(e) {
+    this.loser = e.value
   }
 
   render() {
@@ -90,17 +92,17 @@ class RegisterMatch extends Component {
             <tr>
               <th>
                 <Select
-                  onChange={this.handleChange}
+                  onChange={this.setWinner}
                   className="react-select-container"
-                  styles={this.customStyles}
+                  styles={customStyles}
                   options={this.state?.users}
                 />
               </th>
               <th>
                 <Select
-                  onChange={this.onChangeLoser}
+                  onChange={this.setLoser}
                   className="react-select-container"
-                  styles={this.customStyles}
+                  styles={customStyles}
                   options={this.state?.users}
                 />
               </th>
