@@ -10,9 +10,7 @@ class Button extends Component {
   }
 
   onClick() {
-    console.log(this)
-    console.log(this.callback)
-    if (this.callback) this.callback(event.target.value)
+    if (this.callback) this.callback()
   }
 
   render() {
