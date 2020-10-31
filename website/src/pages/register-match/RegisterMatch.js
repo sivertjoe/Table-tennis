@@ -5,16 +5,18 @@ import Select from 'react-select'
 import PropTypes from 'prop-types'
 
 class RegisterMatch extends Component {
+  users = []
+
   constructor() {
     super()
-    Api.getUsers().then((users) =>
-      this.setState({
-        users: users.map((u) => ({
-          value: u.name,
-          label: u.name,
-        })),
-      }),
-    )
+    Api.getUsers().then((users) => {
+      this.users = users.map((u) => ({
+        value: u.name,
+        label: u.name,
+      }))
+      this.setState({})
+    })
+
     this.setWinner = this.setWinner.bind(this)
     this.setLoser = this.setLoser.bind(this)
     this.pressButton = this.pressButton.bind(this)
@@ -53,25 +55,8 @@ class RegisterMatch extends Component {
     })
   }
 
-  customStyles() {
-    return {
-      option: (provided) => ({
-        ...provided,
-        color: 'black',
-      }),
-      control: (provided) => ({
-        ...provided,
-        color: 'black',
-      }),
-      singleValue: (provided) => ({
-        ...provided,
-        color: 'black',
-      }),
-    }
-  }
-
   setWinner(e) {
-      console.log("uhh") // ????????
+    console.log('uhh') // ????????
     this.winner = e.value
   }
   setLoser(e) {
@@ -93,17 +78,15 @@ class RegisterMatch extends Component {
               <th>
                 <Select
                   onChange={this.setWinner}
-                  className="react-select-container"
-                  styles={customStyles}
-                  options={this.state?.users}
+                  className="selector"
+                  options={this.users}
                 />
               </th>
               <th>
                 <Select
                   onChange={this.setLoser}
-                  className="react-select-container"
-                  styles={customStyles}
-                  options={this.state?.users}
+                  className="selector"
+                  options={this.users}
                 />
               </th>
               <th>
