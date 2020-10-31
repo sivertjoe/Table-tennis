@@ -27,37 +27,39 @@ class RegisterMatch extends Component {
     let label = document.getElementById('infoLabel')
     label.innerHTML = ''
 
-    console.log(this.winner) //????
-    const dummyvalue1 = 'Sivert'
-    const dummyvalue2 = 'Sivert'
     const time = document.getElementById('time')
     const epoch = new Date(time.value).getTime()
 
-    if (epoch === NaN) {
+    if (isNaN(epoch)) {
       label.style = 'color: rgb(255, 0, 0);'
       label.innerHTML = 'Must select a time'
       return
     }
 
-    if (dummyvalue1 == dummyvalue2) {
-      label.style = 'color: rgb(255, 0, 0);'
-      label.innerHTML = "Can't be the same person"
+    if (this.winner === this.loser) {
+      this.setErrorLabel(label, "Can't be the same person")
       return
     }
-    if (dummyvalue1 == undefined || dummyvalue2 == undefined) {
-      label.style = 'color: rgb(255, 0, 0);'
-      label.innerHTML = 'Select two people'
+    if (this.winner === undefined || this.loser === undefined) {
+      this.setErrorLabel(label, 'Please select two people')
       return
     }
 
-    Api.registerMatch(dummyvalue1, dummyvalue2, epoch).then(() => {
-      label.style = 'color: rgb(0, 255, 0);'
-      label.innerHTML = 'Added match'
+    Api.registerMatch(this.winner, this.loser, epoch).then(() => {
+      this.setSuccessLabel(label, 'Added match')
     })
   }
 
+  setErrorLabel(label, text) {
+    label.style = 'color: rgb(255, 0, 0);'
+    label.innerHTML = text
+  }
+  setSuccessLabel(label, text) {
+    label.style = 'color: rgb(0, 255, 0);'
+    label.innerHTML = text
+  }
+
   setWinner(e) {
-    console.log('uhh') // ????????
     this.winner = e.value
   }
   setLoser(e) {
@@ -91,12 +93,14 @@ class RegisterMatch extends Component {
                 />
               </th>
               <th>
-                <input type="datetime-local" id="time"></input>
+                <input className="date" type="datetime-local" id="time"></input>
               </th>
             </tr>
           </tbody>
         </table>
         <Button placeholder="Register match" callback={this.pressButton} />
+        <br />
+        <label id="infoLabel"></label>
       </div>
     )
   }

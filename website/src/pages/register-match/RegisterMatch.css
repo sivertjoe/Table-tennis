@@ -32,10 +32,14 @@ table {
   }
 }
 
-/*.date {
-    font-size: 20px;
-    height: fit-content;
-}*/
+th {
+  width: 33%;
+}
+
+.date {
+  font-size: 20px;
+}
+
 .selectBox {
   font-size: 20px;
 
