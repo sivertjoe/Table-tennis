@@ -11,10 +11,10 @@ class Leaderboard extends Component {
     let ranking = 0
     return (
       <div className="container">
-        <h1 class="center">Leaderboard</h1>
+        <h1 className="center">Leaderboard</h1>
         <table>
           <tbody>
-            <tr>
+            <tr key={ranking}>
               <th>Rank</th>
               <th>Name</th>
               <th>Elo</th>
@@ -22,7 +22,7 @@ class Leaderboard extends Component {
             {this.state?.users.map((user) => {
               ranking += 1
               return (
-                <tr>
+                <tr key={ranking}>
                   <td>{ranking}</td>
                   <td>
                     <a href={'/profiles/' + user.name}>{user.name}</a>
