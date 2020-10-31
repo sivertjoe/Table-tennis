@@ -7,16 +7,16 @@ class Navbar extends Component {
       <div className="navbar">
         <div className="items">
           <h2 className="item">
-            <a href="/register">Register</a>
+            <a href="/">Home</a>
+          </h2>
+          <h2 className="item">
+            <a href="/match">Match</a>
           </h2>
           <h2 className="item">
             <a href="/profiles">Profiles</a>
           </h2>
           <h2 className="item">
-            <a href="/">Home</a>
-          </h2>
-          <h2 className="item">
-            <a href="/match">Match</a>
+            <a href="/register">Register</a>
           </h2>
         </div>
       </div>
