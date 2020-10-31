@@ -2,7 +2,6 @@ import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './RegisterMatch.css'
 import Select from 'react-select'
-import PropTypes from 'prop-types'
 import Button from '../../components/button/Button'
 
 class RegisterMatch extends Component {
