@@ -6,6 +6,8 @@ import Button from '../../components/button/Button'
 
 class RegisterMatch extends Component {
   users = []
+  label = ''
+  error = true
 
   constructor() {
     super()
@@ -14,6 +16,7 @@ class RegisterMatch extends Component {
         value: u.name,
         label: u.name,
       }))
+
       this.setState({})
     })
 
@@ -23,83 +26,78 @@ class RegisterMatch extends Component {
   }
 
   pressButton(e) {
-    let label = document.getElementById('infoLabel')
-    label.innerHTML = ''
+    if (this.winner === undefined || this.loser === undefined)
+      return this.setErrorLabel('Please select two players')
+
+    if (this.winner === this.loser)
+      return this.setErrorLabel('Players cannot be the same')
 
     const time = document.getElementById('time')
     const epoch = new Date(time.value).getTime()
-
-    if (isNaN(epoch)) {
-      label.style = 'color: rgb(255, 0, 0);'
-      label.innerHTML = 'Must select a time'
-      return
-    }
-
-    if (this.winner === this.loser) {
-      this.setErrorLabel(label, "Can't be the same person")
-      return
-    }
-    if (this.winner === undefined || this.loser === undefined) {
-      this.setErrorLabel(label, 'Please select two people')
-      return
-    }
+    if (isNaN(epoch)) return this.setErrorLabel('Must select a time')
 
     Api.registerMatch(this.winner, this.loser, epoch).then(() => {
-      this.setSuccessLabel(label, 'Added match')
+      this.setSuccessLabel('Match registered successfully')
     })
   }
 
-  setErrorLabel(label, text) {
-    label.style = 'color: rgb(255, 0, 0);'
-    label.innerHTML = text
+  setErrorLabel(text) {
+    this.label = text
+    this.error = true
+    return this.setState({})
   }
-  setSuccessLabel(label, text) {
-    label.style = 'color: rgb(0, 255, 0);'
-    label.innerHTML = text
+
+  setSuccessLabel(text) {
+    this.label = text
+    this.error = false
+    return this.setState({})
   }
 
   setWinner(e) {
     this.winner = e.value
   }
+
   setLoser(e) {
     this.loser = e.value
   }
 
   render() {
+    const large = window.matchMedia('(min-width: 900px)').matches
     return (
       <div className="container">
         <h1 className="center">Register Match</h1>
         <table>
           <tbody>
             <tr>
-              <th>Winner</th>
-              <th>Loser</th>
-              <th>Date</th>
+              <th className={large ? 'large' : 'small'}>Winner</th>
+              <th className={large ? 'large' : 'small'}>Loser</th>
+              <th className={large ? 'large' : 'small'}>Date</th>
             </tr>
             <tr>
-              <th>
+              <th className={large ? 'large' : 'small'}>
                 <Select
                   onChange={this.setWinner}
                   className="selector"
                   options={this.users}
                 />
               </th>
-              <th>
+              <th className={large ? 'large' : 'small'}>
                 <Select
                   onChange={this.setLoser}
                   className="selector"
                   options={this.users}
                 />
               </th>
-              <th>
+              <th className={large ? 'large' : 'small'}>
                 <input className="date" type="datetime-local" id="time"></input>
               </th>
             </tr>
           </tbody>
         </table>
-        <Button placeholder="Register match" callback={this.pressButton} />
-        <br />
-        <label id="infoLabel"></label>
+        {this.label && (
+          <h2 className={this.error ? 'error' : 'success'}> {this.label} </h2>
+        )}
+        <Button placeholder="Submit" callback={this.pressButton} />
       </div>
     )
   }

@@ -22,10 +22,10 @@ class Profile extends Component {
   render() {
     let wins = 0
     let losses = 0
-    const history = this.state?.user.match_history.map((elem) => {
+    const history = this.state?.user.match_history.map((elem, i) => {
       elem.winner === this.state?.user.name ? (wins += 1) : (losses += 1)
       return (
-        <tr>
+        <tr key={i}>
           <td>{elem.winner}</td>
           <td>{elem.loser}</td>
           <td>{formatDate(elem.epoch)}</td>

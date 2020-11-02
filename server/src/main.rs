@@ -1,4 +1,3 @@
-//#![feature(proc_macro_hygiene, decl_macro)]
 mod server;
 mod user;
 mod r#match;
@@ -23,7 +22,7 @@ macro_rules! DATABASE
 
 
 #[post("/create-user/{name}")]
-async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse 
+async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
 {
     match DATABASE!(data).create_user(name.to_string())
     {
@@ -50,7 +49,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
     {
-        Ok(data) => HttpResponse::Ok().json(data), 
+        Ok(data) => HttpResponse::Ok().json(data),
         Err(_) => HttpResponse::NotFound().finish()
     }
 }
@@ -60,7 +59,7 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 {
     match DATABASE!(data).get_profile(name)
     {
-        Ok(data) => HttpResponse::Ok().json(data), 
+        Ok(data) => HttpResponse::Ok().json(data),
         Err(e) => HttpResponse::NotFound().body(format!("{}", e))
     }
 }
