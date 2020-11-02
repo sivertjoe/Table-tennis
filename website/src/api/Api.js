@@ -1,5 +1,3 @@
-import React from 'react'
-
 const apiUrl = 'http://localhost:58642'
 
 export const getUsers = async () =>
