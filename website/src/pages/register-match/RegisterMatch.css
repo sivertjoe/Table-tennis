@@ -7,15 +7,8 @@
   border-radius: 1rem;
   padding: 2rem 2rem;
 }
+
 .center {
-  text-align: center;
-}
-
-.name {
-  text-align: center;
-}
-
-.elo {
   text-align: center;
 }
 
@@ -26,27 +19,29 @@ table {
   border: solid 1px #ebf0f2;
   border-radius: 0.5rem;
   border-spacing: 1rem;
-
-  tr {
-    border: solid 1px white;
-  }
 }
 
-th {
+.large {
   width: 33%;
+}
+
+.small {
+  display: grid;
+  width: 100%;
 }
 
 .date {
   font-size: 20px;
 }
 
-.selectBox {
-  font-size: 20px;
-
-  width: 100%;
-  height: fit-content;
-}
-
 .selector {
   color: black;
+}
+
+.error {
+  color: red;
+}
+
+.success {
+  color: green;
 }
