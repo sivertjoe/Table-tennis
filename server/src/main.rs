@@ -7,7 +7,7 @@ use server::DataBase;
 use r#match::Match;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use actix_web::middleware::Logger;
+use actix_cors::Cors;
 
 use std::sync::{Mutex, Arc};
 
@@ -75,8 +75,7 @@ async fn main() -> std::io::Result<()>
     HttpServer::new(move || {
         App::new()
             .data(data.clone())
-            .wrap(Logger::default())
-            .wrap(Logger::new("%a %{User-Agent}i"))
+            .wrap(Cors::default().allow_any_header())
             .service(create_user)
             .service(get_profile)
             .service(get_users)
