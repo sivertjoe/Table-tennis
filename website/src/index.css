@@ -32,6 +32,10 @@ code {
   bottom: 0;
 }
 
+.mobile {
+  top: 2rem;
+}
+
 .container {
   background-color: #1c1b1b;
   width: 80%;
