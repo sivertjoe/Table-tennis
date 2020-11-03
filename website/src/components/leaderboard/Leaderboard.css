@@ -14,11 +14,4 @@ table {
   width: 100%;
   margin: auto auto;
   text-align: center;
-  border: solid 1px #ebf0f2;
-  border-radius: 0.5rem;
-  border-spacing: 1rem;
-
-  tr {
-    border: solid 1px white;
-  }
 }
