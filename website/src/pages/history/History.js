@@ -2,20 +2,12 @@ import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './History.css'
 
-function arrayToObject(array) {
-  return array.reduce((res, cur) => {
-    res[cur['name']] = Math.trunc(cur['elo'])
-    return res
-  }, {})
-}
-
 class History extends Component {
   constructor() {
     super()
-    Promise.all([Api.getHistory(), Api.getUsers()]).then(([history, users]) =>
+    Api.getHistory().then((history) =>
       this.setState({
         history: history,
-        users: arrayToObject(users),
       }),
     )
   }
@@ -40,21 +32,15 @@ class History extends Component {
                     <a href={'/profiles/' + match.winner}>{match.winner}</a>
                   </td>
                   <td>
-                    {this.state?.users[match.winner]} (
-                    <div className="green">
-                      +{Math.trunc(match.winner_elo_diff)}
-                    </div>
-                    )
+                    {Math.trunc(match.winner_elo)} (
+                    <div className="green">+{Math.trunc(match.elo_diff)}</div>)
                   </td>
                   <td>
                     <a href={'/profiles/' + match.loser}>{match.loser}</a>
                   </td>
                   <td>
-                    {this.state?.users[match.winner]} (
-                    <div className="red">
-                      -{Math.trunc(match.winner_elo_diff)}
-                    </div>
-                    )
+                    {Math.trunc(match.loser_elo)} (
+                    <div className="red">-{Math.trunc(match.elo_diff)}</div>)
                   </td>
                 </tr>
               )

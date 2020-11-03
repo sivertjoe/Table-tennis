@@ -33,8 +33,9 @@ impl DataBase
         conn.execute(
              "create table if not exists matches (
                 epoch bigint not null,
-                winner_elo_diff integer,
-                loser_elo_diff integer,
+                elo_diff integer,
+                winner_elo float,
+                loser_elo float,
 
                 winner integer,
                 loser integer,
@@ -75,7 +76,7 @@ impl DataBase
     
         self.update_elo(winner.id, new_winner_elo)?;
         self.update_elo(loser.id, new_loser_elo)?;
-        self.create_match(m.epoch, &winner, &loser, new_winner_elo - winner.elo,  new_loser_elo - loser.elo)?;
+        self.create_match(m.epoch, &winner, &loser, new_winner_elo - winner.elo)?;
         Ok(0)
     }
 
@@ -92,7 +93,7 @@ impl DataBase
     fn get_all_matches(&self) -> Result<Vec<Match>>
     {
         let mut stmt 
-          = self.conn.prepare("select a.name, b.name, winner_elo_diff, loser_elo_diff, epoch from matches
+          = self.conn.prepare("select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
                                inner join users as a on a.id = winner
                                inner join users as b on b.id = loser;")?;
         let matches = stmt.query_map(NO_PARAMS, |row|
@@ -100,9 +101,10 @@ impl DataBase
             Ok(Match {
                 winner: row.get(0)?,
                 loser: row.get(1)?,
-                winner_elo_diff: row.get(2)?,
-                loser_elo_diff: row.get(3)?,
-                epoch: row.get(4)?,
+                elo_diff: row.get(2)?,
+                winner_elo: row.get(3)?,
+                loser_elo: row.get(4)?,
+                epoch: row.get(5)?,
 
             })
         })?;
@@ -119,11 +121,11 @@ impl DataBase
         Ok(vec)
 
     }
-    fn create_match(&self, epoch: i64, winner: &User, loser: &User, winner_elo_diff: f64, loser_elo_diff: f64) -> Result<usize>
+    fn create_match(&self, epoch: i64, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
     {
         self.conn.execute(
-            "insert into matches (epoch, winner, loser, winner_elo_diff, loser_elo_diff) values (?1, ?2, ?3, ?4, ?5)",
-            params![epoch, winner.id, loser.id, winner_elo_diff, loser_elo_diff],)
+            "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![epoch, winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> Result<usize>
@@ -134,7 +136,7 @@ impl DataBase
 
     fn get_matches(&self, id: i64) -> Result<impl Iterator<Item=Match>>
     {
-        let s = "select a.name, b.name, winner_elo_diff, loser_elo_diff, epoch
+        let s = "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch
                 from matches 
                 inner join users as a on a.id = winner
                 inner join users as b on b.id = loser
@@ -145,9 +147,10 @@ impl DataBase
             Ok(Match {
                 winner: row.get(0)?,
                 loser: row.get(1)?,
-                winner_elo_diff: row.get(2)?,
-                loser_elo_diff: row.get(3)?,
-                epoch: row.get(4)?,
+                elo_diff: row.get(2)?,
+                winner_elo: row.get(3)?,
+                loser_elo: row.get(4)?,
+                epoch: row.get(5)?,
             })
         })?;
 

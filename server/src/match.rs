@@ -9,8 +9,10 @@ pub struct Match
     pub winner: String,
     pub loser: String,
     #[serde(skip_deserializing)]
-    pub winner_elo_diff: f64,
+    pub elo_diff: f64,
     #[serde(skip_deserializing)]
-    pub loser_elo_diff: f64,
+    pub winner_elo: f64,
+    #[serde(skip_deserializing)]
+    pub loser_elo: f64,
 }
 
