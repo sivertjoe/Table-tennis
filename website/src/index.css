@@ -16,5 +16,9 @@ code {
 }
 
 .main {
-    margin-top: 6rem;
+  position: fixed;
+  top: 5rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
