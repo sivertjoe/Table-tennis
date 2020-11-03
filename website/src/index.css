@@ -33,3 +33,11 @@ code {
   padding: 2rem 2rem;
 }
 
+.table-container {
+  max-height: 60vh;
+  overflow-y: scroll;
+  border: solid 1px #ebf0f2;
+  border-radius: 0.5rem;
+  border-spacing: 1rem;
+}
+

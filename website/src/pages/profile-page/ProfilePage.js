@@ -39,16 +39,18 @@ class Profile extends Component {
         <h1 className="name">{this.state?.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.state?.user.elo ?? 0)}</h2>
         <h2 className="history">Match history {wins + losses}</h2>
-        <table>
-          <tbody>
-            <tr>
-              <th>Winner ({wins})</th>
-              <th>Loser ({losses})</th>
-              <th>Date</th>
-            </tr>
-            {history}
-          </tbody>
-        </table>
+        <div className="table-container">
+          <table>
+            <tbody>
+              <tr>
+                <th>Winner ({wins})</th>
+                <th>Loser ({losses})</th>
+                <th>Date</th>
+              </tr>
+              {history}
+            </tbody>
+          </table>
+        </div>
       </div>
     )
   }
@@ -79,7 +81,7 @@ class Profiles extends Component {
       <div className="container">
         <h1>Profiles</h1>
         <SearchBar callback={this.searchUsers} />
-        <ul>
+        <ul className="table-container">
           {this.filtered.map((user, i) => (
             <li key={i}>
               <h2>
