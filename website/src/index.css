@@ -15,6 +15,15 @@ code {
     monospace;
 }
 
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ebf0f2;
+  border-radius: 10px;
+}
+
 .main {
   position: fixed;
   top: 5rem;
@@ -40,4 +49,3 @@ code {
   border-radius: 0.5rem;
   border-spacing: 1rem;
 }
-
