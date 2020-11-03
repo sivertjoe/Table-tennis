@@ -22,8 +22,8 @@ class Navbar extends Component {
     return (
       <div className="navbar">
         <div className="items">
-          {this.items.map((item) => (
-            <h2 className="item">
+          {this.items.map((item, i) => (
+            <h2 key={i} className="item">
               <a href={item.path}>{item.name}</a>
             </h2>
           ))}
@@ -33,7 +33,6 @@ class Navbar extends Component {
   }
 
   renderMobile() {
-    console.log(this.menuOpen)
     return (
       <div>
         <button className="hamburger" onClick={this.toggleMenu}>
@@ -44,8 +43,8 @@ class Navbar extends Component {
           <div className={'overlay ' + (this.menuOpen ? 'overlay-open' : '')} onClick={this.toggleMenu}>
           <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
             <ul className="list">
-              {this.items.map((item) => (
-                <li>
+              {this.items.map((item, i) => (
+                <li key={i}>
                   <h2>
                     <a href={item.path}>{item.name}</a>
                   </h2>
