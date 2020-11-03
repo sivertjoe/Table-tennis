@@ -10,6 +10,11 @@ export const getUser = async (username) =>
     .then((req) => req.json())
     .then((res) => res)
 
+export const getHistory = async (username) =>
+  fetch(apiUrl + '/history')
+    .then((req) => req.json())
+    .then((res) => res)
+
 export const register = async (username) =>
   fetch(apiUrl + '/create-user/' + username, {
     method: 'POST',

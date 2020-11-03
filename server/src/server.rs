@@ -78,12 +78,47 @@ impl DataBase
         self.create_match(m.epoch, &winner, &loser, new_winner_elo - winner.elo,  new_loser_elo - loser.elo)?;
         Ok(0)
     }
+
+    pub fn get_history(&self) -> Result<Vec<Match>>
+    {
+        self.get_all_matches()
+    }
 }
 
 
 // Only private  functions here ~!
 impl DataBase
 {
+    fn get_all_matches(&self) -> Result<Vec<Match>>
+    {
+        let mut stmt 
+          = self.conn.prepare("select a.name, b.name, winner_elo_diff, loser_elo_diff, epoch from matches
+                               inner join users as a on a.id = winner
+                               inner join users as b on b.id = loser;")?;
+        let matches = stmt.query_map(NO_PARAMS, |row|
+        {
+            Ok(Match {
+                winner: row.get(0)?,
+                loser: row.get(1)?,
+                winner_elo_diff: row.get(2)?,
+                loser_elo_diff: row.get(3)?,
+                epoch: row.get(4)?,
+
+            })
+        })?;
+
+        let mut vec = Vec::new();
+        for m in matches
+        {
+            if let Ok(u) = m
+            {
+                vec.push(u);
+            };
+        }
+        vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+        Ok(vec)
+
+    }
     fn create_match(&self, epoch: i64, winner: &User, loser: &User, winner_elo_diff: f64, loser_elo_diff: f64) -> Result<usize>
     {
         self.conn.execute(

@@ -3,7 +3,7 @@ import './Navbar.css'
 
 class Navbar extends Component {
   render() {
-    const large = window.matchMedia('(min-width: 450px)').matches
+    const large = window.matchMedia('(min-width: 600px)').matches
     return (
       <div className="navbar">
         <div className="items">
@@ -12,6 +12,9 @@ class Navbar extends Component {
           </h2>
           <h2 className={`item ${large ? '' : 'small'}`}>
             <a href="/match">Match</a>
+          </h2>
+          <h2 className={`item ${large ? '' : 'small'}`}>
+            <a href="/history">History</a>
           </h2>
           <h2 className={`item ${large ? '' : 'small'}`}>
             <a href="/profiles">Profiles</a>

@@ -53,6 +53,15 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Err(_) => HttpResponse::NotFound().finish()
     }
 }
+#[get("/history")]
+async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_history()
+    {
+        Ok(data) => HttpResponse::Ok().json(data),
+        Err(_) => HttpResponse::NotFound().finish()
+    }
+}
 
 #[get("/user/{name}")]
 async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
@@ -79,6 +88,7 @@ async fn main() -> std::io::Result<()>
             .service(get_profile)
             .service(get_users)
             .service(register_match)
+            .service(get_history)
     })
     .bind(format!("0.0.0.0:{}", PORT))?
     .run()
