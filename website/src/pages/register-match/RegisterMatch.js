@@ -37,19 +37,13 @@ class RegisterMatch extends Component {
     if (isNaN(epoch)) return this.setErrorLabel('Must select a time')
 
     Api.registerMatch(this.winner, this.loser, epoch).then(() => {
-      this.setSuccessLabel('Match registered successfully')
+      this.props.history.push('/')
     })
   }
 
   setErrorLabel(text) {
     this.label = text
     this.error = true
-    return this.setState({})
-  }
-
-  setSuccessLabel(text) {
-    this.label = text
-    this.error = false
     return this.setState({})
   }
 
