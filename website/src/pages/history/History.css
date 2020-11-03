@@ -12,17 +12,19 @@
   text-align: center;
 }
 
-table {
-  width: 100%;
-  margin: auto auto;
-  text-align: center;
+.table-container {
+  max-height: 60vh;
+  overflow-y: scroll;
   border: solid 1px #ebf0f2;
   border-radius: 0.5rem;
   border-spacing: 1rem;
+}
 
-  tr {
-    border: solid 1px white;
-  }
+table {
+  width: 100%;
+  height: 100%;
+  margin: auto auto;
+  text-align: center;
 }
 
 .red {
