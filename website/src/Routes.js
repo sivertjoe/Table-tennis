@@ -1,5 +1,5 @@
 import { React, lazy } from 'react'
-import { Switch, Route } from 'react-router-dom'
+import { Switch, Route, Redirect } from 'react-router-dom'
 
 const HomePage = lazy(() => import('./pages/home-page/HomePage'))
 const RegisterPage = lazy(() => import('./pages/register/RegisterPage'))
@@ -15,6 +15,7 @@ const Routes = () => (
     <Route exact path="/profiles/:user" component={ProfilePage} />
     <Route exact path="/match" component={RegisterMatch} />
     <Route exact path="/history" component={History} />
+    <Redirect to="/" />
   </Switch>
 )
 
