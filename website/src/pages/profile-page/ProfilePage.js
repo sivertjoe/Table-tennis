@@ -13,18 +13,21 @@ function formatDate(ms) {
 }
 
 class Profile extends Component {
+  user = {}
+
   constructor(args) {
     super()
     Api.getUser(args.user).then((user) => {
-      this.setState({ user: user })
+      this.user = user
+      this.setState({})
     })
   }
 
   render() {
     let wins = 0
     let losses = 0
-    const history = this.state?.user.match_history.map((elem, i) => {
-      elem.winner === this.state?.user.name ? (wins += 1) : (losses += 1)
+    const history = this.user.match_history?.map((elem, i) => {
+      elem.winner === this.user.name ? (wins += 1) : (losses += 1)
       return (
         <tr key={i}>
           <td>{elem.winner}</td>
@@ -36,8 +39,8 @@ class Profile extends Component {
 
     return (
       <div className="container">
-        <h1 className="name">{this.state?.user.name}</h1>
-        <h2 className="elo">{Math.trunc(this.state?.user.elo ?? 0)}</h2>
+        <h1 className="name">{this.user.name}</h1>
+        <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
         <h2 className="history">Match history {wins + losses}</h2>
         <div className="table-container">
           <table>

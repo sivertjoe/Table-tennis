@@ -4,10 +4,16 @@ import './Leaderboard.css'
 import '../../index.css'
 
 class Leaderboard extends Component {
+  users = []
+
   constructor() {
     super()
-    Api.getUsers().then((users) => this.setState({ users: users }))
+    Api.getUsers().then((users) => {
+      this.users = users
+      this.setState({})
+    })
   }
+
   render() {
     let ranking = 0
     return (
@@ -21,7 +27,7 @@ class Leaderboard extends Component {
                 <th>Name</th>
                 <th>Elo</th>
               </tr>
-              {this.state?.users.map((user) => {
+              {this.users.map((user) => {
                 ranking += 1
                 return (
                   <tr key={ranking}>

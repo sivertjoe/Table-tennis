@@ -4,14 +4,16 @@ import './History.css'
 import '../../index.css'
 
 class History extends Component {
+  history = []
+
   constructor() {
     super()
-    Api.getHistory().then((history) =>
-      this.setState({
-        history: history,
-      }),
-    )
+    Api.getHistory().then((history) => {
+      this.history = history
+      this.setState({})
+    })
   }
+
   render() {
     let ranking = 0
     return (
@@ -26,7 +28,7 @@ class History extends Component {
                 <th>Loser</th>
                 <th>New Elo</th>
               </tr>
-              {this.state?.history.map((match) => {
+              {this.history.map((match) => {
                 ranking += 1
                 return (
                   <tr key={ranking}>
