@@ -57,6 +57,11 @@ class RegisterMatch extends Component {
   }
 
   render() {
+    const d = new Date()
+    const currentDate = `${d.getFullYear()}-${('0' + d.getMonth()).slice(
+      -2,
+    )}-${('0' + d.getDate()).slice(-2)}T${d.getHours()}:${d.getMinutes()}`
+
     const large = window.matchMedia('(min-width: 900px)').matches
     return (
       <div className="container">
@@ -84,7 +89,12 @@ class RegisterMatch extends Component {
                 />
               </th>
               <th className={large ? 'large' : 'small'}>
-                <input className="date" type="datetime-local" id="time"></input>
+                <input
+                  id="time"
+                  className="date"
+                  type="datetime-local"
+                  defaultValue={currentDate}
+                ></input>
               </th>
             </tr>
           </tbody>
