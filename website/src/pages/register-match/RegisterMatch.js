@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './RegisterMatch.css'
+import '../../index.css'
 import Select from 'react-select'
 import Button from '../../components/button/Button'
 

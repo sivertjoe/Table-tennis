@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './RegisterPage.css'
+import '../../index.css'
 import SearchBar from '../../components/search-bar/SearchBar'
 import Button from '../../components/button/Button'
 

@@ -22,3 +22,14 @@ code {
   right: 0;
   bottom: 0;
 }
+
+.container {
+  background-color: #1c1b1b;
+  width: 80%;
+  max-width: 60rem;
+  height: fit-content;
+  margin: 2rem auto auto auto;
+  border-radius: 1rem;
+  padding: 2rem 2rem;
+}
+
