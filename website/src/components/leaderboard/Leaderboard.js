@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './Leaderboard.css'
+import '../../index.css'
 
 class Leaderboard extends Component {
   constructor() {

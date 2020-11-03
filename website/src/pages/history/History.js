@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './History.css'
+import '../../index.css'
 
 class History extends Component {
   constructor() {

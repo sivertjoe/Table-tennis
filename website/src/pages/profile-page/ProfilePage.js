@@ -1,6 +1,7 @@
 import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
+import '../../index.css'
 import SearchBar from '../../components/search-bar/SearchBar'
 
 function formatDate(ms) {
