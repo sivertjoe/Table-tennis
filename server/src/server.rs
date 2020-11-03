@@ -32,9 +32,14 @@ impl DataBase
 
         conn.execute(
              "create table if not exists matches (
-                winner VARCHAR(20) not null references users(name),
-                loser VARCHAR(20) not null references users(name),
-                epoch bigint not null
+                epoch bigint not null,
+                winner_elo_diff integer,
+                loser_elo_diff integer,
+
+                winner integer,
+                loser integer,
+                foreign key(winner) references users(id),
+                foreign key(loser) references users(id)
                 )",
                 NO_PARAMS,).expect("Failed to create database");
 
@@ -63,13 +68,14 @@ impl DataBase
 
     pub fn register_match(&self, m: Match) -> Result<usize>
     {
-        let (winner_elo, loser_elo) = self.get_elo_scores(&m.winner, &m.loser)?;
+        let (winner, loser) = (self.get_user_without_matches(&m.winner)?, 
+                                       self.get_user_without_matches(&m.loser)?);
         let elo = EloRank { k: 32 };
-        let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
+        let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
     
-        self.update_elo(&m.winner, new_winner_elo)?;
-        self.update_elo(&m.loser, new_loser_elo)?;
-        self.create_match(&m)?;
+        self.update_elo(winner.id, new_winner_elo)?;
+        self.update_elo(loser.id, new_loser_elo)?;
+        self.create_match(m.epoch, &winner, &loser, new_winner_elo - winner.elo,  new_loser_elo - loser.elo)?;
         Ok(0)
     }
 }
@@ -78,28 +84,35 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
-    fn create_match(&self, m: &Match) -> Result<usize>
+    fn create_match(&self, epoch: i64, winner: &User, loser: &User, winner_elo_diff: f64, loser_elo_diff: f64) -> Result<usize>
     {
         self.conn.execute(
-            "insert into matches (winner, loser, epoch) values (?1, ?2, ?3)",
-            params![m.winner, m.loser, m.epoch],)
+            "insert into matches (epoch, winner, loser, winner_elo_diff, loser_elo_diff) values (?1, ?2, ?3, ?4, ?5)",
+            params![epoch, winner.id, loser.id, winner_elo_diff, loser_elo_diff],)
     }
 
-    fn update_elo(&self, name: &String, elo: f64) -> Result<usize>
+    fn update_elo(&self, id: i64, elo: f64) -> Result<usize>
     {
-        let mut stmt = self.conn.prepare("update users  set elo = :elo WHERE name like :name")?;
-        stmt.execute_named(named_params!{":elo": elo, ":name": name})
+        let mut stmt = self.conn.prepare("update users  set elo = :elo WHERE id = :id")?;
+        stmt.execute_named(named_params!{":elo": elo, ":id": id})
     }
 
-    fn get_matches(&self, name: &String) -> Result<impl Iterator<Item=Match>>
+    fn get_matches(&self, id: i64) -> Result<impl Iterator<Item=Match>>
     {
-        let mut stmt = self.conn.prepare("select * from matches where winner like :name or loser like  :name;")?;
-        let matches = stmt.query_map_named(named_params!{":name" : name}, |row|
+        let s = "select a.name, b.name, winner_elo_diff, loser_elo_diff, epoch
+                from matches 
+                inner join users as a on a.id = winner
+                inner join users as b on b.id = loser
+                where winner = :id or loser = :id";
+        let mut stmt = self.conn.prepare(s)?;
+        let matches = stmt.query_map_named(named_params!{":id" : id}, |row|
         {
             Ok(Match {
                 winner: row.get(0)?,
                 loser: row.get(1)?,
-                epoch: row.get(2)?,
+                winner_elo_diff: row.get(2)?,
+                loser_elo_diff: row.get(3)?,
+                epoch: row.get(4)?,
             })
         })?;
 
@@ -142,6 +155,29 @@ impl DataBase
         Ok(vec.into_iter())
     }
 
+    fn get_user_without_matches(&self, name: &String) -> Result<User>
+    {
+        let mut stmt = self.conn.prepare("select * from users where name like :name")?;
+        let mut users = stmt.query_map_named(named_params!{":name": name}, |row|
+        {
+            Ok(User {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                elo: row.get(2)?,
+                match_history: Vec::new(),
+            })
+    })?;
+
+        match users.next()
+        {
+            Some(Ok(user)) => 
+            {
+                Ok(user)
+            },
+            Some(Err(e)) => Err(e),
+            None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
+        }
+    }
     fn get_user(&self, name: &String) -> Result<User>
     {
         let mut stmt = self.conn.prepare("select * from users where name like :name")?;
@@ -159,19 +195,11 @@ impl DataBase
         {
             Some(Ok(mut user)) => 
             {
-                user.match_history = self.get_matches(&user.name)?.collect();
+                user.match_history = self.get_matches(user.id)?.collect();
                 Ok(user)
             },
             Some(Err(e)) => Err(e),
             None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
         }
-    }
-
-    fn get_elo_scores(&self, name1: &String, name2: &String) -> Result<(f64, f64)>
-    {
-        let score1 = self.get_user(name1)?.elo;
-        let score2 = self.get_user(name2)?.elo;
-
-        Ok((score1, score2))
     }
 }
