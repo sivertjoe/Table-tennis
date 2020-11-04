@@ -58,7 +58,9 @@ class RegisterMatch extends Component {
     const d = new Date()
     const currentDate = `${d.getFullYear()}-${('0' + d.getMonth()).slice(
       -2,
-    )}-${('0' + d.getDate()).slice(-2)}T${d.getHours()}:${d.getMinutes()}`
+    )}-${('0' + d.getDate()).slice(-2)}T${('0' + d.getHours()).slice(-2)}:${(
+      '0' + d.getMinutes()
+    ).slice(-2)}`
 
     const large = window.matchMedia('(min-width: 900px)').matches
     return (
