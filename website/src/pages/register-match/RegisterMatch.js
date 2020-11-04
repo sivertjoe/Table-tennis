@@ -7,8 +7,7 @@ import Button from '../../components/button/Button'
 
 class RegisterMatch extends Component {
   users = []
-  label = ''
-  error = true
+  error = ''
 
   constructor() {
     super()
@@ -43,8 +42,7 @@ class RegisterMatch extends Component {
   }
 
   setErrorLabel(text) {
-    this.label = text
-    this.error = true
+    this.error = text
     return this.setState({})
   }
 
@@ -99,8 +97,8 @@ class RegisterMatch extends Component {
             </tr>
           </tbody>
         </table>
-        {this.label && (
-          <h2 className={this.error ? 'error' : 'success'}> {this.label} </h2>
+        {this.error && (
+          <h2 className={this.error ? 'error' : 'success'}> {this.error} </h2>
         )}
         <Button placeholder="Submit" callback={this.pressButton} />
       </div>
