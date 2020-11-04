@@ -1,2 +1,3 @@
 /server/target
+/server/src/default_password.txt
 **/*.db
