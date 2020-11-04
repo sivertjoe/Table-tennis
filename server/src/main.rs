@@ -24,7 +24,8 @@ macro_rules! DATABASE
 #[post("/create-user/{name}")]
 async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
 {
-    match DATABASE!(data).create_user(name.to_string())
+    let password = "@test".to_string();
+    match DATABASE!(data).create_user(name.to_string(), password)
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
@@ -41,6 +42,33 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
+    }
+}
+
+#[post("/login")]
+async fn login(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    let name = "Sivert".to_string();
+    let passwd = "@new".to_string();
+
+    match DATABASE!(data).login(name, passwd)
+    {
+        Ok(uuid) => HttpResponse::Ok().json(uuid),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
+#[post("/change-password")]
+async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    let name = "Sivert".to_string();
+    let passwd = "@uit".to_string();
+    let new_password = "@new".to_string();
+
+    match DATABASE!(data).change_password(name, passwd, new_password)
+    {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
     }
 }
 
@@ -75,11 +103,13 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 
 
 
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
 
     let data = Arc::new(Mutex::new(DataBase::new()));
+    //data.lock().expect("Getting lock").migrate();
     HttpServer::new(move || {
         App::new()
             .data(data.clone())
@@ -89,6 +119,8 @@ async fn main() -> std::io::Result<()>
             .service(get_users)
             .service(register_match)
             .service(get_history)
+            .service(login)
+            .service(change_password)
     })
     .bind(format!("0.0.0.0:{}", PORT))?
     .run()

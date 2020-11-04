@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
 use crate::user::User;
 use elo::EloRank;
@@ -22,11 +23,14 @@ impl DataBase
             Ok(c) => c
         };
 
+
         conn.execute(
             "create table if not exists users (
                 id integer primary key autoincrement,
                 name VARCHAR(20) not null unique,
-                elo float  default 1500.0
+                elo float  default 1500.0,
+                password_hash varchar(64) not null,
+                uuid varchar(36) not null
                 )",
                 NO_PARAMS,).expect("Failed to create database");
 
@@ -36,7 +40,6 @@ impl DataBase
                 elo_diff integer,
                 winner_elo float,
                 loser_elo float,
-
                 winner integer,
                 loser integer,
                 foreign key(winner) references users(id),
@@ -48,12 +51,40 @@ impl DataBase
             conn: conn
         }
     }
+    pub fn migrate(&self)
+    {
+        let default_password = DataBase::get_default_password();
+        self.conn.execute(
+            &format!("alter table users
+                add password_hash varchar(64) default \"{}\"",
+                default_password),
+                NO_PARAMS,).expect("Adding password_hash field");
 
-    pub fn create_user(&self, new_user: String) -> Result<usize>
+        self.conn.execute(
+            "alter table users
+                add uuid varchar(36)",
+                NO_PARAMS,).expect("Adding uuid field");
+
+
+        let users = self.get_all_users().expect("Getting all users");
+        let mut stmt = self.conn.prepare("update users  set uuid = :uuid WHERE id = :id").expect("creating statement");
+        for user in users
+        {
+            let uuid = format!("{}", Uuid::new_v4());
+            stmt.execute_named(named_params!{":uuid": uuid, ":id": user.id}).expect("Adding user uuid");
+        }
+    }
+
+    pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
+    {
+        self.try_login(name, password)
+    }
+
+    pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
     {
         self.conn.execute(
-            "insert into users (name) values (?1)",
-            params![new_user],
+            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
+            params![new_user, self.hash(&password), format!("{}", Uuid::new_v4())],
             )
     }
 
@@ -84,12 +115,84 @@ impl DataBase
     {
         self.get_all_matches()
     }
+
+    pub fn change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
+    {
+        self.try_change_password(name, password, new_password)
+    }
 }
 
 
 // Only private  functions here ~!
 impl DataBase
 {
+    fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
+    {
+        let mut stmt = self.conn.prepare("select id, password_hash from users where name like :name;")?;
+        let info = stmt.query_map_named(named_params!{":name" : name}, |row|
+        {
+            let id: i64 = row.get(0)?;
+            let passwd: String = row.get(1)?;
+            Ok((id, passwd))
+        })?.next().expect("getting user");
+
+        match info
+        {
+            Ok((id, p)) =>
+            {
+                if self.hash(&password) == p
+                {
+                    return self.update_password(id, new_password);
+                }
+
+                return Err(rusqlite::Error::InvalidParameterName("Password did not match".to_string()))
+            },
+            _ => Err(rusqlite::Error::InvalidParameterName("Error finding user..".to_string()))
+        }
+    }
+
+    fn update_password(&self, id: i64, new_password: String) -> Result<usize>
+    {
+        let hash = self.hash(&new_password);
+        let mut stmt = self.conn.prepare("update users  set password_hash = :hash WHERE id = :id")?;
+        stmt.execute_named(named_params!{":hash": hash, ":id": id})
+    }
+
+    fn try_login(&self, name: String, password: String) -> Result<String>
+    {
+        let mut stmt = self.conn.prepare("select password_hash, uuid from users where name like :name;")?;
+        let info = stmt.query_map_named(named_params!{":name" : name}, |row|
+        {
+            let passwd: String = row.get(0)?;
+            let uuid: String = row.get(1)?;
+            Ok((passwd, uuid))
+        })?.next().expect("getting user");
+
+        match info
+        {
+            Ok((p, u)) =>
+            {
+                if self.hash(&password) == p
+                {
+                    return Ok(u);
+                }
+
+                return Err(rusqlite::Error::InvalidParameterName("Password did not match".to_string()))
+            },
+            _ => Err(rusqlite::Error::InvalidParameterName("Error finding user..".to_string()))
+        }
+
+    }
+
+    fn hash(&self, word: &String) -> String
+    {
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(word);
+        let result = hasher.finalize();
+        format!("{:x}", result)
+    }
+
     fn get_all_matches(&self) -> Result<Vec<Match>>
     {
         let mut stmt 
@@ -169,13 +272,12 @@ impl DataBase
 
     fn get_all_users(&self) -> Result<impl Iterator<Item=User>>
     {
-        let mut stmt = self.conn.prepare("select * from users;")?;
+        let mut stmt = self.conn.prepare("select id, name, elo from users;")?;
         let users = stmt.query_map(NO_PARAMS, |row|
         {
-            let name: String = row.get(1)?;
             Ok(User {
                 id: row.get(0)?,
-                name: name,
+                name: row.get(1)?,
                 elo: row.get(2)?,
                 match_history: Vec::new()
             })
@@ -195,7 +297,7 @@ impl DataBase
 
     fn get_user_without_matches(&self, name: &String) -> Result<User>
     {
-        let mut stmt = self.conn.prepare("select * from users where name like :name")?;
+        let mut stmt = self.conn.prepare("select id, name, elo from users where name like :name")?;
         let mut users = stmt.query_map_named(named_params!{":name": name}, |row|
         {
             Ok(User {
@@ -218,7 +320,7 @@ impl DataBase
     }
     fn get_user(&self, name: &String) -> Result<User>
     {
-        let mut stmt = self.conn.prepare("select * from users where name like :name")?;
+        let mut stmt = self.conn.prepare("select id, name, elo from users where name like :name")?;
         let mut users = stmt.query_map_named(named_params!{":name": name}, |row|
         {
             Ok(User {
@@ -239,5 +341,23 @@ impl DataBase
             Some(Err(e)) => Err(e),
             None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
         }
+    }
+
+    fn get_default_password() -> String
+    {
+        use std::io::prelude::*;
+        use std::io::BufReader;
+        use std::fs::File;
+        use sha2::{Sha256, Digest};
+
+        let mut buffer = String::new();
+        let file = File::open("default_password.txt").expect("Opening default password file");
+        let mut reader = BufReader::new(file);
+        reader.read_line(&mut buffer).expect("Reading line");
+
+        let mut hasher = Sha256::new();
+        hasher.update(&buffer.trim_end_matches("\n"));
+        let result = hasher.finalize();
+        format!("{:x}", result)
     }
 }
