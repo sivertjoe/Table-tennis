@@ -9,6 +9,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
 
 use std::sync::{Mutex, Arc};
+use std::env::args;
 
 const PORT: u32 = 58642;
 
@@ -107,8 +108,14 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
-
-    let data = Arc::new(Mutex::new(DataBase::new()));
+    let args: Vec<String> = args().collect();
+    let mut addr = "0.0.0.0";
+    if args.len() > 1
+    {
+        // Assume the IP is passed
+         addr = args[0].as_str();
+    }
+    data = Arc::new(Mutex::new(DataBase::new()));
     //data.lock().expect("Getting lock").migrate();
     HttpServer::new(move || {
         App::new()
@@ -122,7 +129,7 @@ async fn main() -> std::io::Result<()>
             .service(login)
             .service(change_password)
     })
-    .bind(format!("0.0.0.0:{}", PORT))?
+    .bind(format!("{}:{}", addr, PORT))?
     .run()
     .await
 }
