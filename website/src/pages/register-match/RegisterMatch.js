@@ -56,7 +56,7 @@ class RegisterMatch extends Component {
 
   render() {
     const d = new Date()
-    const currentDate = `${d.getFullYear()}-${('0' + d.getMonth()).slice(
+    const currentDate = `${d.getFullYear()}-${('0' + (d.getMonth() + 1)).slice(
       -2,
     )}-${('0' + d.getDate()).slice(-2)}T${('0' + d.getHours()).slice(-2)}:${(
       '0' + d.getMinutes()
