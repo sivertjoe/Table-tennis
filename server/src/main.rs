@@ -46,6 +46,20 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<
     }
 }
 
+#[post("respond-to-match")]
+async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<Match>) -> HttpResponse
+{
+    let id = 0;
+    let answer = true;
+    let token: String = "".to_string();
+
+    match DATABASE!(data).response_to_match(id, answer, token)
+    {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
 #[post("/login")]
 async fn login(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
@@ -115,7 +129,7 @@ async fn main() -> std::io::Result<()>
         // Assume the IP is passed
          addr = args[0].as_str();
     }
-    data = Arc::new(Mutex::new(DataBase::new()));
+    let data = Arc::new(Mutex::new(DataBase::new()));
     //data.lock().expect("Getting lock").migrate();
     HttpServer::new(move || {
         App::new()
@@ -125,6 +139,7 @@ async fn main() -> std::io::Result<()>
             .service(get_profile)
             .service(get_users)
             .service(register_match)
+            .service(respond_to_match)
             .service(get_history)
             .service(login)
             .service(change_password)

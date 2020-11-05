@@ -26,27 +26,42 @@ impl DataBase
 
         conn.execute(
             "create table if not exists users (
-                id integer primary key autoincrement,
-                name VARCHAR(20) not null unique,
-                elo float  default 1500.0,
-                password_hash varchar(64) not null,
-                uuid varchar(36) not null
+                id              integer primary key autoincrement,
+                name            VARCHAR(20) not null unique,
+                elo             float  default 1500.0,
+                password_hash   varchar(64) not null,
+                uuid            varchar(36) not null
                 )",
-                NO_PARAMS,).expect("Failed to create database");
+                NO_PARAMS,).expect("Creating user table");
 
         conn.execute(
              "create table if not exists matches (
-                epoch bigint not null,
-                elo_diff integer,
-                winner_elo float,
-                loser_elo float,
-                winner integer,
-                loser integer,
+                epoch           bigint not null,
+                elo_diff        integer,
+                winner_elo      float,
+                loser_elo       float,
+                winner          integer,
+                loser           integer,
                 foreign key(winner) references users(id),
                 foreign key(loser) references users(id)
                 )",
-                NO_PARAMS,).expect("Failed to create database");
+                NO_PARAMS,).expect("Creating matches table");
 
+        conn.execute(
+             "create table if not exists match_notification (
+                id              integer primary key autoincrement,
+                winner_accept   smallint default 0,
+                loser_accept    smallint default 0,
+                epoch           bigint not null,
+                elo_diff        integer,
+                winner_elo      float,
+                loser_elo       float,
+                winner          integer,
+                loser           integer,
+                foreign key(winner) references users(id),
+                foreign key(loser) references users(id)
+                )",
+                NO_PARAMS,).expect("Creating match_notification table");
         DataBase {
             conn: conn
         }
@@ -80,6 +95,19 @@ impl DataBase
         self.try_login(name, password)
     }
 
+    pub fn response_to_match(&self, id: i64, ans: bool, token: String) -> Result<usize>
+    {
+        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
+        // Now, we need to get the match notification by the id,
+        // Figure out who the user was, and set his answer to {answer}
+        // Or, if the other one was set, create a match if the other response was good.
+        // Remember to update elos if both were good.
+        // Finally, we can delete the notification entry afterwards (if both responded)
+
+
+        unimplemented!()
+    }
+
     pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
     {
         self.conn.execute(
@@ -101,14 +129,11 @@ impl DataBase
     pub fn register_match(&self, m: Match) -> Result<usize>
     {
         let (winner, loser) = (self.get_user_without_matches(&m.winner)?, 
-                                       self.get_user_without_matches(&m.loser)?);
+                               self.get_user_without_matches(&m.loser)?);
         let elo = EloRank { k: 32 };
         let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
-    
-        self.update_elo(winner.id, new_winner_elo)?;
-        self.update_elo(loser.id, new_loser_elo)?;
-        self.create_match(m.epoch, &winner, &loser, new_winner_elo - winner.elo)?;
-        Ok(0)
+
+        self.create_match_notification(m, &winner, &loser, new_winner_elo - winner.elo)
     }
 
     pub fn get_history(&self) -> Result<Vec<Match>>
@@ -126,6 +151,13 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
+    fn create_match_notification(&self, m: Match, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
+    {
+        self.conn.execute(
+            "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![m.epoch, winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
+    }
+
     fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
     {
         let mut stmt = self.conn.prepare("select id, password_hash from users where name like :name;")?;
@@ -297,8 +329,20 @@ impl DataBase
 
     fn get_user_without_matches(&self, name: &String) -> Result<User>
     {
-        let mut stmt = self.conn.prepare("select id, name, elo from users where name like :name")?;
-        let mut users = stmt.query_map_named(named_params!{":name": name}, |row|
+        self.get_user_without_matches_by("name", "like", name.as_str())
+    }
+
+    fn get_user(&self, name: &String) -> Result<User>
+    {
+        let mut user = self.get_user_without_matches_by("name", "like", name.as_str())?;
+        user.match_history = self.get_matches(user.id)?.collect();
+        Ok(user)
+    }
+
+    fn  get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> Result<User>
+    {
+        let mut stmt = self.conn.prepare(&format!("select id, name, elo from users where {} {} :val", col, comp))?;
+        let mut users = stmt.query_map_named(named_params!{":val": val}, |row|
         {
             Ok(User {
                 id: row.get(0)?,
@@ -306,36 +350,12 @@ impl DataBase
                 elo: row.get(2)?,
                 match_history: Vec::new(),
             })
-    })?;
-
-        match users.next()
-        {
-            Some(Ok(user)) => 
-            {
-                Ok(user)
-            },
-            Some(Err(e)) => Err(e),
-            None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
-        }
-    }
-    fn get_user(&self, name: &String) -> Result<User>
-    {
-        let mut stmt = self.conn.prepare("select id, name, elo from users where name like :name")?;
-        let mut users = stmt.query_map_named(named_params!{":name": name}, |row|
-        {
-            Ok(User {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                elo: row.get(2)?,
-                match_history: vec![]
-            })
         })?;
 
         match users.next()
         {
-            Some(Ok(mut user)) => 
+            Some(Ok(user)) =>
             {
-                user.match_history = self.get_matches(user.id)?.collect();
                 Ok(user)
             },
             Some(Err(e)) => Err(e),
