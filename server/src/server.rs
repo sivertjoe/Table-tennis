@@ -109,7 +109,7 @@ impl DataBase
         self.try_login(name, password)
     }
 
-    pub fn response_to_match(&self, id: i64, ans: u8, token: String) -> Result<usize>
+    pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> Result<usize>
     {
         self.try_respond_to_notification(id, ans, token)
     }
@@ -498,13 +498,13 @@ mod test
 
         // Kind of hacky, in this case I know the ID of the match_notification
         // will be 1
-        s.response_to_match(1, ACCEPT_MATCH, token).expect("Responding true");
+        s.respond_to_match(1, ACCEPT_MATCH, token).expect("Responding true");
     }
 
     #[test]
     fn test_match_notification_both_accepted()
     {
-        let db_file = "temp3.db";
+        let db_file = "temp1.db";
         let s = DataBase::new(db_file);
         s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
         s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
@@ -595,7 +595,7 @@ mod test
     #[test]
     fn test_can_register_match()
     {
-        let db_file = "temp.db";
+        let db_file = "temp3.db";
         let s = DataBase::new(db_file);
         s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
         s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
@@ -625,5 +625,72 @@ mod test
                     .next()
                     .unwrap() 
                     .unwrap() == 1);
+    }
+
+    #[test]
+    fn test_can_get_user_by_name()
+    {
+        let db_file = "temp4.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivertt".to_string(), "password".to_string()).expect("Creating Sivertt");
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+
+        let user = s.get_user_without_matches_by("name", "like", "Sivert");
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(user.is_ok() && user.unwrap().name == "Sivert");
+    }
+
+    #[test]
+    fn test_can_get_user_by_id()
+    {
+        let db_file = "temp5.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+
+        let user = s.get_user_without_matches_by("id", "=", "1");
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(user.is_ok() && user.unwrap().name == "Sivert");
+    }
+    
+    #[test]
+    fn test_login_returns_uuid()
+    {
+        let db_file = "temp6.db";
+        let s = DataBase::new(db_file);
+        let (name, password) = ("Sivert".to_string(), "password".to_string());
+        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+
+        let uuid = s.login(name, password);
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(uuid.is_ok(), uuid.unwrap().len() == 36);
+    }
+
+    #[test]
+    fn test_login_cant_log_in_with_wrong_password()
+    {
+        let db_file = "temp7.db";
+        let s = DataBase::new(db_file);
+        let (name, password) = ("Sivert".to_string(), "password".to_string());
+        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+
+        let uuid = s.login(name, "Not correct password".to_string());
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(uuid.is_err());
+    }
+
+    #[test]
+    fn test_can_change_password()
+    {
+        let db_file = "temp8.db";
+        let s = DataBase::new(db_file);
+        let (name, password, new) = ("Sivert".to_string(), "password".to_string(), "new".to_string());
+        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+        s.change_password(name.clone(), password.clone(), new.clone());
+
+        let err = s.login(name.clone(), password);
+        let uuid = s.login(name, new);
+
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
     }
 }

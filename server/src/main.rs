@@ -54,7 +54,7 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Quer
     let answer = 1;
     let token: String = "".to_string();
 
-    match DATABASE!(data).response_to_match(id, answer, token)
+    match DATABASE!(data).respond_to_match(id, answer, token)
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
