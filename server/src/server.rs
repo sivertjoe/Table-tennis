@@ -693,4 +693,14 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
     }
+
+    #[test]
+    fn test_unix_time_in_ms()
+    {
+        let db_file = "temp9.db";
+        let s = DataBase::new(db_file);
+
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(s.epoch().to_string().len() == 13);
+    }
 }
