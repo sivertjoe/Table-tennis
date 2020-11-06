@@ -12,6 +12,7 @@ use std::sync::{Mutex, Arc};
 use std::env::args;
 
 const PORT: u32 = 58642;
+const DATABASE_FILE: &'static str = "db.db";
 
 macro_rules! DATABASE
 {
@@ -50,7 +51,7 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<
 async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<Match>) -> HttpResponse
 {
     let id = 0;
-    let answer = true;
+    let answer = 1;
     let token: String = "".to_string();
 
     match DATABASE!(data).response_to_match(id, answer, token)
@@ -129,7 +130,7 @@ async fn main() -> std::io::Result<()>
         // Assume the IP is passed
          addr = args[0].as_str();
     }
-    let data = Arc::new(Mutex::new(DataBase::new()));
+    let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
     //data.lock().expect("Getting lock").migrate();
     HttpServer::new(move || {
         App::new()

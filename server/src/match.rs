@@ -5,9 +5,10 @@ use serde_derive::{Serialize, Deserialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Match
 {
-    pub epoch: i64,
     pub winner: String,
     pub loser: String,
+    #[serde(skip_deserializing)]
+    pub epoch: i64,
     #[serde(skip_deserializing)]
     pub elo_diff: f64,
     #[serde(skip_deserializing)]

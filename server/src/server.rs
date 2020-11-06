@@ -1,23 +1,37 @@
+use chrono::prelude::*;
 use uuid::Uuid;
 use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
 use crate::user::User;
 use elo::EloRank;
 use crate::r#match::Match;
 
-
-const DATABASE_FILE: &'static str = "db.db";
+struct MatchNotification
+{
+    id: i64,
+    winner_accept: u8,
+    loser_accept: u8, 
+    epoch: i64,
+    elo_diff: f64,
+    winner_elo: f64,
+    loser_elo: f64,
+    winner: i64,
+    loser: i64
+}
 
 pub struct DataBase
 {
-    conn: Connection
+    pub conn: Connection
 }
+
+const ACCEPT_MATCH: u8 = 1;
+const DECLINE_MATCH: u8 = 2;
 
 
 impl DataBase
 {
-    pub fn new() -> Self
+    pub fn new(file: &str) -> Self
     {
-        let conn = match Connection::open(DATABASE_FILE)
+        let conn = match Connection::open(file)
         {
             Err(e) => panic!(format!("Could not create connection, {}", e)),
             Ok(c) => c
@@ -95,17 +109,9 @@ impl DataBase
         self.try_login(name, password)
     }
 
-    pub fn response_to_match(&self, id: i64, ans: bool, token: String) -> Result<usize>
+    pub fn response_to_match(&self, id: i64, ans: u8, token: String) -> Result<usize>
     {
-        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
-        // Now, we need to get the match notification by the id,
-        // Figure out who the user was, and set his answer to {answer}
-        // Or, if the other one was set, create a match if the other response was good.
-        // Remember to update elos if both were good.
-        // Finally, we can delete the notification entry afterwards (if both responded)
-
-
-        unimplemented!()
+        self.try_respond_to_notification(id, ans, token)
     }
 
     pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
@@ -131,9 +137,9 @@ impl DataBase
         let (winner, loser) = (self.get_user_without_matches(&m.winner)?, 
                                self.get_user_without_matches(&m.loser)?);
         let elo = EloRank { k: 32 };
-        let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
+        let (new_winner_elo, _) = elo.calculate(winner.elo, loser.elo);
 
-        self.create_match_notification(m, &winner, &loser, new_winner_elo - winner.elo)
+        self.create_match_notification(&winner, &loser, new_winner_elo - winner.elo)
     }
 
     pub fn get_history(&self) -> Result<Vec<Match>>
@@ -151,11 +157,100 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
-    fn create_match_notification(&self, m: Match, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
+    fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> Result<usize>
+    {
+        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
+        let mut stmt = self.conn.prepare(
+            "select id, winner_accept, loser_accept, epoch, elo_diff, winner_elo, loser_elo,
+            winner, loser from match_notification where id = :id")?;
+        let mut match_notification = stmt.query_map_named(named_params!{":id": id}, |row|
+        {
+            Ok(
+                MatchNotification {
+                    id: row.get(0)?,
+                    winner_accept: row.get(1)?,
+                    loser_accept: row.get(2)?,
+                    epoch: row.get(3)?,
+                    elo_diff: row.get(4)?,
+                    winner_elo: row.get(5)?,
+                    loser_elo: row.get(6)?,
+                    winner: row.get(7)?,
+                    loser: row.get(8)?
+                })
+        })?.next().expect("Unwrapping element").expect("Unwrapping Option");
+
+        if user.id != match_notification.winner && user.id != match_notification.loser
+        {
+            return Err(rusqlite::Error::InvalidParameterName("User can't accept this match".to_string()));
+        }
+        
+        if user.id == match_notification.winner
+        {
+            match_notification.winner_accept = ans;
+        }
+        else
+        {
+            match_notification.loser_accept = ans;
+        }
+        self.handle_notification_answer(&user, ans, &match_notification)
+    }
+
+    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotification) -> Result<usize>
+    {
+        // If both accepted, we need to 
+        //  * create the match notification,
+        //  * delet the match notification
+        //  * update both elos
+        //
+        //  Here alternativly, we can delete the notification if the other'
+        //  person have already responded
+        if match_notification.loser_accept == ACCEPT_MATCH 
+            && match_notification.winner_accept == ACCEPT_MATCH
+        {
+            self.create_match_from_notification(&match_notification)?;
+            self.delete_match_notification(&match_notification)?;
+            self.update_elo(match_notification.winner, match_notification.winner_elo)?;
+            self.update_elo(match_notification.loser, match_notification.loser_elo)?;
+            return Ok(0);
+        }
+        else
+        {
+            let col = if user.id == match_notification.winner { "winner_accept" } else { "loser_accept" };
+            self.update_match_notification_answer(col, ans, match_notification.id)
+        }
+    }
+
+    fn update_match_notification_answer(&self, col: &str, ans: u8, id: i64) -> Result<usize>
+    {
+        let mut stmt = self.conn.prepare(&format!("update match_notification set {} = :ans where id = :id", col))?;
+        stmt.execute_named(named_params!{":id": id, ":ans": ans})
+    }
+
+    fn delete_match_notification(&self, m: &MatchNotification) -> Result<usize>
+    {
+        let mut stmt = self.conn.prepare("delete from match_notification where id = :id")?;
+        stmt.execute_named(named_params!{":id": m.id})
+    }
+
+    fn create_match_from_notification(&self, m: &MatchNotification) -> Result<usize>
+    {
+            self.conn.execute(
+                "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) 
+                values (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    m.epoch, 
+                    m.winner,
+                    m.loser,
+                    m.elo_diff, 
+                    m.winner_elo,
+                    m.loser_elo],)
+    }
+
+    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
     {
         self.conn.execute(
             "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![m.epoch, winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
+            params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
     }
 
     fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
@@ -255,12 +350,6 @@ impl DataBase
         vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
         Ok(vec)
 
-    }
-    fn create_match(&self, epoch: i64, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
-    {
-        self.conn.execute(
-            "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![epoch, winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> Result<usize>
@@ -379,5 +468,162 @@ impl DataBase
         hasher.update(&buffer.trim_end_matches("\n"));
         let result = hasher.finalize();
         format!("{:x}", result)
+    }
+
+    fn epoch(&self) -> i64
+    {
+        Utc::now().timestamp_millis()
+    }
+}
+
+
+
+#[cfg(test)]
+mod test
+{
+    use super::*;
+    use rusqlite::{NO_PARAMS};
+
+
+    fn respond_to_match(s: &DataBase, name: &str)
+    {
+        let mut stmt = s.conn
+                        .prepare("select uuid from users where name like :name")
+                        .expect("Creating query");
+        let token:  String = stmt.query_map_named(named_params!{":name": name}, |row|
+        {
+            let token: String = row.get(0).expect("Getting first row");
+            Ok(token)
+        }).expect("Executing stmt").next().unwrap().unwrap();
+
+        // Kind of hacky, in this case I know the ID of the match_notification
+        // will be 1
+        s.response_to_match(1, ACCEPT_MATCH, token).expect("Responding true");
+    }
+
+    #[test]
+    fn test_match_notification_both_accepted()
+    {
+        let db_file = "temp3.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+
+        let m = Match { 
+            winner: "Sivert".to_string(),
+            loser: "Lars".to_string(),
+            epoch: 0,
+            elo_diff: 0.,
+            winner_elo: 0.,
+            loser_elo: 0.
+        };
+
+
+        s.register_match(m).expect("Creating match");
+        respond_to_match(&s, "Sivert");
+        respond_to_match(&s, "Lars");
+
+        let mut stmt = s.conn.prepare("select * from match_notification")
+                             .expect("creating statement");
+
+        let find  = stmt.query_map(NO_PARAMS, |row| 
+        {
+            let c: i64 = row.get(0).expect("getting first row");
+            Ok(c)
+        });
+
+        assert!(find.expect("unwrapping quey map").next().is_none());
+
+        let mut stmn = s.conn.prepare("select COUNT(*) from matches")
+                             .expect("creating statement");
+
+        let find  = stmn.query_map(NO_PARAMS, |row| 
+        {
+            let c: i64 = row.get(0).expect("getting first row");
+            Ok(c)
+        });
+
+        std::fs::remove_file(db_file).expect("Removing file temp2");
+        assert!(find.unwrap()
+                    .next()
+                    .unwrap() 
+                    .unwrap() == 1);
+    }
+
+    #[test]
+    fn test_can_respond_to_match()
+    {
+        let db_file = "temp2.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+
+        let m = Match { 
+            winner: "Sivert".to_string(),
+            loser: "Lars".to_string(),
+            epoch: 0,
+            elo_diff: 0.,
+            winner_elo: 0.,
+            loser_elo: 0.
+        };
+
+
+        s.register_match(m).expect("Creating match");
+        respond_to_match(&s, "Sivert");
+
+
+        let mut stmt = s.conn
+                    .prepare("select * from match_notification")
+                    .expect("creating statement");
+
+        let find  = stmt.query_map(NO_PARAMS, |row| 
+        {
+            let c: i64 = row.get(1).expect("getting first row");
+            Ok(c)
+        });
+
+        std::fs::remove_file(db_file).expect("Removing file temp2");
+        assert!(
+                find.unwrap()
+                    .next()
+                    .unwrap() 
+                    .unwrap()
+                == 1);
+    }
+
+
+    #[test]
+    fn test_can_register_match()
+    {
+        let db_file = "temp.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+
+        let m = Match { 
+            winner: "Sivert".to_string(),
+            loser: "Lars".to_string(),
+            epoch: 0,
+            elo_diff: 0.,
+            winner_elo: 0.,
+            loser_elo: 0.
+        };
+
+        s.register_match(m).expect("Creating match");
+
+        let mut stmn = s.conn.prepare("select COUNT(*) from match_notification")
+                             .expect("creating statement");
+
+        let find  = stmn.query_map(NO_PARAMS, |row| 
+        {
+            let c: i64 = row.get(0).expect("getting first row");
+            Ok(c)
+        });
+
+        std::fs::remove_file(db_file).expect("Removing file temp");
+        assert!(find.unwrap()
+                    .next()
+                    .unwrap() 
+                    .unwrap() == 1);
     }
 }
