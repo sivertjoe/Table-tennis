@@ -21,15 +21,9 @@ export const register = async (username, password) =>
     body: JSON.stringify({ username: username, password: password }),
   }).then((req) => req)
 
-export const registerMatch = async (winner, loser, epoch) => {
+export const registerMatch = async (winner, loser) => {
   const req = await fetch(
-    apiUrl +
-      '/register-match?winner=' +
-      winner +
-      '&loser=' +
-      loser +
-      '&epoch=' +
-      epoch,
+    apiUrl + '/register-match?winner=' + winner + '&loser=' + loser,
     {
       method: 'POST',
     },

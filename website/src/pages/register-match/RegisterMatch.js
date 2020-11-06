@@ -32,11 +32,7 @@ class RegisterMatch extends Component {
     if (this.winner === this.loser)
       return this.setErrorLabel('Players cannot be the same')
 
-    const time = document.getElementById('time')
-    const epoch = new Date(time.value).getTime()
-    if (isNaN(epoch)) return this.setErrorLabel('Must select a time')
-
-    Api.registerMatch(this.winner, this.loser, epoch).then(() => {
+    Api.registerMatch(this.winner, this.loser).then(() => {
       this.props.history.push('/')
     })
   }
@@ -55,13 +51,6 @@ class RegisterMatch extends Component {
   }
 
   render() {
-    const d = new Date()
-    const currentDate = `${d.getFullYear()}-${('0' + (d.getMonth() + 1)).slice(
-      -2,
-    )}-${('0' + d.getDate()).slice(-2)}T${('0' + d.getHours()).slice(-2)}:${(
-      '0' + d.getMinutes()
-    ).slice(-2)}`
-
     const large = window.matchMedia('(min-width: 900px)').matches
     return (
       <div className="container">
@@ -71,7 +60,6 @@ class RegisterMatch extends Component {
             <tr>
               <th className={large ? 'large' : 'small'}>Winner</th>
               <th className={large ? 'large' : 'small'}>Loser</th>
-              <th className={large ? 'large' : 'small'}>Date</th>
             </tr>
             <tr>
               <th className={large ? 'large' : 'small'}>
@@ -87,14 +75,6 @@ class RegisterMatch extends Component {
                   className="selector"
                   options={this.users}
                 />
-              </th>
-              <th className={large ? 'large' : 'small'}>
-                <input
-                  id="time"
-                  className="date"
-                  type="datetime-local"
-                  defaultValue={currentDate}
-                ></input>
               </th>
             </tr>
           </tbody>
