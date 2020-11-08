@@ -3,7 +3,7 @@ mod user;
 mod r#match;
 
 use server::DataBase;
-use r#match::{Match, MatchInfo, MatchResponse};
+use r#match::{MatchInfo, MatchResponse};
 use user::{LoginInfo, ChangePasswordInfo};
 
 use actix_web::{get, post, web, App, web::Json, HttpResponse, HttpServer};
