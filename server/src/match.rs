@@ -1,19 +1,31 @@
 use serde_derive::{Serialize, Deserialize};
-//use serde::Deserialize;
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct Match
 {
     pub winner: String,
     pub loser: String,
-    #[serde(skip_deserializing)]
     pub epoch: i64,
-    #[serde(skip_deserializing)]
     pub elo_diff: f64,
-    #[serde(skip_deserializing)]
     pub winner_elo: f64,
-    #[serde(skip_deserializing)]
     pub loser_elo: f64,
+}
+
+
+// Match info sent from the front end
+#[derive(Debug, Deserialize)]
+pub struct MatchInfo
+{
+    pub winner: String,
+    pub loser: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MatchResponse
+{
+    pub match_notification_id: i64,
+    pub user_token: String,
+    pub ans: u8
 }
 

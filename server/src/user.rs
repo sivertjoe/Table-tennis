@@ -1,5 +1,5 @@
 use crate::r#match::Match;
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 
 #[derive(Serialize)]
 pub struct User 
@@ -8,4 +8,19 @@ pub struct User
     pub elo: f64,
     pub name: String,
     pub match_history: Vec<Match>
+}
+
+#[derive(Deserialize)]
+pub struct LoginInfo
+{
+    pub username: String,
+    pub password: String
+}
+
+#[derive(Deserialize)]
+pub struct ChangePasswordInfo
+{
+    pub username: String,
+    pub password: String,
+    pub new_password: String
 }

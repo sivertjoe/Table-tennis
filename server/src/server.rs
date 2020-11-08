@@ -132,10 +132,10 @@ impl DataBase
         Ok(self.get_all_users()?.collect())
     }
 
-    pub fn register_match(&self, m: Match) -> Result<usize>
+    pub fn register_match(&self, winner_name: String, loser_name: String) -> Result<usize>
     {
-        let (winner, loser) = (self.get_user_without_matches(&m.winner)?, 
-                               self.get_user_without_matches(&m.loser)?);
+        let (winner, loser) = (self.get_user_without_matches(&winner_name)?, 
+                               self.get_user_without_matches(&loser_name)?);
         let elo = EloRank { k: 32 };
         let (new_winner_elo, _) = elo.calculate(winner.elo, loser.elo);
 
