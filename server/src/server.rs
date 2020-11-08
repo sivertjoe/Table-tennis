@@ -548,6 +548,11 @@ mod test
                     .next()
                     .unwrap() 
                     .unwrap() == 1);
+
+        let (sivert, lars) = (s.get_user_without_matches(&"Sivert".to_string()).unwrap(),
+                              s.get_user_without_matches(&"Lars".to_string()).unwrap());
+        assert!(sivert.elo > 1500.0);
+        assert!(lars.elo < 1500.0);
     }
 
     #[test]
@@ -685,7 +690,7 @@ mod test
         let s = DataBase::new(db_file);
         let (name, password, new) = ("Sivert".to_string(), "password".to_string(), "new".to_string());
         s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
-        s.change_password(name.clone(), password.clone(), new.clone());
+        s.change_password(name.clone(), password.clone(), new.clone()).expect("Changing password");
 
         let err = s.login(name.clone(), password);
         let uuid = s.login(name, new);
