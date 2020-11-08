@@ -3,9 +3,10 @@ mod user;
 mod r#match;
 
 use server::DataBase;
-use r#match::Match;
+use r#match::{Match, MatchInfo, MatchResponse};
+use user::{LoginInfo, ChangePasswordInfo};
 
-use actix_web::{get, post, web, App, HttpResponse, HttpServer};
+use actix_web::{get, post, web, App, web::Json, HttpResponse, HttpServer};
 use actix_cors::Cors;
 
 use std::sync::{Mutex, Arc};
@@ -23,11 +24,10 @@ macro_rules! DATABASE
 }
 
 
-#[post("/create-user/{name}")]
-async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
+#[post("/create-user")]
+async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<LoginInfo>) -> HttpResponse
 {
-    let password = "@test".to_string();
-    match DATABASE!(data).create_user(name.to_string(), password)
+    match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
@@ -36,11 +36,10 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 
 
 #[post("/register-match")]
-async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<Match>) -> HttpResponse
+async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<MatchInfo>) -> HttpResponse
 {
-    let res = info.into_inner();
 
-    match DATABASE!(data).register_match(res)
+    match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone())
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
@@ -48,11 +47,11 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<
 }
 
 #[post("respond-to-match")]
-async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<Match>) -> HttpResponse
+async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<MatchResponse>) -> HttpResponse
 {
-    let id = 0;
-    let answer = 1;
-    let token: String = "".to_string();
+    let id = info.match_notification_id;
+    let answer = info.ans;
+    let token = info.user_token.clone();
 
     match DATABASE!(data).respond_to_match(id, answer, token)
     {
@@ -62,12 +61,12 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Quer
 }
 
 #[post("/login")]
-async fn login(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<LoginInfo>) -> HttpResponse
 {
-    let name = "Sivert".to_string();
-    let passwd = "@new".to_string();
+    let name = info.username.clone();
+    let password = info.password.clone();
 
-    match DATABASE!(data).login(name, passwd)
+    match DATABASE!(data).login(name, password)
     {
         Ok(uuid) => HttpResponse::Ok().json(uuid),
         Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
@@ -75,13 +74,13 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 }
 
 #[post("/change-password")]
-async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<ChangePasswordInfo>) -> HttpResponse
 {
-    let name = "Sivert".to_string();
-    let passwd = "@uit".to_string();
-    let new_password = "@new".to_string();
+    let name = info.username.clone();
+    let password = info.password.clone();
+    let new_password = info.new_password.clone();
 
-    match DATABASE!(data).change_password(name, passwd, new_password)
+    match DATABASE!(data).change_password(name, password, new_password)
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
@@ -135,7 +134,10 @@ async fn main() -> std::io::Result<()>
     HttpServer::new(move || {
         App::new()
             .data(data.clone())
-            .wrap(Cors::default().allow_any_header())
+            .wrap(Cors::default()
+                  .allow_any_header()
+                  .allow_any_origin()
+                  .allow_any_method())
             .service(create_user)
             .service(get_profile)
             .service(get_users)
