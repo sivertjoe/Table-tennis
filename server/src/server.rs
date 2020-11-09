@@ -23,6 +23,7 @@ pub struct DataBase
     pub conn: Connection
 }
 
+const MATCH_NO_ANS: u8 = 0;
 const ACCEPT_MATCH: u8 = 1;
 const DECLINE_MATCH: u8 = 2;
 
@@ -120,14 +121,14 @@ impl DataBase
         Ok(self.get_all_users()?.collect())
     }
 
-    pub fn register_match(&self, winner_name: String, loser_name: String) -> Result<usize>
+    pub fn register_match(&self, winner_name: String, loser_name: String, token: Option<String>) -> Result<usize>
     {
         let (winner, loser) = (self.get_user_without_matches(&winner_name)?, 
                                self.get_user_without_matches(&loser_name)?);
         let elo = EloRank { k: 32 };
         let (new_winner_elo, _) = elo.calculate(winner.elo, loser.elo);
 
-        self.create_match_notification(&winner, &loser, new_winner_elo - winner.elo)
+        self.create_match_notification(&winner, &loser, new_winner_elo - winner.elo, token)
     }
 
     pub fn get_history(&self) -> Result<Vec<Match>>
@@ -269,11 +270,38 @@ impl DataBase
                     m.loser_elo],)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64) -> Result<usize>
+    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64, token: Option<String>) -> Result<usize>
     {
-        self.conn.execute(
-            "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
+        if let Some(token) = token
+        {
+            if self.user_have_token(winner.id, &token)?
+            {
+                return self.conn.execute(
+                    "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, winner_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff, ACCEPT_MATCH],);
+            }
+            else if self.user_have_token(loser.id, &token)?
+            {
+                return self.conn.execute(
+                    "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, loser_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff, ACCEPT_MATCH],);
+            }
+        }
+            self.conn.execute(
+                "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
+    }
+
+    fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>
+    {
+        let mut stmt = self.conn.prepare("select count(*) from users where id like :id and uuid like :token")?;
+        let mut c = stmt.query_map_named(named_params!{":id": user_id, ":token": token}, |row|
+        {
+            let c: i64 = row.get(0)?;
+            Ok(c)
+        })?;
+
+        Ok(c.next().unwrap().unwrap() == 1)
     }
 
     fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
@@ -510,7 +538,7 @@ mod test
     use rusqlite::{NO_PARAMS};
 
 
-    fn respond_to_match(s: &DataBase, name: &str)
+    fn respond_to_match(s: &DataBase, name: &str, id: i64)
     {
         let mut stmt = s.conn
                         .prepare("select uuid from users where name like :name")
@@ -521,9 +549,7 @@ mod test
             Ok(token)
         }).expect("Executing stmt").next().unwrap().unwrap();
 
-        // Kind of hacky, in this case I know the ID of the match_notification
-        // will be 1
-        s.respond_to_match(1, ACCEPT_MATCH, token).expect("Responding true");
+        s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
     }
 
     #[test]
@@ -538,9 +564,9 @@ mod test
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner, loser).expect("Creating match");
-        respond_to_match(&s, "Sivert");
-        respond_to_match(&s, "Lars");
+        s.register_match(winner, loser, None).expect("Creating match");
+        respond_to_match(&s, "Sivert", 1);
+        respond_to_match(&s, "Lars", 1);
 
         let mut stmt = s.conn.prepare("select * from match_notification")
                              .expect("creating statement");
@@ -574,6 +600,96 @@ mod test
         assert!(lars.elo < 1500.0);
     }
 
+    fn get_token_from_user(s: &DataBase, name: &String) -> String
+    {
+        let mut stmt = s.conn.prepare("select uuid from users where name like :name").unwrap();
+        let name = stmt.query_map_named(named_params!{":name": name}, |row|
+        {
+            let name: String = row.get(0).unwrap();
+            Ok(name)
+        }).unwrap().next().unwrap().unwrap();
+        name
+    }
+
+    #[test]
+    fn test_match_registered_by_none_participant_gets_answered_no()
+    {
+        let db_file = "tempB.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+        s.create_user("Bernt".to_string(), "password".to_string()).expect("Creating Bernt");
+
+        let winner = "Sivert".to_string();
+        let loser = "Lars".to_string();
+
+
+        let token = Some(get_token_from_user(&s, &"Bernt".to_string()));
+        s.register_match(winner.clone(), loser.clone(), token.clone()).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), token).expect("Creating match");
+
+
+        let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let winner_accept = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: u8 = row.get(0).expect("Getting first (and only) row");
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+
+
+        let mut stmt = s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let loser_accept = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: u8 = row.get(0).expect("Getting first (and only) row");
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+
+        std::fs::remove_file(db_file).expect("Removing file tempA");
+        assert!(winner_accept == MATCH_NO_ANS);
+        assert!(loser_accept == MATCH_NO_ANS);
+    }
+
+    #[test]
+    fn test_match_registered_by_participant_gets_answered_yes()
+    {
+        let db_file = "tempA.db";
+        let s = DataBase::new(db_file);
+        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+
+        let winner = "Sivert".to_string();
+        let loser = "Lars".to_string();
+
+        let token1 = Some(get_token_from_user(&s, &winner));
+        let token2 = Some(get_token_from_user(&s, &loser));
+        s.register_match(winner.clone(), loser.clone(), token1).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), token2).expect("Creating match");
+
+
+        let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let winner_accept = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: u8 = row.get(0).expect("Getting first (and only) row");
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+
+
+        let mut stmt = s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let loser_accept = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: u8 = row.get(0).expect("Getting first (and only) row");
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+
+        std::fs::remove_file(db_file).expect("Removing file tempA");
+        assert!(winner_accept == ACCEPT_MATCH);
+        assert!(loser_accept == ACCEPT_MATCH);
+    }
+
     #[test]
     fn test_can_respond_to_match()
     {
@@ -586,8 +702,8 @@ mod test
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner, loser).expect("Creating match");
-        respond_to_match(&s, "Sivert");
+        s.register_match(winner, loser, None).expect("Creating match");
+        respond_to_match(&s, "Sivert", 1);
 
 
         let mut stmt = s.conn
@@ -621,7 +737,7 @@ mod test
         let winner =  "Sivert".to_string();
         let loser = "Lars".to_string();
 
-        s.register_match(winner, loser).expect("Creating match");
+        s.register_match(winner, loser, None).expect("Creating match");
 
         let mut stmn = s.conn.prepare("select COUNT(*) from match_notification")
                              .expect("creating statement");

@@ -40,8 +40,9 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: MatchInfo = serde_json::from_str(&info).unwrap();
+    let token = if info.register_token.is_empty() { None } else { Some(info.register_token) };
 
-    match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone())
+    match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))

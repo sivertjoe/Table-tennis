@@ -19,6 +19,7 @@ pub struct MatchInfo
 {
     pub winner: String,
     pub loser: String,
+    pub register_token: String
 }
 
 #[derive(Debug, Deserialize)]
