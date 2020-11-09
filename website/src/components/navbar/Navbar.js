@@ -40,7 +40,10 @@ class Navbar extends Component {
           <div className="slice"></div>
           <div className="slice"></div>
         </button>
-          <div className={'overlay ' + (this.menuOpen ? 'overlay-open' : '')} onClick={this.toggleMenu}>
+        <div
+          className={'overlay ' + (this.menuOpen ? 'overlay-open' : '')}
+          onClick={this.toggleMenu}
+        >
           <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
             <ul className="list">
               {this.items.map((item, i) => (
@@ -63,6 +66,12 @@ class Navbar extends Component {
   }
 
   render() {
+    if (localStorage.getItem('token'))
+      this.items.push({
+        name: 'Profile',
+        path: '/profiles/' + localStorage.getItem('username'),
+      })
+
     const large = window.matchMedia('(min-width: 600px)').matches
     return large ? this.renderDesktop() : this.renderMobile()
   }
