@@ -6,6 +6,7 @@ import '../../index.css'
 import { MatchHistory } from '../../components/match-history/MatchHistory'
 import { Notifications } from '../../components/notifications/Notifications'
 import SearchBar from '../../components/search-bar/SearchBar'
+import Button from '../../components/button/Button'
 
 class Profile extends Component {
   user = {}
@@ -28,6 +29,12 @@ class Profile extends Component {
         this.setState({})
       })
     }
+  }
+
+  logout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('username')
+    window.location.href = '/'
   }
 
   render() {
@@ -54,6 +61,9 @@ class Profile extends Component {
               token={'2501b80e-45c2-4de8-894a-ca950b7ba638'}
             />
           </div>
+          {localStorage.getItem('username') === this.user.name && (
+            <Button placeholder="Logout" callback={this.logout} />
+          )}
         )}
       </div>
     )
