@@ -33,7 +33,7 @@ class RegisterMatch extends Component {
       return this.setErrorLabel('Players cannot be the same')
 
     Api.registerMatch(this.winner, this.loser).then((res) => {
-      if (res.status === 200) this.props.history.push('/')
+      if (res.status === 200) return this.props.history.push('/')
       this.setErrorLabel('Something went wrong')
     })
   }
