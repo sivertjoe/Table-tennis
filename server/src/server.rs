@@ -100,12 +100,14 @@ impl DataBase
         self.try_respond_to_notification(id, ans, token)
     }
 
-    pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
+    pub fn create_user(&self, new_user: String, password: String) -> Result<String>
     {
+        let uuid = format!("{}", Uuid::new_v4());
         self.conn.execute(
             "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
-            params![new_user, self.hash(&password), format!("{}", Uuid::new_v4())],
-            )
+            params![new_user, self.hash(&password), uuid],
+            )?;
+        Ok(uuid)
     }
 
     pub fn get_profile(&self, user: String) -> Result<User>
