@@ -25,19 +25,21 @@ macro_rules! DATABASE
 
 
 #[post("/create-user")]
-async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<LoginInfo>) -> HttpResponse
+async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    let info: LoginInfo = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
-        Ok(_) => HttpResponse::Ok().finish(),
+        Ok(uuid) => HttpResponse::Ok().json(uuid),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
     }
 }
 
 
 #[post("/register-match")]
-async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<MatchInfo>) -> HttpResponse
+async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    let info: MatchInfo = serde_json::from_str(&info).unwrap();
 
     match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone())
     {
@@ -47,8 +49,9 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<MatchI
 }
 
 #[post("respond-to-match")]
-async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<MatchResponse>) -> HttpResponse
+async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    let info: MatchResponse = serde_json::from_str(&info).unwrap();
     let id = info.match_notification_id;
     let answer = info.ans;
     let token = info.user_token.clone();
@@ -61,8 +64,9 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<Matc
 }
 
 #[post("/login")]
-async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<LoginInfo>) -> HttpResponse
+async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    let info: LoginInfo = serde_json::from_str(&info).unwrap();
     let name = info.username.clone();
     let password = info.password.clone();
 
@@ -74,8 +78,9 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<LoginInfo>) -> 
 }
 
 #[post("/change-password")]
-async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: Json<ChangePasswordInfo>) -> HttpResponse
+async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    let info: ChangePasswordInfo = serde_json::from_str(&info).unwrap();
     let name = info.username.clone();
     let password = info.password.clone();
     let new_password = info.new_password.clone();
