@@ -43,7 +43,7 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: MatchInfo = serde_json::from_str(&info).unwrap();
-    let token = if info.register_token.is_empty() { None } else { Some(info.register_token) };
+    let token = if info.token.is_empty() { None } else { Some(info.token) };
 
     match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
     {
@@ -58,7 +58,7 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     let info: MatchResponse = serde_json::from_str(&info).unwrap();
     let id = info.match_notification_id;
     let answer = info.ans;
-    let token = info.user_token.clone();
+    let token = info.token.clone();
 
     match DATABASE!(data).respond_to_match(id, answer, token)
     {
