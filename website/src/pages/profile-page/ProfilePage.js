@@ -14,6 +14,7 @@ class Profile extends Component {
 
   constructor(args) {
     super()
+
     this.log_in_flag = true
     if (this.log_in_flag) {
       Promise.all([Api.getUser(args.user), Api.getNotifications()]).then(
