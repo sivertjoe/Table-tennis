@@ -32,14 +32,15 @@ class RegisterMatch extends Component {
     if (this.winner === this.loser)
       return this.setErrorLabel('Players cannot be the same')
 
-    Api.registerMatch(this.winner, this.loser).then(() => {
-      this.props.history.push('/')
+    Api.registerMatch(this.winner, this.loser).then((res) => {
+      if (res.status === 200) this.props.history.push('/')
+      this.setErrorLabel('Something went wrong')
     })
   }
 
   setErrorLabel(text) {
     this.error = text
-    return this.setState({})
+    this.setState({})
   }
 
   setWinner(e) {

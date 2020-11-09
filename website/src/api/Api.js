@@ -21,17 +21,6 @@ export const register = async (username, password) =>
     body: JSON.stringify({ username: username, password: password }),
   }).then((req) => req)
 
-export const registerMatch = async (winner, loser) => {
-  const req = await fetch(
-    apiUrl + '/register-match?winner=' + winner + '&loser=' + loser,
-    {
-      method: 'POST',
-    },
-  )
-
-  return await req
-}
-
 export const getNotifications = async () =>
   fetch(apiUrl + '/notifications/' + '2501b80e-45c2-4de8-894a-ca950b7ba638')
     .then((req) => req.json())
@@ -45,4 +34,10 @@ export const replyToMatch = async (match_id, token, ans) =>
       ans: ans,
       user_token: token,
     }),
+  }).then((req) => req)
+
+export const registerMatch = async (winner, loser) =>
+  fetch(apiUrl + '/register-match', {
+    method: 'POST',
+    body: JSON.stringify({ winner: winner, loser: loser }),
   }).then((req) => req)
