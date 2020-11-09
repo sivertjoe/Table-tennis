@@ -23,7 +23,7 @@ class RegisterPage extends Component {
         return res.json().then((token) => {
           localStorage.setItem('token', token)
           localStorage.setItem('username', this.username)
-          this.props.history.push('/profiles/' + this.username)
+          window.location.href = '/profiles/' + this.username
         })
 
       if (res.status === 409) this.error = 'This username is unavailable'
