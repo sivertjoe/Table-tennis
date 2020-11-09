@@ -39,5 +39,9 @@ export const replyToMatch = async (match_id, token, ans) =>
 export const registerMatch = async (winner, loser) =>
   fetch(apiUrl + '/register-match', {
     method: 'POST',
-    body: JSON.stringify({ winner: winner, loser: loser }),
+    body: JSON.stringify({
+      winner: winner,
+      loser: loser,
+      token: localStorage.getItem('token') ?? '',
+    }),
   }).then((req) => req)
