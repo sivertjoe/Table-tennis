@@ -15,10 +15,11 @@ export const getHistory = async (username) =>
     .then((req) => req.json())
     .then((res) => res)
 
-export const register = async (username) =>
-  fetch(apiUrl + '/create-user/' + username, {
+export const register = async (username, password) =>
+  fetch(apiUrl + '/create-user', {
     method: 'POST',
-  }).then((req) => req.status === 200)
+    body: JSON.stringify({ username: username, password: password }),
+  }).then((req) => req)
 
 export const registerMatch = async (winner, loser, epoch) => {
   const req = await fetch(
