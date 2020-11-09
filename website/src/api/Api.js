@@ -37,3 +37,18 @@ export const registerMatch = async (winner, loser, epoch) => {
 
   return await req
 }
+
+export const getNotifications = async () =>
+  fetch(apiUrl + '/notifications/' + '2501b80e-45c2-4de8-894a-ca950b7ba638')
+    .then((req) => req.json())
+    .then((req) => req)
+
+export const replyToMatch = async (match_id, token, ans) =>
+  fetch(apiUrl + '/respond-to-match', {
+    method: 'POST',
+    body: JSON.stringify({
+      match_notification_id: match_id,
+      ans: ans,
+      user_token: token,
+    }),
+  }).then((req) => req)

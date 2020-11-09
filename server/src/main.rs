@@ -1,6 +1,7 @@
 mod server;
 mod user;
 mod r#match;
+mod notification;
 
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
@@ -8,6 +9,8 @@ use user::{LoginInfo, ChangePasswordInfo};
 
 use actix_web::{get, post, web, App, web::Json, HttpResponse, HttpServer};
 use actix_cors::Cors;
+
+use serde_derive::Deserialize;
 
 use std::sync::{Mutex, Arc};
 use std::env::args;
@@ -102,6 +105,17 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Err(_) => HttpResponse::NotFound().finish()
     }
 }
+
+#[get("/notifications/{token}")]
+async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+{
+    match DATABASE!(data).get_notifications(token)
+    {
+        Ok(notifications) => HttpResponse::Ok().json(notifications),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
 #[get("/history")]
 async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
@@ -150,6 +164,7 @@ async fn main() -> std::io::Result<()>
             .service(register_match)
             .service(respond_to_match)
             .service(get_history)
+            .service(get_notifications)
             .service(login)
             .service(change_password)
     })

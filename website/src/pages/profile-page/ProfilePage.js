@@ -2,58 +2,56 @@ import { React, Component } from 'react'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
 import '../../index.css'
+import { MatchHistory } from '../../components/match-history/MatchHistory'
+import { Notifications } from '../../components/notifications/Notifications'
 import SearchBar from '../../components/search-bar/SearchBar'
-
-function formatDate(ms) {
-  const d = new Date(ms)
-  return (
-    `${d.getFullYear()}/${d.getMonth()}/${d.getDate()} ` +
-    `${d.getHours()}:${d.getMinutes()}`
-  )
-}
 
 class Profile extends Component {
   user = {}
 
   constructor(args) {
     super()
-    Api.getUser(args.user).then((user) => {
-      this.user = user
-      this.setState({})
-    })
+    this.log_in_flag = true
+    if (this.log_in_flag) {
+      Promise.all([Api.getUser(args.user), Api.getNotifications()]).then(
+        (data) => {
+          this.user = data[0]
+          this.notifications = data[1]
+          this.setState({})
+        },
+      )
+    } else {
+      Api.getUser(args.user).then((user) => {
+        this.user = user
+        this.setState({})
+      })
+    }
   }
 
   render() {
-    let wins = 0
-    let losses = 0
-    const history = this.user.match_history?.map((elem, i) => {
-      elem.winner === this.user.name ? (wins += 1) : (losses += 1)
-      return (
-        <tr key={i}>
-          <td>{elem.winner}</td>
-          <td>{elem.loser}</td>
-          <td>{formatDate(elem.epoch)}</td>
-        </tr>
-      )
-    })
-
+    const numberOfMatches = this.user.match_history?.length
+    const numberOfNotifications = this.notifications?.length
     return (
       <div className="container">
         <h1 className="name">{this.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
-        <h2 className="history">Match history {wins + losses}</h2>
-        <div className="table-container">
-          <table>
-            <tbody>
-              <tr>
-                <th>Winner ({wins})</th>
-                <th>Loser ({losses})</th>
-                <th>Date</th>
-              </tr>
-              {history}
-            </tbody>
-          </table>
-        </div>
+        <h2 className="history">Match history {numberOfMatches}</h2>
+        <MatchHistory user={this.user} />
+        {this.log_in_flag && (
+          <div>
+            <h2 className="history">
+              Notifications (
+              <div className="divWrapper" id="notificationCounter">
+                {numberOfNotifications}
+              </div>
+              )
+            </h2>
+            <Notifications
+              values={this.notifications}
+              token={'2501b80e-45c2-4de8-894a-ca950b7ba638'}
+            />
+          </div>
+        )}
       </div>
     )
   }

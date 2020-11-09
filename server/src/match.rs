@@ -26,7 +26,7 @@ pub struct MatchInfo
 pub struct MatchResponse
 {
     pub match_notification_id: i64,
+    pub ans: u8,
     pub user_token: String,
-    pub ans: u8
 }
 
