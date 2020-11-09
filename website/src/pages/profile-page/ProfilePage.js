@@ -1,4 +1,5 @@
 import { React, Component } from 'react'
+import { Redirect } from 'react-router-dom'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
 import '../../index.css'
@@ -8,6 +9,7 @@ import SearchBar from '../../components/search-bar/SearchBar'
 
 class Profile extends Component {
   user = {}
+  error = false
 
   constructor(args) {
     super()
@@ -31,6 +33,7 @@ class Profile extends Component {
   render() {
     const numberOfMatches = this.user.match_history?.length
     const numberOfNotifications = this.notifications?.length
+
     return (
       <div className="container">
         <h1 className="name">{this.user.name}</h1>
