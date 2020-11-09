@@ -16,6 +16,17 @@ class Navbar extends Component {
     this.renderDesktop = this.renderDesktop.bind(this)
     this.renderMobile = this.renderMobile.bind(this)
     this.toggleMenu = this.toggleMenu.bind(this)
+
+    if (localStorage.getItem('token'))
+      this.items.push({
+        name: 'Profile',
+        path: '/profiles/' + localStorage.getItem('username'),
+      })
+    else
+      this.items.push({
+        name: 'Login',
+        path: '/login',
+      })
   }
 
   renderDesktop() {
@@ -66,12 +77,6 @@ class Navbar extends Component {
   }
 
   render() {
-    if (localStorage.getItem('token'))
-      this.items.push({
-        name: 'Profile',
-        path: '/profiles/' + localStorage.getItem('username'),
-      })
-
     const large = window.matchMedia('(min-width: 600px)').matches
     return large ? this.renderDesktop() : this.renderMobile()
   }

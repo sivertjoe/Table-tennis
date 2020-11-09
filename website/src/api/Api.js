@@ -45,3 +45,9 @@ export const registerMatch = async (winner, loser) =>
       token: localStorage.getItem('token') ?? '',
     }),
   }).then((req) => req)
+
+export const login = async (username, password) =>
+  fetch(apiUrl + '/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: username, password: password }),
+  }).then((req) => req)
