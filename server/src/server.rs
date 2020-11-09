@@ -4,19 +4,7 @@ use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
 use crate::user::User;
 use elo::EloRank;
 use crate::r#match::Match;
-
-struct MatchNotification
-{
-    id: i64,
-    winner_accept: u8,
-    loser_accept: u8, 
-    epoch: i64,
-    elo_diff: f64,
-    winner_elo: f64,
-    loser_elo: f64,
-    winner: i64,
-    loser: i64
-}
+use crate::notification::{MatchNotificationTable, MatchNotification};
 
 pub struct DataBase
 {
@@ -140,6 +128,11 @@ impl DataBase
     {
         self.try_change_password(name, password, new_password)
     }
+
+    pub fn get_notifications(&self, user_token: String) -> Result<Vec<MatchNotification>>
+    {
+        self.try_get_notifications(user_token)
+    }
 }
 
 // Migrate functions here (Will be deleted later on)
@@ -181,6 +174,48 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
+    // Get all notifications for the users, exclude already 
+    // answered ones
+    fn try_get_notifications(&self, token: String) -> Result<Vec<MatchNotification>>
+    {
+        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
+        let mut stmt = self.conn.prepare(
+            "select id, winner, loser, epoch from match_notification
+            where 
+                winner = :id and winner_accept = 0
+            union
+            select id, winner, loser, epoch from match_notification
+            where 
+                loser = :id and loser_accept = 0
+            ")?;
+
+        let notifications = stmt.query_map_named(named_params!{":id": user.id}, |row|
+        {
+            let winner_id: i64 = row.get(1)?;
+            let loser_id: i64 = row.get(2)?;
+
+            let winner_name: String = self.get_user_without_matches_by("id", "=", &winner_id.to_string())?.name;
+            let loser_name: String = self.get_user_without_matches_by("id", "=", &loser_id.to_string())?.name;
+            Ok(
+                MatchNotification {
+                    id: row.get(0)?,
+                    winner: winner_name,
+                    loser: loser_name,
+                    epoch: row.get(3)?
+                })
+        })?;
+
+        let mut vec: Vec<MatchNotification> = Vec::new();
+        for n in notifications
+        {
+            if let Ok(mn) = n
+            {
+                vec.push(mn);
+            };
+        }
+        vec.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
+        Ok(vec)
+    }
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> Result<usize>
     {
         let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
@@ -190,7 +225,7 @@ impl DataBase
         let mut match_notification = stmt.query_map_named(named_params!{":id": id}, |row|
         {
             Ok(
-                MatchNotification {
+                MatchNotificationTable {
                     id: row.get(0)?,
                     winner_accept: row.get(1)?,
                     loser_accept: row.get(2)?,
@@ -219,7 +254,7 @@ impl DataBase
         self.handle_notification_answer(&user, ans, &match_notification)
     }
 
-    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotification) -> Result<usize>
+    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotificationTable) -> Result<usize>
     {
         // If both accepted, we need to 
         //  * create the match notification,
@@ -250,13 +285,13 @@ impl DataBase
         stmt.execute_named(named_params!{":id": id, ":ans": ans})
     }
 
-    fn delete_match_notification(&self, m: &MatchNotification) -> Result<usize>
+    fn delete_match_notification(&self, m: &MatchNotificationTable) -> Result<usize>
     {
         let mut stmt = self.conn.prepare("delete from match_notification where id = :id")?;
         stmt.execute_named(named_params!{":id": m.id})
     }
 
-    fn create_match_from_notification(&self, m: &MatchNotification) -> Result<usize>
+    fn create_match_from_notification(&self, m: &MatchNotificationTable) -> Result<usize>
     {
             self.conn.execute(
                 "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) 
