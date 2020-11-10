@@ -866,4 +866,87 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert!(s.epoch().to_string().len() == 13);
     }
+
+    #[test]
+    fn test_rolls_back_correctly()
+    {
+        let db_file = "tempC.db";
+        let s = DataBase::new(db_file);
+
+        let siv = "Sivert".to_string();
+        let lars = "Lars".to_string();
+        let bernt = "Bernt".to_string();
+
+        s.create_user(siv.clone(), "password".to_string()).expect("Creating Sivert");
+        s.create_user(lars.clone(), "password".to_string()).expect("Creating Lars");
+        s.create_user(bernt.clone(), "password".to_string()).expect("Creating Bernt");
+
+        let token_siv = Some(get_token_from_user(&s, &siv));
+        let token_lars = Some(get_token_from_user(&s, &lars));
+        let token_bernt = Some(get_token_from_user(&s, &bernt));
+
+
+        use std::{thread, time};
+        let five_millis = time::Duration::from_millis(5);
+
+
+        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+        s.register_match(bernt.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+
+
+        respond_to_match(&s, lars.as_str(), 2);
+        respond_to_match(&s, bernt.as_str(), 5);
+        respond_to_match(&s, lars.as_str(), 3);
+        respond_to_match(&s, lars.as_str(), 1);
+        respond_to_match(&s, lars.as_str(), 4);
+        
+        /*
+         * Match Order:
+         * W - L id  // winner - loser
+         * L - S 1
+         * S - L 2
+         * S - L 3
+         * S - L 4 
+         * B - S 5
+         *
+         * But we will accept them in the order:
+         * S - L 2
+         * B - S 5
+         * S - L 3
+         * L - S 1
+         * S - L 4
+         * 1484, 1484, 1516   
+         * 1516, 1484, 1516  
+         *
+         * Before roll_back the ELo's should be:
+         * Sivert: 1512.016815723276
+         * Lars  : 1471.2468774832018
+         * Bernt : 1516.736306793522
+         *
+         * But in actuality they should be:
+         * Sivert: 1514.2851406137202
+         * Lars  : 1468.2570986091923
+         * Bernt : 1517.4577607770875
+         * A _little_ different, BUT! More correct, rollback should fix these
+         */
+
+        s.roll_back();
+
+        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(), 
+                                                 s.get_user_without_matches(&lars).unwrap(),
+                                                 s.get_user_without_matches(&bernt).unwrap());
+        std::fs::remove_file(db_file).expect("Removing file tempC");
+
+
+        assert_eq!(siv_user.elo, 1514.2851406137202);
+        assert_eq!(lars_user.elo, 1468.2570986091923);
+        assert_eq!(bernt_user.elo, 1517.4577607770875);
+    }
 }

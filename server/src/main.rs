@@ -2,6 +2,7 @@ mod server;
 mod user;
 mod r#match;
 mod notification;
+mod server_rollback;
 
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
