@@ -43,6 +43,7 @@ impl DataBase
 
         conn.execute(
              "create table if not exists matches (
+                id              integer primary key autoincrement,
                 epoch           bigint not null,
                 elo_diff        integer,
                 winner_elo      float,
@@ -77,6 +78,7 @@ impl DataBase
     {
         // self.migrate_password_and_uuid().expect("Add password and uuid field");
         // self.migrate_user_role();
+        self.migrate_match_id();
     }
 
     pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
@@ -138,6 +140,29 @@ impl DataBase
 // Migrate functions here (Will be deleted later on)
 impl DataBase
 {
+    fn migrate_match_id(&self)
+    {
+        self.conn.execute(
+            "alter table matches rename to old_matches",
+             NO_PARAMS).expect("Change name");
+
+        self.conn.execute(
+             "create table if not exists matches (
+                id              integer primary key autoincrement,
+                epoch           bigint not null,
+                elo_diff        integer,
+                winner_elo      float,
+                loser_elo       float,
+                winner          integer,
+                loser           integer,
+                foreign key(winner) references users(id),
+                foreign key(loser) references users(id)
+                )",
+                NO_PARAMS,).expect("Creating matches table");
+        self.conn.execute("insert into matches (epoch, elo_diff, winner_elo, loser_elo, winner, loser) 
+                          select epoch, elo_diff, winner_elo, loser_elo, winner, loser from old_matches", NO_PARAMS).expect("Transfering");
+        self.conn.execute("drop table old_matches", NO_PARAMS).expect("Transfering");
+    }
     fn migrate_password_and_uuid(&self)
     {
         let default_password = DataBase::get_default_password();
@@ -882,8 +907,6 @@ mod test
         s.create_user(bernt.clone(), "password".to_string()).expect("Creating Bernt");
 
         let token_siv = Some(get_token_from_user(&s, &siv));
-        let token_lars = Some(get_token_from_user(&s, &lars));
-        let token_bernt = Some(get_token_from_user(&s, &bernt));
 
 
         use std::{thread, time};
@@ -937,16 +960,24 @@ mod test
          * A _little_ different, BUT! More correct, rollback should fix these
          */
 
-        s.roll_back();
+        let old_matches = s.get_history().unwrap();
+        s.roll_back().expect("Rolling back");
+        let new_matches = s.get_history().unwrap();
+        
 
         let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(), 
                                                  s.get_user_without_matches(&lars).unwrap(),
                                                  s.get_user_without_matches(&bernt).unwrap());
         std::fs::remove_file(db_file).expect("Removing file tempC");
 
-
         assert_eq!(siv_user.elo, 1514.2851406137202);
         assert_eq!(lars_user.elo, 1468.2570986091923);
         assert_eq!(bernt_user.elo, 1517.4577607770875);
+        old_matches.into_iter().rev().skip(1) // First match are equal should not be compared, ask me for more info Xdd
+            .zip(new_matches.into_iter().rev().skip(1)).for_each(|(old, new)|
+        {
+            // Check that they changed, they do not strictly allways change, but in this example they do
+            assert_ne!(old.winner_elo, new.winner_elo)
+        });
     }
 }
