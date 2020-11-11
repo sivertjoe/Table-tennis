@@ -115,8 +115,10 @@ impl DataBase
     {
         let (winner, loser) = (self.get_user_without_matches(&winner_name)?, 
                                self.get_user_without_matches(&loser_name)?);
+        let winner_elo = match self.get_newest_elo(winner.id) { Ok(elo) => elo, _ => winner.elo };
+        let loser_elo = match self.get_newest_elo(loser.id) { Ok(elo) => elo, _ => loser.elo };
         let elo = EloRank { k: 32 };
-        let (new_winner_elo, _) = elo.calculate(winner.elo, loser.elo);
+        let (new_winner_elo, _) = elo.calculate(winner_elo, loser_elo);
 
         self.create_match_notification(&winner, &loser, new_winner_elo - winner.elo, token)
     }
@@ -199,6 +201,23 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
+    fn get_newest_elo(&self, id: i64) -> Result<f64>
+    {
+        let stmt = self.conn.prepare(
+            "select winner, winner_elo, loser_elo from match_notification
+            where winner = :id or loser = id
+            order by epoch asc
+            limit 1;");
+        let elo = stmt.query_map_named(named_params!{":id": id}, |row|
+        {
+            let winner: i64 = row.get(0)?;
+            let idx = if winner == id { 1 } else { 2 };
+            let elo: f64 = row.get(idx)?;
+            Ok(elo);
+        })?.next();
+
+        Ok(elo.unwrap())
+    }
     // Get all notifications for the users, exclude already 
     // answered ones
     fn try_get_notifications(&self, token: String) -> Result<Vec<MatchNotification>>
@@ -890,6 +909,57 @@ mod test
 
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert!(s.epoch().to_string().len() == 13);
+    }
+
+    fn get_match_noti_winner_elo(s: &Connection) -> Vec<f64>
+    {
+        let mut stmt =  s.prepare("select winner_elo from match_notification;").unwrap();
+        let matches = stmt.query_map(NO_PARAMS, |row|
+        {
+            let win_elo: f64 = row.get(0).unwrap();
+            Ok(win_elo)
+        }).unwrap();
+
+        let mut vec: Vec<f64> = Vec::new();
+        for w in matches
+        {
+            if let Ok(elo) = w
+            {
+                vec.push(elo);
+            }
+        }
+        vec
+    }
+
+    #[test]
+    fn test_match_registration_elos_better()
+    {
+        let db_file = "tempD.db";
+        let s = DataBase::new(db_file);
+
+        let siv = "Sivert".to_string();
+        let lars = "Lars".to_string();
+
+        s.create_user(siv.clone(), "password".to_string()).expect("Creating Sivert");
+        s.create_user(lars.clone(), "password".to_string()).expect("Creating Lars");
+
+        let token_siv = Some(get_token_from_user(&s, &siv));
+
+
+        use std::{thread, time};
+        let five_millis = time::Duration::from_millis(5);
+
+
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        thread::sleep(five_millis);
+
+        let noti_winner_elos = get_match_noti_winner_elo(&s.conn);
+
+        std::fs::remove_file(db_file).expect("Removing file temp");
+
+        assert_ne!(noti_winner_elos[0], noti_winner_elos[1]);
     }
 
     #[test]
