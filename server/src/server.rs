@@ -76,8 +76,8 @@ impl DataBase
     }
     pub fn migrate(&self)
     {
-        // self.migrate_password_and_uuid().expect("Add password and uuid field");
-        // self.migrate_user_role();
+        self.migrate_user_role();
+        self.migrate_password_and_uuid();
         self.migrate_match_id();
     }
 
@@ -434,9 +434,14 @@ impl DataBase
             let passwd: String = row.get(0)?;
             let uuid: String = row.get(1)?;
             Ok((passwd, uuid))
-        })?.next().expect("getting user");
+        })?.next();
 
-        match info
+        if info.is_none()
+        {
+                return Err(rusqlite::Error::InvalidParameterName("No user with that name exist".to_string()))
+        }
+
+        match info.unwrap()
         {
             Ok((p, u)) =>
             {

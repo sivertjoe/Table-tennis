@@ -15,8 +15,7 @@ class Profile extends Component {
   constructor(args) {
     super()
 
-    this.log_in_flag = true
-    if (this.log_in_flag) {
+    if (localStorage.getItem('token')) {
       Promise.all([Api.getUser(args.user), Api.getNotifications()]).then(
         (data) => {
           this.user = data[0]
@@ -48,7 +47,7 @@ class Profile extends Component {
         <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
         <h2 className="history">Match history {numberOfMatches}</h2>
         <MatchHistory user={this.user} />
-        {this.log_in_flag && (
+        {localStorage.getItem('username') === this.user.name && (
           <div>
             <h2 className="history">
               Notifications (
@@ -59,12 +58,10 @@ class Profile extends Component {
             </h2>
             <Notifications
               values={this.notifications}
-              token={'2501b80e-45c2-4de8-894a-ca950b7ba638'}
+              token={localStorage.getItem('token')}
             />
-          </div>
-          {localStorage.getItem('username') === this.user.name && (
             <Button placeholder="Logout" callback={this.logout} />
-          )}
+          </div>
         )}
       </div>
     )

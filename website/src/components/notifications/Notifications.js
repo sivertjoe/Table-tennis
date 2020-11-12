@@ -18,7 +18,7 @@ export const Notifications = (notifications, token) => {
   return (
     <div className="table-container">
       <table id="table">
-        <tbody>
+        <tbody className="tbody">
           <tr>
             <th>Winner</th>
             <th>Loser</th>
@@ -36,7 +36,7 @@ export const Notifications = (notifications, token) => {
 const NotificationItem = (values) => {
   const vals = values.values
   return (
-    <tr id={vals.id}>
+    <tr id={vals.id} className="tr">
       <th>{vals.winner}</th>
       <th>{vals.loser}</th>
       <th>{formatDate(vals.epoch)}</th>
@@ -55,10 +55,9 @@ const NotificationItem = (values) => {
 }
 
 const click_button = (id, ans) => {
-  const token = '2501b80e-45c2-4de8-894a-ca950b7ba638'
-  console.log(id, ans)
+  const token = localStorage.getItem('token')
   Api.replyToMatch(id, token, ans).then(() => {
-    var r = document.getElementById(id).remove()
+    document.getElementById(id).remove()
     document.getElementById('notificationCounter').innerHTML -= 1
   })
 }
