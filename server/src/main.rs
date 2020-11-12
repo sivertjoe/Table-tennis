@@ -60,7 +60,7 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     let info: MatchResponse = serde_json::from_str(&info).unwrap();
     let id = info.match_notification_id;
     let answer = info.ans;
-    let token = info.token.clone();
+    let token = info.user_token.clone();
 
     match DATABASE!(data).respond_to_match(id, answer, token)
     {

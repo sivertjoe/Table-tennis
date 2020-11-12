@@ -21,11 +21,6 @@ export const register = async (username, password) =>
     body: JSON.stringify({ username: username, password: password }),
   }).then((req) => req)
 
-export const getNotifications = async () =>
-  fetch(apiUrl + '/notifications/' + '2501b80e-45c2-4de8-894a-ca950b7ba638')
-    .then((req) => req.json())
-    .then((req) => req)
-
 export const replyToMatch = async (match_id, token, ans) =>
   fetch(apiUrl + '/respond-to-match', {
     method: 'POST',
@@ -50,19 +45,9 @@ export const login = async (username, password) =>
   fetch(apiUrl + '/login', {
     method: 'POST',
     body: JSON.stringify({ username: username, password: password }),
-}).then((req) => req)
+  }).then((req) => req)
 
 export const getNotifications = async () =>
-  fetch(apiUrl + '/notifications/' + '2501b80e-45c2-4de8-894a-ca950b7ba638')
+  fetch(apiUrl + '/notifications/' + localStorage.getItem('token'))
     .then((req) => req.json())
     .then((req) => req)
-
-export const replyToMatch = async (match_id, token, ans) =>
-  fetch(apiUrl + '/respond-to-match', {
-    method: 'POST',
-    body: JSON.stringify({
-      match_notification_id: match_id,
-      ans: ans,
-      user_token: token,
-    }),
-  }).then((req) => req)

@@ -1,45 +1,46 @@
-li {
-  border: solid 1px #ebf0f2;
-  border-radius: 0.5rem;
-  border-spacing: 1rem;
-  margin-top: 1em;
-  position: relative;
-}
-
-/* Use LESS here..? Or? */
 .accept {
   background-color: #89d400;
   border: none;
-  cursor: pointer;
   border-radius: 3px;
-  height: 48px;
-  width: 48px;
-  top: 50%;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
   text-align: center;
   color: white;
-  line-height: 48px;
   font-weight: bold;
 }
 
 .decline {
   background-color: #ff2811;
   border: none;
-  cursor: pointer;
   border-radius: 3px;
-  height: 48px;
-  width: 48px;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
   text-align: center;
   color: white;
-  line-height: 48px;
+  font-weight: bold;
+}
+
+.disable {
+  cursor: not-allowed;
+  pointer-events: none;
+  color: #c0c0c0;
+  background-color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  height: 100%;
+  width: 100%;
+  text-align: center;
   font-weight: bold;
 }
 
 .divWrapper {
-    display: inline-block;
+  display: inline-block;
 }
 
 span {
   position: relative;
-  font-size: 48px;
+  font-size: 35px;
   text-align: center;
 }
