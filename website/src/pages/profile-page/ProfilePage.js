@@ -1,5 +1,4 @@
 import { React, Component } from 'react'
-import { Redirect } from 'react-router-dom'
 import * as Api from '../../api/Api'
 import './ProfilePage.css'
 import '../../index.css'
@@ -14,6 +13,7 @@ class Profile extends Component {
 
   constructor(args) {
     super()
+    this.changePassword = this.changePassword.bind(this)
 
     if (localStorage.getItem('token')) {
       Promise.all([Api.getUser(args.user), Api.getNotifications()]).then(
@@ -37,6 +37,10 @@ class Profile extends Component {
     window.location.href = '/'
   }
 
+  changePassword() {
+    window.location.href = '/change-password'
+  }
+
   render() {
     const numberOfMatches = this.user.match_history?.length
     const numberOfNotifications = this.notifications?.length
@@ -49,7 +53,7 @@ class Profile extends Component {
         <MatchHistory user={this.user} />
         {localStorage.getItem('username') === this.user.name && (
           <div>
-            <h2 style={{marginTop: "4rem"}}>
+            <h2 style={{ marginTop: '4rem' }}>
               Notifications (
               <div className="divWrapper" id="notificationCounter">
                 {numberOfNotifications}
@@ -60,7 +64,13 @@ class Profile extends Component {
               values={this.notifications}
               token={localStorage.getItem('token')}
             />
-            <Button placeholder="Logout" callback={this.logout} />
+            <div className="row">
+              <Button
+                placeholder="Change password"
+                callback={this.changePassword}
+              />
+              <Button placeholder="Logout" callback={this.logout} />
+            </div>
           </div>
         )}
       </div>

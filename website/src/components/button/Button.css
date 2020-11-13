@@ -1,13 +1,8 @@
-.button {
-  width: 100%;
-  margin: 2rem auto;
-  text-align: center;
-}
-
-.bigButton{
-  height: 3rem;
-  width: 10rem;
-  min-width: fit-content;
+.big-button{
+  height: fit-content;
+  min-height: 3rem;
+  width: fit-content;
+  min-width: 10rem;
   border-radius: 1rem;
   font-size: 1.5rem;
   background-size: 100% 200%;
