@@ -2,6 +2,10 @@ h1 {
   text-align: center;
 }
 
+p {
+  text-align: center;
+}
+
 .inputs {
   margin: auto;
   max-width: 30rem;
@@ -21,3 +25,4 @@ input {
   color: red;
   text-align: center;
 }
+

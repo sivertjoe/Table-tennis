@@ -36,7 +36,7 @@ export const Notifications = (notifications, token) => {
 const NotificationItem = (values) => {
   const vals = values.values
   return (
-    <tr d={vals.id} className="tr">
+    <tr id={vals.id} className="tr">
       <th>{vals.winner}</th>
       <th>{vals.loser}</th>
       <th>{formatDate(vals.epoch)}</th>
