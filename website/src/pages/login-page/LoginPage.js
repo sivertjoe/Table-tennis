@@ -65,6 +65,7 @@ class LoginPage extends Component {
         </div>
         {this.error && <h2 className="error"> {this.error} </h2>}
         <Button placeholder="Login" callback={this.onClick} />
+        <p style={{textAlign: "center"}}>(For already registered users, default password is '@uit', change it asap Xdd, see profile page)</p>
       </div>
     )
   }

@@ -51,3 +51,14 @@ export const getNotifications = async () =>
   fetch(apiUrl + '/notifications/' + localStorage.getItem('token'))
     .then((req) => req.json())
     .then((req) => req)
+
+export const changePassword = async (username, password,  newPassword) =>
+    fetch(apiUrl + '/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+            username: username,
+            password: password,
+            'new-password': newPassword
+        }),
+    }).then((req) => req)
+
