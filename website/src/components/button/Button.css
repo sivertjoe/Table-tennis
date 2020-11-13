@@ -4,7 +4,7 @@
   text-align: center;
 }
 
-button:not(.accept):not(.decline):not(.disable) {
+.bigButton{
   height: 3rem;
   width: 10rem;
   min-width: fit-content;
