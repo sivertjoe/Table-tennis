@@ -52,13 +52,12 @@ export const getNotifications = async () =>
     .then((req) => req.json())
     .then((req) => req)
 
-export const changePassword = async (username, password,  newPassword) =>
-    fetch(apiUrl + '/change-password', {
-        method: 'POST',
-        body: JSON.stringify({
-            username: username,
-            password: password,
-            'new-password': newPassword
-        }),
-    }).then((req) => req)
-
+export const changePassword = async (username, password, newPassword) =>
+  fetch(apiUrl + '/change-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      username: username,
+      password: password,
+      'new_password': newPassword,
+    }),
+  }).then((req) => req)
