@@ -45,11 +45,11 @@ class Profile extends Component {
       <div className="container">
         <h1 className="name">{this.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
-        <h2 className="history">Match history {numberOfMatches}</h2>
+        <h2>Match history {numberOfMatches}</h2>
         <MatchHistory user={this.user} />
         {localStorage.getItem('username') === this.user.name && (
           <div>
-            <h2 className="history">
+            <h2 style={{marginTop: "4rem"}}>
               Notifications (
               <div className="divWrapper" id="notificationCounter">
                 {numberOfNotifications}
