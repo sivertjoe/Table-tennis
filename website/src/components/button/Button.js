@@ -15,9 +15,9 @@ class Button extends Component {
 
   render() {
     return (
-      <div className="button">
-        <button className="bigButton" onClick={this.onClick}>{this.placeholder}</button>
-      </div>
+      <button className="big-button" onClick={this.onClick}>
+        {this.placeholder}
+      </button>
     )
   }
 }

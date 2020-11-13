@@ -27,3 +27,8 @@ table {
 .error {
   color: red;
 }
+
+.button {
+    width: fit-content;
+    margin: 2rem auto;
+}

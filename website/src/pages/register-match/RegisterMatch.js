@@ -83,7 +83,9 @@ class RegisterMatch extends Component {
         {this.error && (
           <h2 className={this.error ? 'error' : 'success'}> {this.error} </h2>
         )}
-        <Button placeholder="Submit" callback={this.pressButton} />
+        <div className="button">
+          <Button placeholder="Submit" callback={this.pressButton} />
+        </div>
       </div>
     )
   }

@@ -64,13 +64,15 @@ class RegisterPage extends Component {
           />
         </div>
         {this.error && <h2 className="error"> {this.error} </h2>}
-        <Button placeholder="Register" callback={this.onClick} />
+        <div className="button">
+          <Button placeholder="Register" callback={this.onClick} />
+        </div>
         <p>
           (Note: Website is currently NOT running on https, so maybe not use
           your normal password, just in case ¯\_(ツ)_/¯)
         </p>
-        <p style={{fontSize: "small"}}>
-        (Ofcourse, you should not use the same password twice anyways ',:^))
+        <p style={{ fontSize: 'small' }}>
+          (Ofcourse, you should not use the same password twice anyways ',:^))
         </p>
       </div>
     )
