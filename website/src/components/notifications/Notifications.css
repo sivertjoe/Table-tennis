@@ -1,4 +1,7 @@
-.accept {
+.tr {
+}
+
+.tr:nth-child(2) th:nth-child(4) button {
   background-color: #89d400;
   border: none;
   border-radius: 3px;
@@ -10,7 +13,7 @@
   font-weight: bold;
 }
 
-.decline {
+.tr:nth-child(2) th:nth-child(5) button {
   background-color: #ff2811;
   border: none;
   border-radius: 3px;
@@ -21,18 +24,21 @@
   color: white;
   font-weight: bold;
 }
-
-.disable {
+.tr:not(:nth-child(2)) button {
   cursor: not-allowed;
   pointer-events: none;
-  color: #c0c0c0;
-  background-color: #ffffff;
   border: none;
   border-radius: 3px;
   height: 100%;
   width: 100%;
   text-align: center;
   font-weight: bold;
+  background-color: #cccccc;
+  color: #666666;
+}
+
+.tr:not(:nth-child(2)) {
+    color: #666666;
 }
 
 .divWrapper {

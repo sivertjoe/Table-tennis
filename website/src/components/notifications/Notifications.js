@@ -41,12 +41,12 @@ const NotificationItem = (values) => {
       <th>{vals.loser}</th>
       <th>{formatDate(vals.epoch)}</th>
       <th>
-        <button className="accept" onClick={() => click_button(vals.id, 1)}>
+        <button onClick={() => click_button(vals.id, 1)}>
           <span>&#10003;</span>
         </button>
       </th>
       <th>
-        <button className="decline" onClick={() => click_button(vals.id, 2)}>
+        <button onClick={() => click_button(vals.id, 2)}>
           <span>&#10005;</span>
         </button>
       </th>
