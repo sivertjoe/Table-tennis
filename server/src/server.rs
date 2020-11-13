@@ -118,9 +118,9 @@ impl DataBase
         let winner_elo = match self.get_newest_elo(winner.id) { Ok(elo) => elo, _ => winner.elo };
         let loser_elo = match self.get_newest_elo(loser.id) { Ok(elo) => elo, _ => loser.elo };
         let elo = EloRank { k: 32 };
-        let (new_winner_elo, _) = elo.calculate(winner_elo, loser_elo);
+        let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 
-        self.create_match_notification(&winner, &loser, new_winner_elo - winner.elo, token)
+        self.create_match_notification(&winner, &loser, new_winner_elo - winner_elo, token, new_winner_elo, new_loser_elo)
     }
 
     pub fn get_history(&self) -> Result<Vec<Match>>
@@ -205,8 +205,8 @@ impl DataBase
     {
         let mut stmt = self.conn.prepare(
             "select winner, winner_elo, loser_elo from match_notification
-            where winner = :id or loser = id
-            order by epoch asc
+            where winner = :id or loser = :id
+            order by epoch desc
             limit 1;")?;
         let elo = stmt.query_map_named(named_params!{":id": id}, |row|
         {
@@ -360,7 +360,7 @@ impl DataBase
                     m.loser_elo],)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64, token: Option<String>) -> Result<usize>
+    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64, token: Option<String>, new_winner_elo: f64, new_loser_elo: f64) -> Result<usize>
     {
         if let Some(token) = token
         {
@@ -368,18 +368,18 @@ impl DataBase
             {
                 return self.conn.execute(
                     "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, winner_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff, ACCEPT_MATCH],);
+                    params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo, ACCEPT_MATCH],);
             }
             else if self.user_have_token(loser.id, &token)?
             {
                 return self.conn.execute(
                     "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, loser_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff, ACCEPT_MATCH],);
+                    params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo, ACCEPT_MATCH],);
             }
         }
             self.conn.execute(
                 "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![self.epoch(), winner.id, loser.id, elo_diff, winner.elo + elo_diff, loser.elo - elo_diff],)
+                params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo],)
     }
 
     fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>
@@ -1074,7 +1074,7 @@ mod test
         s.create_user(siv.clone(), "password".to_string()).expect("Creating sivert");
 
         let user = s.get_user(&siv.clone()).unwrap();
-        //std::fs::remove_file(db_file).expect("Removing file tempE");
+        std::fs::remove_file(db_file).expect("Removing file tempE");
         assert_eq!(user.name, siv);
     }
 }
