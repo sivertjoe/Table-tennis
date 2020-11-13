@@ -38,7 +38,7 @@
 }
 
 .tr:not(:nth-child(2)) {
-    color: #666666;
+  color: #666666;
 }
 
 .divWrapper {
