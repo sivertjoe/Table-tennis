@@ -233,7 +233,7 @@ impl DataBase
     // answered ones
     fn try_get_notifications(&self, token: String) -> Result<Vec<MatchNotification>>
     {
-        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
+        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
             "select id, winner, loser, epoch from match_notification
             where 
@@ -273,7 +273,7 @@ impl DataBase
     }
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> Result<usize>
     {
-        let user = self.get_user_without_matches_by("uuid", "like", token.as_str())?;
+        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
             "select id, winner_accept, loser_accept, epoch, elo_diff, winner_elo, loser_elo,
             winner, loser from match_notification where id = :id")?;
@@ -384,7 +384,7 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>
     {
-        let mut stmt = self.conn.prepare("select count(*) from users where id like :id and uuid like :token")?;
+        let mut stmt = self.conn.prepare("select count(*) from users where id = :id and uuid = :token")?;
         let mut c = stmt.query_map_named(named_params!{":id": user_id, ":token": token}, |row|
         {
             let c: i64 = row.get(0)?;
@@ -396,7 +396,7 @@ impl DataBase
 
     fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
     {
-        let mut stmt = self.conn.prepare("select id, password_hash from users where name like :name;")?;
+        let mut stmt = self.conn.prepare("select id, password_hash from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
         {
             let id: i64 = row.get(0)?;
@@ -428,7 +428,7 @@ impl DataBase
 
     fn try_login(&self, name: String, password: String) -> Result<String>
     {
-        let mut stmt = self.conn.prepare("select password_hash, uuid from users where name like :name;")?;
+        let mut stmt = self.conn.prepare("select password_hash, uuid from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
         {
             let passwd: String = row.get(0)?;
@@ -565,12 +565,12 @@ impl DataBase
 
     fn get_user_without_matches(&self, name: &String) -> Result<User>
     {
-        self.get_user_without_matches_by("name", "like", name.as_str())
+        self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
     fn get_user(&self, name: &String) -> Result<User>
     {
-        let mut user = self.get_user_without_matches_by("name", "like", name.as_str())?;
+        let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
         user.match_history = self.get_matches(user.id)?.collect();
         Ok(user)
     }
@@ -636,7 +636,7 @@ mod test
     fn respond_to_match(s: &DataBase, name: &str, id: i64)
     {
         let mut stmt = s.conn
-                        .prepare("select uuid from users where name like :name")
+                        .prepare("select uuid from users where name = :name")
                         .expect("Creating query");
         let token:  String = stmt.query_map_named(named_params!{":name": name}, |row|
         {
@@ -697,7 +697,7 @@ mod test
 
     fn get_token_from_user(s: &DataBase, name: &String) -> String
     {
-        let mut stmt = s.conn.prepare("select uuid from users where name like :name").unwrap();
+        let mut stmt = s.conn.prepare("select uuid from users where name = :name").unwrap();
         let name = stmt.query_map_named(named_params!{":name": name}, |row|
         {
             let name: String = row.get(0).unwrap();
@@ -858,7 +858,7 @@ mod test
         s.create_user("Sivertt".to_string(), "password".to_string()).expect("Creating Sivertt");
         s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
 
-        let user = s.get_user_without_matches_by("name", "like", "Sivert");
+        let user = s.get_user_without_matches_by("name", "=", "Sivert");
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert!(user.is_ok() && user.unwrap().name == "Sivert");
     }
@@ -1059,5 +1059,22 @@ mod test
         assert_eq!(siv_user.elo, 1514.2851406137202);
         assert_eq!(lars_user.elo, 1468.2570986091923);
         assert_eq!(bernt_user.elo, 1517.4577607770875);
+    }
+
+    #[test]
+    fn test_case_sensitive_user_search()
+    {
+        let db_file = "tempE.db";
+        let s = DataBase::new(db_file);
+
+        let Siv = "Sivert".to_string();
+        let siv = "sivert".to_string();
+
+        s.create_user(Siv.clone(), "password".to_string()).expect("Creating Sivert");
+        s.create_user(siv.clone(), "password".to_string()).expect("Creating sivert");
+
+        let user = s.get_user(&siv.clone()).unwrap();
+        //std::fs::remove_file(db_file).expect("Removing file tempE");
+        assert_eq!(user.name, siv);
     }
 }
