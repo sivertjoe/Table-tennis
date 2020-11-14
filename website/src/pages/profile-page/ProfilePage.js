@@ -44,16 +44,15 @@ class Profile extends Component {
   render() {
     const numberOfMatches = this.user.match_history?.length
     const numberOfNotifications = this.notifications?.length
+    const loggedIn = localStorage.getItem('username') === this.user.name
 
     return (
       <div className="container">
         <h1 className="name">{this.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
-        <h2>Match history {numberOfMatches}</h2>
-        <MatchHistory user={this.user} />
-        {localStorage.getItem('username') === this.user.name && (
+        {loggedIn && numberOfNotifications > 0 && (
           <div>
-            <h2 style={{ marginTop: '4rem' }}>
+            <h2>
               Notifications (
               <div className="divWrapper" id="notificationCounter">
                 {numberOfNotifications}
@@ -64,13 +63,17 @@ class Profile extends Component {
               values={this.notifications}
               token={localStorage.getItem('token')}
             />
-            <div className="row">
-              <Button
-                placeholder="Change password"
-                callback={this.changePassword}
-              />
-              <Button placeholder="Logout" callback={this.logout} />
-            </div>
+          </div>
+        )}
+        <h2 style={{ marginTop: '4rem' }}>Match history ({numberOfMatches})</h2>
+        <MatchHistory user={this.user} />
+        {loggedIn && (
+          <div className="row">
+            <Button
+              placeholder="Change password"
+              callback={this.changePassword}
+            />
+            <Button placeholder="Logout" callback={this.logout} />
           </div>
         )}
       </div>
