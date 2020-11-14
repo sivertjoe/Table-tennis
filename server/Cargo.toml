@@ -14,7 +14,6 @@ elo  = "0.3.0"
 sha2 = "0.9.2"
 uuid = { version = "0.8", features = ["v4"] }
 chrono = "0.4"
-actix-rt = "1.1.1"
 serde_json = "1.0.59"
 serde_derive = "1.0.117"
 serde = "1.0.117"

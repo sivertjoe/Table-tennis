@@ -8,11 +8,9 @@ use elo::EloRank;
 
 impl DataBase
 {
-    pub fn roll_back(&self) -> Result<usize>
+    pub fn roll_back(&self, time: i64) -> Result<usize>
     {
         let elo = EloRank { k: 32 };
-        let time_now = Utc::now().timestamp_millis();
-        let one_day = time_now - 86400000;
         
                             // Match, id
         let mut modified: Vec<(Match, i64)> = Vec::new();
@@ -20,10 +18,29 @@ impl DataBase
                          // Username, elo
         let mut map: HashMap<String, f64> = HashMap::new();
 
-        for (m, id) in get_all_matches_before(&self.conn, one_day)?
+
+        let flag = time < 0;
+        let time = time.abs();
+        let default_score = |m: &Match, is_winner: bool| -> f64
+        { 
+            if flag { 1500.0 } 
+            else 
+            { 
+                if is_winner 
+                { 
+                    m.winner_elo - m.elo_diff 
+                }
+                else 
+                { 
+                    m.loser_elo - m.elo_diff 
+                }
+            }
+        };
+
+        for (m, id) in get_all_matches_before(&self.conn, time)?
         {
-            let winner_elo = *map.entry(m.winner.clone()).or_insert(m.winner_elo - m.elo_diff);
-            let loser_elo = *map.entry(m.loser.clone()).or_insert(m.loser_elo + m.elo_diff);
+            let winner_elo = *map.entry(m.winner.clone()).or_insert(default_score(&m, true));
+            let loser_elo = *map.entry(m.loser.clone()).or_insert(default_score(&m, false));
 
             let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 

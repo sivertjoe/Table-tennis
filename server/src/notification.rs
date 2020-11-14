@@ -16,9 +16,6 @@ pub struct MatchNotificationTable
     pub winner_accept: u8,
     pub loser_accept: u8, 
     pub epoch: i64,
-    pub elo_diff: f64,
-    pub winner_elo: f64,
-    pub loser_elo: f64,
     pub winner: i64,
     pub loser: i64
 }

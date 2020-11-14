@@ -29,7 +29,6 @@ impl DataBase
             Ok(c) => c
         };
 
-
         conn.execute(&format!(
             "create table if not exists users (
                 id              integer primary key autoincrement,
@@ -61,9 +60,6 @@ impl DataBase
                 winner_accept   smallint default 0,
                 loser_accept    smallint default 0,
                 epoch           bigint not null,
-                elo_diff        integer,
-                winner_elo      float,
-                loser_elo       float,
                 winner          integer,
                 loser           integer,
                 foreign key(winner) references users(id),
@@ -74,13 +70,6 @@ impl DataBase
             conn: conn
         }
     }
-    pub fn migrate(&self)
-    {
-        self.migrate_user_role();
-        self.migrate_password_and_uuid();
-        self.migrate_match_id();
-    }
-
     pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
     {
         self.try_login(name, password)
@@ -115,12 +104,8 @@ impl DataBase
     {
         let (winner, loser) = (self.get_user_without_matches(&winner_name)?, 
                                self.get_user_without_matches(&loser_name)?);
-        let winner_elo = match self.get_newest_elo(winner.id) { Ok(elo) => elo, _ => winner.elo };
-        let loser_elo = match self.get_newest_elo(loser.id) { Ok(elo) => elo, _ => loser.elo };
-        let elo = EloRank { k: 32 };
-        let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 
-        self.create_match_notification(&winner, &loser, new_winner_elo - winner_elo, token, new_winner_elo, new_loser_elo)
+        self.create_match_notification(&winner, &loser, token)
     }
 
     pub fn get_history(&self) -> Result<Vec<Match>>
@@ -137,66 +122,34 @@ impl DataBase
     {
         self.try_get_notifications(user_token)
     }
-}
 
-// Migrate functions here (Will be deleted later on)
-impl DataBase
-{
-    fn migrate_match_id(&self)
+    pub fn migrate(&self) -> Result<usize>
     {
         self.conn.execute(
-            "alter table matches rename to old_matches",
+            "alter table match_notification rename to old",
              NO_PARAMS).expect("Change name");
 
         self.conn.execute(
-             "create table if not exists matches (
+             "create table if not exists match_notification (
                 id              integer primary key autoincrement,
+                winner_accept   smallint default 0,
+                loser_accept    smallint default 0,
                 epoch           bigint not null,
-                elo_diff        integer,
-                winner_elo      float,
-                loser_elo       float,
                 winner          integer,
                 loser           integer,
                 foreign key(winner) references users(id),
                 foreign key(loser) references users(id)
                 )",
-                NO_PARAMS,).expect("Creating matches table");
-        self.conn.execute("insert into matches (epoch, elo_diff, winner_elo, loser_elo, winner, loser) 
-                          select epoch, elo_diff, winner_elo, loser_elo, winner, loser from old_matches", NO_PARAMS).expect("Transfering");
-        self.conn.execute("drop table old_matches", NO_PARAMS).expect("Transfering");
-    }
-    fn migrate_password_and_uuid(&self)
-    {
-        let default_password = DataBase::get_default_password();
-        self.conn.execute(
-            &format!("alter table users
-                add password_hash varchar(64) default \"{}\"",
-                default_password),
-                NO_PARAMS,).expect("Adding password_hash field");
+                NO_PARAMS,).expect("Creating match_notification table");
 
-        self.conn.execute(
-            "alter table users
-                add uuid varchar(36)",
-                NO_PARAMS,).expect("Adding uuid field");
+        self.conn.execute("insert into match_notification (id, epoch, winner, loser) 
+                          select id, epoch, winner, loser from old", NO_PARAMS).expect("Transfering");
 
-
-        let users = self.get_all_users().expect("Getting all users");
-        let mut stmt = self.conn.prepare("update users  set uuid = :uuid WHERE id = :id").expect("creating statement");
-        for user in users
-        {
-            let uuid = format!("{}", Uuid::new_v4());
-            stmt.execute_named(named_params!{":uuid": uuid, ":id": user.id}).expect("Adding user uuid");
-        }
-    }
-
-    fn migrate_user_role(&self)
-    {
-       self.conn.execute(
-           &format!("alter table users
-           add user_role smallint default {}", USER_ROLE_USER),
-           NO_PARAMS,).expect("Adding user_role field");
+        self.conn.execute("drop table old", NO_PARAMS).expect("dropping");
+        Ok(0)
     }
 }
+
 
 // Only private  functions here ~!
 impl DataBase
@@ -275,8 +228,8 @@ impl DataBase
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
-            "select id, winner_accept, loser_accept, epoch, elo_diff, winner_elo, loser_elo,
-            winner, loser from match_notification where id = :id")?;
+            "select id, winner_accept, loser_accept, epoch, winner, loser 
+            from match_notification where id = :id")?;
         let mut match_notification = stmt.query_map_named(named_params!{":id": id}, |row|
         {
             Ok(
@@ -285,11 +238,8 @@ impl DataBase
                     winner_accept: row.get(1)?,
                     loser_accept: row.get(2)?,
                     epoch: row.get(3)?,
-                    elo_diff: row.get(4)?,
-                    winner_elo: row.get(5)?,
-                    loser_elo: row.get(6)?,
-                    winner: row.get(7)?,
-                    loser: row.get(8)?
+                    winner: row.get(4)?,
+                    loser: row.get(5)?
                 })
         })?.next().expect("Unwrapping element").expect("Unwrapping Option");
 
@@ -321,10 +271,19 @@ impl DataBase
         if match_notification.loser_accept == ACCEPT_MATCH 
             && match_notification.winner_accept == ACCEPT_MATCH
         {
-            self.create_match_from_notification(&match_notification)?;
+            if user.id == match_notification.winner 
+            { 
+                
+                let loser = &self.get_user_without_matches_by("id", "=", &match_notification.loser.to_string())?;
+                self.create_match_from_notification(&match_notification, user, &loser)?;
+            } 
+            else 
+            { 
+                let winner = &self.get_user_without_matches_by("id", "=", &match_notification.winner.to_string())?;
+                self.create_match_from_notification(&match_notification, &winner, user)?;
+            };
+
             self.delete_match_notification(&match_notification)?;
-            self.update_elo(match_notification.winner, match_notification.winner_elo)?;
-            self.update_elo(match_notification.loser, match_notification.loser_elo)?;
             return Ok(0);
         }
         else
@@ -346,40 +305,91 @@ impl DataBase
         stmt.execute_named(named_params!{":id": m.id})
     }
 
-    fn create_match_from_notification(&self, m: &MatchNotificationTable) -> Result<usize>
+    fn create_match_from_notification(&self, m: &MatchNotificationTable, winner: &User, loser: &User) -> Result<usize>
     {
-            self.conn.execute(
-                "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) 
-                values (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    m.epoch, 
-                    m.winner,
-                    m.loser,
-                    m.elo_diff, 
-                    m.winner_elo,
-                    m.loser_elo],)
+        let elo = EloRank { k: 32 };
+        let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
+
+
+        self.conn.execute(
+            "insert into matches (epoch, winner, loser, elo_diff, winner_elo, loser_elo) 
+            values (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                m.epoch, 
+                m.winner,
+                m.loser,
+                new_winner_elo - winner.elo,
+                new_winner_elo,
+                new_loser_elo],)?;
+
+
+        if self.need_to_roll_back(m.epoch)?
+        {
+           self.roll_back(self.get_roll_back_time(m.epoch)?);
+           return Ok(0);
+        }
+        
+        self.update_elo(winner.id, new_winner_elo)?;
+        self.update_elo(loser.id, new_loser_elo)?;
+        Ok(0)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, elo_diff: f64, token: Option<String>, new_winner_elo: f64, new_loser_elo: f64) -> Result<usize>
+    fn get_roll_back_time(&self, epoch: i64) -> Result<i64>
+    {
+        let mut stmt = self.conn.prepare("select epoch from matches
+                               where epoch < :epoch
+                               order by epoch desc
+                               limit 1;")?;
+        let e = stmt.query_map_named(named_params!{":epoch": epoch}, |row|
+        {
+            let id: i64 = row.get(0)?;
+            Ok(id)
+        })?.next();
+
+        if e.is_none()
+        {
+            return Ok(-epoch);
+        }
+
+        let e = e.unwrap().unwrap();
+
+        Ok(e)
+    }
+
+    fn need_to_roll_back(&self, epoch: i64) -> Result<bool>
+    {
+        let mut stmt = self.conn.prepare("select count(*) from matches
+                               where epoch > :epoch;")?;
+
+        let count = stmt.query_map_named(named_params!{":epoch": epoch}, |row|
+        {
+            let n: i64 = row.get(0)?;
+            Ok(n)
+        })?.next().unwrap().unwrap();
+
+        Ok(count > 0)
+    }
+
+    fn create_match_notification(&self, winner: &User, loser: &User, token: Option<String>) -> Result<usize>
     {
         if let Some(token) = token
         {
             if self.user_have_token(winner.id, &token)?
             {
                 return self.conn.execute(
-                    "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, winner_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo, ACCEPT_MATCH],);
+                    "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, ?2, ?3, ?4)",
+                    params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],);
             }
             else if self.user_have_token(loser.id, &token)?
             {
                 return self.conn.execute(
-                    "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo, loser_accept) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo, ACCEPT_MATCH],);
+                    "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, ?2, ?3, ?4)",
+                    params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],);
             }
         }
             self.conn.execute(
-                "insert into match_notification (epoch, winner, loser, elo_diff, winner_elo, loser_elo) values (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![self.epoch(), winner.id, loser.id, elo_diff, new_winner_elo, new_loser_elo],)
+                "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
+                params![self.epoch(), winner.id, loser.id],)
     }
 
     fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>

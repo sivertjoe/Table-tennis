@@ -11,9 +11,6 @@ use user::{LoginInfo, ChangePasswordInfo};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
 
-use chrono::prelude::*;
-use chrono::Duration;
-
 use std::sync::{Mutex, Arc};
 use std::env::args;
 
@@ -44,7 +41,12 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
 #[post("/register-match")]
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: MatchInfo = serde_json::from_str(&info).unwrap();
+    let info: MatchInfo = match serde_json::from_str(&info) 
+    { 
+        Ok(info) => info, 
+        Err(_) => return HttpResponse::BadRequest().finish() 
+    };
+        
     let token = if info.token.is_empty() { None } else { Some(info.token) };
 
     match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
@@ -138,26 +140,6 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
     }
 }
 
-
-
-// Need to roll back to fix elos, see server:test_rolls_back_correctly for more info
-fn spawn_rollbacker(data: Arc<Mutex<DataBase>>)
-{
-    actix_rt::spawn(async move
-    {
-        loop
-        {
-        	let coming_midnight = (Utc::now() + Duration::days(1)).date().and_hms(0, 0, 0);
-			while Utc::now() != coming_midnight { continue; }
-			
-            data.lock()
-                .expect("Getting mutex lock")
-                .roll_back()
-                .expect("Rolling back");
-        }
-    });
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
@@ -169,8 +151,7 @@ async fn main() -> std::io::Result<()>
          addr = args[0].as_str();
     }
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
-	spawn_rollbacker(data.clone());
-    // data.lock().unwrap().migrate();
+    // data.clone().lock().unwrap().migrate().expect("Migrating");
 
 
     HttpServer::new(move || {
