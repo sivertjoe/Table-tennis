@@ -18,7 +18,6 @@ impl DataBase
                          // Username, elo
         let mut map: HashMap<String, f64> = HashMap::new();
 
-
         let flag = time < 0;
         let time = time.abs();
         let default_score = |m: &Match, is_winner: bool| -> f64
@@ -37,7 +36,11 @@ impl DataBase
             }
         };
 
-        for (m, id) in get_all_matches_before(&self.conn, time)?
+        let matches = get_all_matches_before(&self.conn, time)?;
+        map.insert(matches[0].0.winner.clone(), get_inital_elo(&matches[0].0.winner, &matches));
+        map.insert(matches[0].0.loser.clone(), get_inital_elo(&matches[0].0.loser, &matches));
+
+        for (m, id) in matches
         {
             let winner_elo = *map.entry(m.winner.clone()).or_insert(default_score(&m, true));
             let loser_elo = *map.entry(m.loser.clone()).or_insert(default_score(&m, false));
@@ -65,6 +68,32 @@ impl DataBase
         Ok(0)
     }
 
+}
+
+fn get_inital_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
+{
+    match matches.iter()
+        .skip(1)
+        .find(|(m, i)| &m.winner == name || &m.loser == name)
+    {
+        Some((m, i)) => if &m.winner == name
+        {
+            m.winner_elo - m.elo_diff
+        }
+        else
+        {
+            m.loser_elo + m.elo_diff
+        },
+
+        None => if &matches[0].0.winner == name
+        {
+            matches[0].0.winner_elo - matches[0].0.elo_diff
+        }
+        else
+        {
+            matches[0].0.loser_elo + matches[0].0.elo_diff
+        },
+    }
 }
 
 fn update_match(s: &Connection, m: (Match, i64)) -> Result<usize>

@@ -325,35 +325,13 @@ impl DataBase
 
         if self.need_to_roll_back(m.epoch)?
         {
-           self.roll_back(self.get_roll_back_time(m.epoch)?);
+           self.roll_back(m.epoch)?;
            return Ok(0);
         }
         
         self.update_elo(winner.id, new_winner_elo)?;
         self.update_elo(loser.id, new_loser_elo)?;
         Ok(0)
-    }
-
-    fn get_roll_back_time(&self, epoch: i64) -> Result<i64>
-    {
-        let mut stmt = self.conn.prepare("select epoch from matches
-                               where epoch < :epoch
-                               order by epoch desc
-                               limit 1;")?;
-        let e = stmt.query_map_named(named_params!{":epoch": epoch}, |row|
-        {
-            let id: i64 = row.get(0)?;
-            Ok(id)
-        })?.next();
-
-        if e.is_none()
-        {
-            return Ok(-epoch);
-        }
-
-        let e = e.unwrap().unwrap();
-
-        Ok(e)
     }
 
     fn need_to_roll_back(&self, epoch: i64) -> Result<bool>
