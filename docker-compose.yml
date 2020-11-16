@@ -12,6 +12,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - '58642:58642'
+    volumes:
+      - type: bind
+        source: ./server/db.db
+        target: /db.db
 
 networks:
   default:
