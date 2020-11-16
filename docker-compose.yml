@@ -11,7 +11,7 @@ services:
       context: ./server
       dockerfile: Dockerfile
     ports:
-      - '58642:80'
+      - '58642:58642'
 
 networks:
   default:
