@@ -5,7 +5,7 @@ services:
       context: ./website
       dockerfile: Dockerfile
     ports:
-      - '11000:80'
+      - '3000:80'
   server:
     build:
       context: ./server
@@ -14,7 +14,7 @@ services:
       - '58642:58642'
     volumes:
       - type: bind
-        source: ./server/db.db
+        source: ./server/src/db.db
         target: /db.db
 
 networks:
