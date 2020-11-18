@@ -6,7 +6,7 @@ mod server_rollback;
 
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
-use user::{LoginInfo, ChangePasswordInfo};
+use user::{Token, LoginInfo, ChangePasswordInfo};
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
@@ -140,6 +140,16 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
     }
 }
 
+#[get("/is_admin/{token}")]
+async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+{
+    match DATABASE!(data).get_is_admin(token.to_string())
+    {
+        Ok(data) => HttpResponse::Ok().json(data),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
@@ -151,7 +161,7 @@ async fn main() -> std::io::Result<()>
          addr = args[0].as_str();
     }
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
-    // data.clone().lock().unwrap().migrate().expect("Migrating");
+    data.clone().lock().unwrap().make_user_admin("S".into()).expect("making admin");
 
 
     HttpServer::new(move || {

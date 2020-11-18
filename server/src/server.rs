@@ -70,6 +70,22 @@ impl DataBase
             conn: conn
         }
     }
+
+    pub fn get_is_admin(&self, token: String) -> Result<bool>
+    {
+        let user = self.get_user_without_matches_by("token", "=", &token)?;
+        Ok(user.user_role == USER_ROLE_SUPERUSER)
+    }
+
+    pub fn make_user_admin(&self, name: String) -> Result<usize>
+    {
+        self.conn.execute(
+            &format!("update users
+                set user_role = {}
+                where name = \"{}\"", USER_ROLE_SUPERUSER, name),
+                NO_PARAMS,)
+    }
+
     pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
     {
         self.try_login(name, password)
