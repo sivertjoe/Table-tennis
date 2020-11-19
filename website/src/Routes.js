@@ -8,6 +8,7 @@ const RegisterMatch = lazy(() => import('./pages/register-match/RegisterMatch'))
 const History = lazy(() => import('./pages/history/History'))
 const LoginPage = lazy(() => import('./pages/login-page/LoginPage'))
 const ChangePasswordPage = lazy(() => import('./pages/change-password-page/ChangePasswordPage'))
+const Admin = lazy(() => import('./pages/admin-page/Admin'))
 
 const Routes = () => (
   <Switch>
@@ -19,6 +20,7 @@ const Routes = () => (
     <Route exact path="/history" component={History} />
     <Route exact path="/login" component={LoginPage} />
     <Route exact path="/change-password" component={ChangePasswordPage} />
+    <Route exact path="/admin" component={Admin} />
     <Redirect to="/" />
   </Switch>
 )

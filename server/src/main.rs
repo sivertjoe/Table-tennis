@@ -7,6 +7,7 @@ mod server_rollback;
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
 use user::{Token, LoginInfo, ChangePasswordInfo};
+use notification::NewUserNotificationAns;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
@@ -16,6 +17,8 @@ use std::env::args;
 
 const PORT: u32 = 58642;
 const DATABASE_FILE: &'static str = "db.db";
+
+
 
 macro_rules! DATABASE
 {
@@ -32,7 +35,7 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
-        Ok(uuid) => HttpResponse::Ok().json(uuid),
+        Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::Conflict().body(format!("{}", e))
     }
 }
@@ -81,7 +84,18 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
     match DATABASE!(data).login(name, password)
     {
         Ok(uuid) => HttpResponse::Ok().json(uuid),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(e) =>
+        {
+            if let rusqlite::Error::InvalidParameterName(s) = e
+            {
+                // Absolutely disgusting
+                if s == "Waiting for admin"
+                {
+                    return HttpResponse::Unauthorized().finish();
+                }
+            }
+            HttpResponse::BadRequest().finish()
+        }
     }
 }
 
@@ -120,6 +134,27 @@ async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(toke
     }
 }
 
+#[get("/user-notification/{token}")]
+async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+{
+    match DATABASE!(data).get_new_user_notifications(token)
+    {
+        Ok(notifications) => HttpResponse::Ok().json(notifications),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
+#[post("/respond-to-user-notification")]
+async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: NewUserNotificationAns = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).respond_to_new_user(info)
+    {
+        Ok(notifications) => HttpResponse::Ok().json(notifications),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
 #[get("/history")]
 async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
@@ -140,7 +175,7 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
     }
 }
 
-#[get("/is_admin/{token}")]
+#[get("/is-admin/{token}")]
 async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
 {
     match DATABASE!(data).get_is_admin(token.to_string())
@@ -162,6 +197,7 @@ async fn main() -> std::io::Result<()>
     }
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
     data.clone().lock().unwrap().make_user_admin("S".into()).expect("making admin");
+    data.clone().lock().unwrap().migrate().unwrap();
 
 
     HttpServer::new(move || {
@@ -176,8 +212,11 @@ async fn main() -> std::io::Result<()>
             .service(get_users)
             .service(register_match)
             .service(respond_to_match)
+            .service(respond_to_new_user)
             .service(get_history)
             .service(get_notifications)
+            .service(get_new_user_notifications)
+            .service(get_is_admin)
             .service(login)
             .service(change_password)
     })

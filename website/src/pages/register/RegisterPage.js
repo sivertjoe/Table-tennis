@@ -20,13 +20,8 @@ class RegisterPage extends Component {
 
     Api.register(this.username, this.password).then((res) => {
       if (res.status === 200)
-        return res.json().then((token) => {
-          localStorage.setItem('token', token)
-          localStorage.setItem('username', this.username)
-          window.location.href = '/profiles/' + this.username
-        })
-
-      if (res.status === 409) this.error = 'This username is unavailable'
+        this.error = 'Success! Now you have to wait for an admin to accept..!'
+      else if (res.status === 409) this.error = 'This username is unavailable'
       else this.error = 'Something went wrong'
       this.setState({})
     })

@@ -1,4 +1,4 @@
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 
 #[derive(Serialize)]
 pub struct MatchNotification
@@ -18,4 +18,19 @@ pub struct MatchNotificationTable
     pub epoch: i64,
     pub winner: i64,
     pub loser: i64
+}
+
+#[derive(Serialize)]
+pub struct NewUserNotification
+{
+    pub id: i64,
+    pub name: String
+}
+
+#[derive(Deserialize)]
+pub struct NewUserNotificationAns
+{
+    pub id: i64,
+    pub token: String,
+    pub ans: u8
 }

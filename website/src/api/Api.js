@@ -58,6 +58,26 @@ export const changePassword = async (username, password, newPassword) =>
     body: JSON.stringify({
       username: username,
       password: password,
-      'new_password': newPassword,
+      new_password: newPassword,
+    }),
+  }).then((req) => req)
+
+export const isAdmin = async (token) =>
+  fetch(apiUrl + '/is-admin/' + token)
+    .then((req) => req.json())
+    .then((res) => res)
+
+export const getNewUserNotification = async (token) =>
+  fetch(apiUrl + '/user-notification/' + token)
+    .then((req) => req.json())
+    .then((res) => res)
+
+export const replyToNewUser = async (id, token, ans) =>
+  fetch(apiUrl + '/respond-to-user-notification', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: id,
+      ans: ans,
+      token: token,
     }),
   }).then((req) => req)
