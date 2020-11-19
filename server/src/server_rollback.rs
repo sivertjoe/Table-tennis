@@ -41,8 +41,14 @@ impl DataBase
 
         for (m, id) in matches
         {
-            let winner_elo = *map.entry(m.winner.clone()).or_insert(default_score(&m, true));
-            let loser_elo = *map.entry(m.loser.clone()).or_insert(default_score(&m, false));
+            let winner_name = m.winner.clone();
+            let loser_name = m.loser.clone();
+            if !map.contains_key(&winner_name) && !map.contains_key(&loser_name)
+            {
+                continue;
+            }
+            let winner_elo = *map.entry(winner_name).or_insert(default_score(&m, true));
+            let loser_elo = *map.entry(loser_name).or_insert(default_score(&m, false));
 
             let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 
@@ -73,9 +79,9 @@ fn get_inital_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
 {
     match matches.iter()
         .skip(1)
-        .find(|(m, i)| &m.winner == name || &m.loser == name)
+        .find(|(m, _)| &m.winner == name || &m.loser == name)
     {
-        Some((m, i)) => if &m.winner == name
+        Some((m, _)) => if &m.winner == name
         {
             m.winner_elo - m.elo_diff
         }
