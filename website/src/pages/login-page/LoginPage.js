@@ -27,6 +27,7 @@ class LoginPage extends Component {
         })
 
       if (res.status === 400) this.error = 'Invalid username or password'
+      if (res.status === 401) this.error = 'Waiting for admin to accept'
       else this.error = 'Something went wrong'
       this.setState({})
     })

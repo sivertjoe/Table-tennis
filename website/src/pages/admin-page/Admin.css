@@ -1,0 +1,44 @@
+.accept {
+  background-color: #89d400;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+}
+
+.decline {
+  background-color: #ff2811;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+}
+
+.accept:hover {
+  background-color: darkgreen;
+}
+
+.decline:hover {
+  background-color: darkred;
+}
+
+span {
+  position: relative;
+  font-size: 35px;
+  text-align: center;
+}
+
+table {
+  width: 100%;
+  margin: auto auto;
+  text-align: center;
+  border-spacing: 1rem;
+}

@@ -4,7 +4,7 @@ use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
 use crate::user::User;
 use elo::EloRank;
 use crate::r#match::Match;
-use crate::notification::{MatchNotificationTable, MatchNotification};
+use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
 
 pub struct DataBase
 {
@@ -17,7 +17,6 @@ const DECLINE_MATCH: u8 = 2;
 
 const USER_ROLE_USER: u8 = 0;
 const USER_ROLE_SUPERUSER: u8 = 1;
-
 
 impl DataBase
 {
@@ -66,6 +65,14 @@ impl DataBase
                 foreign key(loser) references users(id)
                 )",
                 NO_PARAMS,).expect("Creating match_notification table");
+
+        conn.execute(
+            "create table if not exists new_user_notification (
+                id              integer primary key autoincrement,
+                name            VARCHAR(20) not null unique,
+                password_hash   varchar(64) not null
+            )",
+            NO_PARAMS,).expect("Creating new_user_notification");
         DataBase {
             conn: conn
         }
@@ -73,7 +80,7 @@ impl DataBase
 
     pub fn get_is_admin(&self, token: String) -> Result<bool>
     {
-        let user = self.get_user_without_matches_by("token", "=", &token)?;
+        let user = self.get_user_without_matches_by("uuid", "=", &token)?;
         Ok(user.user_role == USER_ROLE_SUPERUSER)
     }
 
@@ -96,14 +103,9 @@ impl DataBase
         self.try_respond_to_notification(id, ans, token)
     }
 
-    pub fn create_user(&self, new_user: String, password: String) -> Result<String>
+    pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
     {
-        let uuid = format!("{}", Uuid::new_v4());
-        self.conn.execute(
-            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
-            params![new_user, self.hash(&password), uuid],
-            )?;
-        Ok(uuid)
+        self.create_new_user_notification(new_user, password)
     }
 
     pub fn get_profile(&self, user: String) -> Result<User>
@@ -139,29 +141,28 @@ impl DataBase
         self.try_get_notifications(user_token)
     }
 
+    pub fn get_new_user_notifications(&self, token: String) -> Result<Vec<NewUserNotification>>
+    {
+        self.try_get_new_user_notifications(token)
+    }
+
+    pub fn respond_to_new_user(&self, not: NewUserNotificationAns) -> Result<usize>
+    {
+        if !self.get_is_admin(not.token.clone())?
+        {
+            return Err(rusqlite::Error::InvalidParameterName("user is not admin".into()));
+        }
+
+        // No match is being accepted, but the ans values are the same Xdd
+        if not.ans == ACCEPT_MATCH 
+        {
+            self.create_user_from_notification(not.id)?;
+        }
+        self.delete_new_user_notification(not.id)
+    }
+
     pub fn migrate(&self) -> Result<usize>
     {
-        self.conn.execute(
-            "alter table match_notification rename to old",
-             NO_PARAMS).expect("Change name");
-
-        self.conn.execute(
-             "create table if not exists match_notification (
-                id              integer primary key autoincrement,
-                winner_accept   smallint default 0,
-                loser_accept    smallint default 0,
-                epoch           bigint not null,
-                winner          integer,
-                loser           integer,
-                foreign key(winner) references users(id),
-                foreign key(loser) references users(id)
-                )",
-                NO_PARAMS,).expect("Creating match_notification table");
-
-        self.conn.execute("insert into match_notification (id, epoch, winner, loser) 
-                          select id, epoch, winner, loser from old", NO_PARAMS).expect("Transfering");
-
-        self.conn.execute("drop table old", NO_PARAMS).expect("dropping");
         Ok(0)
     }
 }
@@ -170,6 +171,65 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
+    fn create_new_user_notification(&self, name: String, password: String) -> Result<usize>
+    {
+        if !self.check_unique_name(&name)?
+        {
+            return Err(rusqlite::Error::InvalidParameterName("user with that name already exist".into()));
+        }
+
+        self.conn.execute(
+            "insert into new_user_notification (name, password_hash) values (?1, ?2)",
+            params![name, self.hash(&password)],
+            )
+    }
+
+    fn check_unique_name(&self, name: &String) -> Result<bool>
+    {
+        let mut stmt = self.conn.prepare("select count(*) from users where name = :name")?;
+        let count = stmt.query_map_named(named_params!{":name": name}, |row|
+        {
+            let c: i64 = row.get(0)?;
+            Ok(c)
+        })?.next().unwrap().unwrap();
+        Ok(count == 0)
+    }
+
+    fn delete_new_user_notification(&self, id: i64) -> Result<usize>
+    {
+        let mut stmt = self.conn.prepare("delete from new_user_notification where id = :id")?;
+        stmt.execute_named(named_params!{":id": id})
+    }
+
+    fn create_user_from_notification(&self, id: i64) -> Result<String>
+    {
+        let mut stmt = self.conn.prepare("select name, password_hash from new_user_notification where id = :id")?;
+        let user = stmt.query_map_named(named_params!{":id": id}, |row|
+        {
+            let name: String = row.get(0)?;
+            let password_hash: String = row.get(1)?;
+            Ok((name, password_hash))
+        })?.next();
+
+        if user.is_none()
+        {
+            return Err(rusqlite::Error::InvalidParameterName("Should not be possible to reach this".into()));
+        }
+
+        let user = user.unwrap().unwrap();
+        self.create_user_with_password_hash(user.0, user.1)
+    }
+
+    fn create_user_with_password_hash(&self, new_user: String, password_hash: String) -> Result<String>
+    {
+        let uuid = format!("{}", Uuid::new_v4());
+        self.conn.execute(
+            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
+            params![new_user, password_hash, uuid],
+            )?;
+        Ok(uuid)
+    }
+
     fn get_newest_elo(&self, id: i64) -> Result<f64>
     {
         let mut stmt = self.conn.prepare(
@@ -238,6 +298,34 @@ impl DataBase
             };
         }
         vec.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
+        Ok(vec)
+    }
+    fn try_get_new_user_notifications(&self, token: String) -> Result<Vec<NewUserNotification>>
+    {
+        if !self.get_is_admin(token)?
+        {
+            return Err(rusqlite::Error::InvalidParameterName("user is not admin".into()));
+        }
+
+        let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
+
+        let notifications = stmt.query_map(NO_PARAMS, |row|
+        {
+            Ok(
+                NewUserNotification {
+                    id: row.get(0)?,
+                    name: row.get(1)?
+                })
+        })?;
+
+        let mut vec: Vec<NewUserNotification> = Vec::new();
+        for n in notifications
+        {
+            if let Ok(mn) = n
+            {
+                vec.push(mn);
+            };
+        }
         Ok(vec)
     }
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> Result<usize>
@@ -442,7 +530,19 @@ impl DataBase
 
         if info.is_none()
         {
-                return Err(rusqlite::Error::InvalidParameterName("No user with that name exist".to_string()))
+            let mut stmt = self.conn.prepare("select count(*) from new_user_notification where name = :name")?;
+            let c = stmt.query_map_named(named_params!{":name": &name}, |row|
+            {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })?.next().unwrap().unwrap();
+
+            if c == 1
+            {
+                return Err(rusqlite::Error::InvalidParameterName("Waiting for admin".into()))
+            }
+
+            return Err(rusqlite::Error::InvalidParameterName("No user with that name exist".to_string()))
         }
 
         match info.unwrap()
