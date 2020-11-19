@@ -1,5 +1,6 @@
-const apiUrl = 'http://localhost:58642'
-
+const url = process.env.NODE_ENV === 'prod' ? 'https://sivert.dev' : 'http://localhost'
+const ip = '58642'
+const apiUrl = url + ':' + ip
 export const getUsers = async () =>
   fetch(apiUrl + '/users')
     .then((req) => req.json())
