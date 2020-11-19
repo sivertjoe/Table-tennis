@@ -9,11 +9,11 @@ use r#match::{MatchInfo, MatchResponse};
 use user::{LoginInfo, ChangePasswordInfo};
 use notification::NewUserNotificationAns;
 
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
 
 use std::sync::{Mutex, Arc};
-use std::env::args;
 
 const PORT: u32 = 58642;
 const DATABASE_FILE: &'static str = "db.db";
@@ -185,22 +185,27 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
     }
 }
 
+fn get_builder() -> openssl::ssl::SslAcceptorBuilder
+{
+     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+     builder
+          .set_private_key_file("privkey.pem", SslFiletype::PEM)
+          .expect("failed to open/read key.pem");
+      builder
+          .set_certificate_chain_file("cert.pem")
+          .expect("failed to open/read cert.pem");
+      builder
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
-    let args: Vec<String> = args().collect();
-    let mut addr = "0.0.0.0";
-    if args.len() > 1
-    {
-        // Assume the IP is passed
-         addr = args[0].as_str();
-    }
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
     data.clone().lock().unwrap().make_user_admin("S".into()).expect("making admin");
     data.clone().lock().unwrap().migrate().unwrap();
 
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         App::new()
             .data(data.clone())
             .wrap(Cors::default()
@@ -219,8 +224,16 @@ async fn main() -> std::io::Result<()>
             .service(get_is_admin)
             .service(login)
             .service(change_password)
-    })
-    .bind(format!("{}:{}", addr, PORT))?
+    });
+
+    if cfg!(not(debug_assertions))
+    {
+        server.bind_openssl(format!("sivert.dev:{}", PORT), get_builder())?
+    }
+    else
+    {
+        server.bind(format!("0.0.0.0:{}", PORT))?
+    }
     .run()
     .await
 }
