@@ -6,7 +6,7 @@ mod server_rollback;
 
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
-use user::{Token, LoginInfo, ChangePasswordInfo};
+use user::{LoginInfo, ChangePasswordInfo};
 use notification::NewUserNotificationAns;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};

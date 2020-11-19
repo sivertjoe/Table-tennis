@@ -10,9 +10,10 @@ pub struct DataBase
 {
     pub conn: Connection
 }
-
+#[allow(dead_code)]
 const MATCH_NO_ANS: u8 = 0;
 const ACCEPT_MATCH: u8 = 1;
+#[allow(dead_code)]
 const DECLINE_MATCH: u8 = 2;
 
 const USER_ROLE_USER: u8 = 0;
@@ -230,34 +231,6 @@ impl DataBase
         Ok(uuid)
     }
 
-    fn get_newest_elo(&self, id: i64) -> Result<f64>
-    {
-        let mut stmt = self.conn.prepare(
-            "select winner, winner_elo, loser_elo from match_notification
-            where winner = :id or loser = :id
-            order by epoch desc
-            limit 1;")?;
-        let elo = stmt.query_map_named(named_params!{":id": id}, |row|
-        {
-            let winner: i64 = row.get(0)?;
-            let idx = if winner == id { 1 } else { 2 };
-            let elo: f64 = row.get(idx)?;
-            Ok(elo)
-        })?.next();
-
-        if elo.is_none() 
-        {
-            return Err(rusqlite::Error::InvalidParameterName(String::new()));
-        }
-        let elo = elo.unwrap();
-
-        if elo.is_err()
-        {
-            return Err(rusqlite::Error::InvalidParameterName(String::new()));
-        }
-
-        Ok(elo.unwrap())
-    }
     // Get all notifications for the users, exclude already 
     // answered ones
     fn try_get_notifications(&self, token: String) -> Result<Vec<MatchNotification>>
@@ -704,6 +677,7 @@ impl DataBase
         }
     }
 
+    #[allow(dead_code)]
     fn get_default_password() -> String
     {
         use std::io::prelude::*;
