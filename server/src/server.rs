@@ -2,7 +2,7 @@ use std::str::FromStr;
 use chrono::prelude::*;
 use uuid::Uuid;
 use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
-use crate::user::{User, UserRole, EditUserAction};
+use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE};
 use elo::EloRank;
 use crate::r#match::Match;
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
@@ -35,7 +35,7 @@ impl DataBase
                 password_hash   varchar(64) not null,
                 uuid            varchar(36) not null,
                 user_role       smallint default {}
-                )", UserRole::USER as u8),
+                )", USER_ROLE_REGULAR),
                 NO_PARAMS,).expect("Creating user table");
 
         conn.execute(
@@ -81,7 +81,7 @@ impl DataBase
     {
         let user = self.get_user_without_matches_by("uuid", "=", &token)?;
         // TODO: Implement & for u8
-        Ok(user.user_role & UserRole::SUPERUSER as u8 == UserRole::SUPERUSER as u8)
+        Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER )
     }
 
     pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
@@ -199,7 +199,7 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role | UserRole::SUPERUSER as u8;
+        let role = user.user_role | USER_ROLE_SUPERUSER;
         self.conn.execute(
             &format!("update users
                 set user_role = {}
@@ -215,7 +215,7 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role & !(UserRole::SUPERUSER as u8);
+        let role = user.user_role & !USER_ROLE_SUPERUSER;
         self.conn.execute(
             &format!("update users
                 set user_role = {}
@@ -231,7 +231,7 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role & !(UserRole::INACTIVE as u8);
+        let role = user.user_role & !USER_ROLE_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
         stmt.execute_named(named_params!{":role": role, ":name": name})
     }
@@ -244,7 +244,7 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role | UserRole::INACTIVE as u8;
+        let role = user.user_role | USER_ROLE_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
         stmt.execute_named(named_params!{":role": role, ":name": name})
     }
@@ -623,7 +623,7 @@ impl DataBase
         {
             Ok((p, u, r)) =>
             {
-                if r & UserRole::INACTIVE as u8 == UserRole::INACTIVE as u8
+                if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
                 {
                     return Err(rusqlite::Error::InvalidParameterName("User is inactive".to_string()))
                 }
@@ -754,7 +754,7 @@ impl DataBase
     fn get_active_users(&self) -> Result<Vec<User>>
     {
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users where user_role & :inactive != :inactive;")?;
-        let users = stmt.query_map_named(named_params!{":inactive": UserRole::INACTIVE as u8}, |row|
+        let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE}, |row|
         {
             Ok(User {
                 id: row.get(0)?,
