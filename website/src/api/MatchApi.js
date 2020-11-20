@@ -1,6 +1,6 @@
 import * as BaseApi from './BaseApi'
 
-export const getHistory = () => BaseApi.get('/history')
+export const getHistory = () => BaseApi.get('history')
 
 export const replyToMatch = (match_id, token, ans) =>
   BaseApi.post('respond-to-match', {

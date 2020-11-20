@@ -19,13 +19,12 @@ class RegisterPage extends Component {
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
-    UserApi.register(this.username, this.password).then((res) => {
-      if (res.status === 200)
+    UserApi.register(this.username, this.password)
+      .then((res) => {
         this.success = 'Success! Now you have to wait for an admin to accept..!'
-      else if (res.status === 409) this.error = 'This username is unavailable'
-      else this.error = 'Something went wrong'
-      this.setState({})
-    })
+      })
+      .catch((error) => (this.error = error.message))
+      .then(() => this.setState({}))
   }
 
   setError(val) {

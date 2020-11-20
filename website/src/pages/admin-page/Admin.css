@@ -23,10 +23,12 @@ h2 {
 
 .accept:hover {
   background-color: darkgreen;
+  border: none;
 }
 
 .decline:hover {
   background-color: darkred;
+  border: none;
 }
 
 span {

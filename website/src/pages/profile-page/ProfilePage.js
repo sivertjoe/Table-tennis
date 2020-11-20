@@ -10,27 +10,22 @@ import Button from '../../components/button/Button'
 
 class Profile extends Component {
   user = {}
-  error = false
 
   constructor(args) {
     super()
     this.changePassword = this.changePassword.bind(this)
 
-    if (localStorage.getItem('token')) {
-      Promise.all([
-        UserApi.getUser(args.user),
-        NotificationApi.getNotifications(),
-      ]).then((data) => {
-        this.user = data[0]
-        this.notifications = data[1]
-        this.setState({})
-      })
-    } else {
-      UserApi.getUser(args.user).then((user) => {
-        this.user = user
-        this.setState({})
-      })
-    }
+    UserApi.getUser(args.user)
+      .then((user) => (this.user = user))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
+
+    if (localStorage.getItem('token'))
+      // TODO: Only send request if my profile page
+      NotificationApi.getNotifications()
+        .then((notifications) => (this.notifications = notifications))
+        .catch((error) => console.warn(error.message))
+        .finally(() => this.setState({}))
   }
 
   logout() {
@@ -89,11 +84,13 @@ class Profiles extends Component {
 
   constructor() {
     super()
-    UserApi.getUsers().then((users) => {
-      this.users = users
-      this.filtered = users
-      this.setState({})
-    })
+    UserApi.getUsers()
+      .then((users) => {
+        this.users = users
+        this.filtered = users
+      })
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
 
     this.searchUsers = this.searchUsers.bind(this)
   }

@@ -8,10 +8,10 @@ class History extends Component {
 
   constructor() {
     super()
-    MatchApi.getHistory().then((history) => {
-      this.history = history
-      this.setState({})
-    })
+    MatchApi.getHistory()
+      .then((history) => (this.history = history))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
   }
 
   render() {

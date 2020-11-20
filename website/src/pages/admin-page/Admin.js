@@ -25,15 +25,13 @@ class Admin extends Component {
     const token = localStorage.getItem('token')
     if (token) {
       UserApi.isAdmin(token).then((isAdmin) => {
-        if (isAdmin)
-          NotificationApi.getNewUserNotification(token).then(
-            (notifications) => {
-              this.isAdmin = 1
-              this.notifications = notifications
-              this.setState({})
-            },
-          )
-        else {
+        if (isAdmin) {
+          this.isAdmin = 1
+          NotificationApi.getNewUserNotification(token)
+            .then((notifications) => (this.notifications = notifications))
+            .catch((error) => console.warn(error.message))
+            .finally(() => this.setState({}))
+        } else {
           this.isAdmin = -1
           this.setState({})
         }
@@ -45,12 +43,9 @@ class Admin extends Component {
             value: u.name,
             label: u.name,
           }))
-          this.setState({})
         })
-        .catch((error) => {
-          console.log(error.type)
-          console.log(error.message)
-        })
+        .catch((error) => console.warn(error.message))
+        .finally(() => this.setState({}))
     } else this.isAdmin = -1
 
     this.selectUser = this.selectUser.bind(this)
@@ -60,9 +55,9 @@ class Admin extends Component {
 
   newUserButton(id, ans) {
     const token = localStorage.getItem('token')
-    NotificationApi.replyToNewUser(id, token, ans).then(() => {
-      document.getElementById(id).remove()
-    })
+    NotificationApi.replyToNewUser(id, token, ans)
+      .then(() => document.getElementById(id).remove())
+      .catch((error) => console.warn(error.message))
   }
 
   selectUser(event) {
@@ -74,15 +69,11 @@ class Admin extends Component {
   }
 
   editUsersButton() {
-    console.log(this.selectedUsers)
-    console.log(this.selectedOption)
     const users = this.selectedUsers.map((u) => u.value)
-    UserApi.editUsers(users, this.selectedOption.value).then((res) => {
-      if (res.status === 200) {
-        this.success = 'Users successfully updated'
-        this.setState({})
-      }
-    })
+    UserApi.editUsers(users, this.selectedOption.value)
+      .then(() => (this.success = 'Users successfully updated'))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
   }
 
   render() {
@@ -147,7 +138,7 @@ class Admin extends Component {
                 onChange={this.selectOption}
                 placeholder="Select the action to perform..."
               />
-              {this.success && <h2 class="success">{this.success}</h2>}
+              {this.success && <h2 className="success">{this.success}</h2>}
               <div className="button">
                 <Button placeholder="Submit" callback={this.editUsersButton} />
               </div>
