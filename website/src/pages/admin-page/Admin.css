@@ -42,3 +42,10 @@ table {
   text-align: center;
   border-spacing: 1rem;
 }
+
+img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 50%;
+}

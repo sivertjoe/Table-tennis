@@ -61,9 +61,7 @@ class Admin extends Component {
     }
     return (
       <div>
-        <h1 style={{ textAlign: 'center' }}>
-          Shoo Shoo, Only admins can view this page &#129300;
-        </h1>
+        <img src={'unauth.png'} />
       </div>
     )
   }
