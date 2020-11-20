@@ -174,6 +174,7 @@ impl DataBase
         self.delete_new_user_notification(not.id)
     }
 
+    #[allow(dead_code)]
     pub fn migrate(&self) -> Result<usize>
     {
         Ok(0)

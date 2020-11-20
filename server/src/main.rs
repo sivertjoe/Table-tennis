@@ -227,9 +227,6 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 async fn main() -> std::io::Result<()>
 {
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
-    data.clone().lock().unwrap().make_user_admin("S".into()).expect("making admin");
-    data.clone().lock().unwrap().migrate().unwrap();
-
 
     let server = HttpServer::new(move || {
         App::new()
