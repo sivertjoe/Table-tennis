@@ -1,8 +1,15 @@
-const url = process.env.NODE_ENV === 'prod' ? 'https://sivert.dev' : 'http://localhost'
+const url =
+  process.env.NODE_ENV === 'prod' ? 'https://sivert.dev' : 'http://localhost'
 const ip = '58642'
 const apiUrl = url + ':' + ip
+
 export const getUsers = async () =>
   fetch(apiUrl + '/users')
+    .then((req) => req.json())
+    .then((res) => res)
+
+export const getAllUsers = async () =>
+  fetch(apiUrl + '/all-users/' + localStorage.getItem('token'))
     .then((req) => req.json())
     .then((res) => res)
 
@@ -80,5 +87,15 @@ export const replyToNewUser = async (id, token, ans) =>
       id: id,
       ans: ans,
       token: token,
+    }),
+  }).then((req) => req)
+
+export const editUsers = async (users, action) =>
+  fetch(apiUrl + '/edit-users', {
+    method: 'POST',
+    body: JSON.stringify({
+      users: users,
+      action: action,
+      token: localStorage.getItem('token') ?? '',
     }),
   }).then((req) => req)

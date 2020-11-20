@@ -1,25 +1,24 @@
-.accept {
-  background-color: #89d400;
+h1,
+h2 {
+  text-align: center;
+}
+
+.new-user-button {
   border: none;
   border-radius: 3px;
   cursor: pointer;
   height: 100%;
   width: 100%;
-  text-align: center;
   color: white;
   font-weight: bold;
 }
 
+.accept {
+  background-color: #89d400;
+}
+
 .decline {
   background-color: #ff2811;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  height: 100%;
-  width: 100%;
-  text-align: center;
-  color: white;
-  font-weight: bold;
 }
 
 .accept:hover {
@@ -44,8 +43,21 @@ table {
 }
 
 img {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-    width: 50%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}
+
+.selector {
+  color: black;
+}
+
+.button {
+  width: fit-content;
+  margin: 2rem auto;
+}
+
+.success {
+  color: green;
 }
