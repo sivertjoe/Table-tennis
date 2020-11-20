@@ -29,6 +29,7 @@ pub enum ServerError
     PasswordNotMatch,
     Unauthorized,
     WaitingForAdmin,
+    InactiveUser,
     Critical(String),
     Rusqlite(rusqlite::Error),
 }
@@ -152,7 +153,7 @@ impl DataBase
 
     pub fn get_users(&self) -> ServerResult<Vec<User>>
     {
-        Ok(self.get_users()?)
+        Ok(self.get_active_users()?)
     }
 
     pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> ServerResult<()>
@@ -200,7 +201,8 @@ impl DataBase
         {
             self.create_user_from_notification(not.id)?;
         }
-        self.delete_new_user_notification(not.id)
+        self.delete_new_user_notification(not.id)?;
+        Ok(())
     }
 }
 
@@ -311,7 +313,7 @@ impl DataBase
             let res = func(name);
             if res.is_err()
             {
-                errors.push(format!("{}", res.unwrap_err()));
+                errors.push(format!("{:?}", res.unwrap_err()));
             }
         }
 
@@ -668,7 +670,7 @@ impl DataBase
             {
                 if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
                 {
-                    return Err(rusqlite::Error::InvalidParameterName("User is inactive".to_string()))
+                    return Err(ServerError::InactiveUser);
                 }
 
                 if self.hash(&password) == p
@@ -853,7 +855,7 @@ impl DataBase
             {
                 Ok(user)
             },
-            Some(Err(_)) => Err(ServerError::Critical("???")), // What does this even mean 🤷‍♀️
+            Some(Err(_)) => Err(ServerError::Critical("???".into())), // What does this even mean 🤷‍♀️
             None => Err(ServerError::UserNotExist)
         }
     }
