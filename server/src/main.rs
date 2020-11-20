@@ -170,7 +170,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "users": data})),
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -184,7 +184,7 @@ async fn get_all_users(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): 
 {
     match DATABASE!(data).get_all_users(token)
     {
-        Ok(data) => HttpResponse::Ok().json(data),
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(_) => HttpResponse::NotFound().finish()
     }
 }
@@ -194,7 +194,7 @@ async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(toke
 {
     match DATABASE!(data).get_notifications(token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "notification": notifications})),
+        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -208,7 +208,7 @@ async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::
 {
     match DATABASE!(data).get_new_user_notifications(token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "notification": notifications})),
+        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -237,7 +237,7 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_history()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "history": data})),
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -251,7 +251,7 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 {
     match DATABASE!(data).get_profile(name)
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "user": data})),
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -265,7 +265,7 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
 {
     match DATABASE!(data).get_is_admin(token.to_string())
     {
-        Ok(val) => HttpResponse::Ok().json(json!({"status": 0, "isAdmin": val})),
+        Ok(val) => HttpResponse::Ok().json(json!({"status": 0, "result": val})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
