@@ -21,6 +21,8 @@ const DECLINE_MATCH: u8 = 2;
 
 pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
 
+#[repr(u8)]
+#[derive(Debug)]
 pub enum ServerError
 {
     UserNotExist,
@@ -905,19 +907,40 @@ mod test
         s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
     }
 
+    /*#[test]
+    fn test_register_user_creats_notification()
+    {
+    }
+
+    #[test]
+    fn test_register_user_can_accept_user()
+    {
+    }
+    */
+
+    fn create_user(s: &DataBase, name: &str) -> String
+    {
+        let uuid = format!("{}", Uuid::new_v4());
+        s.conn.execute(
+            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
+            params![name, s.hash(&"password".to_string()), uuid],
+            ).unwrap();
+        uuid
+    }
+
     #[test]
     fn test_match_notification_both_accepted()
     {
         let db_file = "temp1.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
-        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+        let uuid = create_user(&s, "Sivert");
+        create_user(&s, "Lars");
 
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner, loser, None).expect("Creating match");
+        s.register_match(winner, loser, uuid).expect("Creating match");
         respond_to_match(&s, "Sivert", 1);
         respond_to_match(&s, "Lars", 1);
 
@@ -953,33 +976,21 @@ mod test
         assert!(lars.elo < 1500.0);
     }
 
-    fn get_token_from_user(s: &DataBase, name: &String) -> String
-    {
-        let mut stmt = s.conn.prepare("select uuid from users where name = :name").unwrap();
-        let name = stmt.query_map_named(named_params!{":name": name}, |row|
-        {
-            let name: String = row.get(0).unwrap();
-            Ok(name)
-        }).unwrap().next().unwrap().unwrap();
-        name
-    }
-
     #[test]
     fn test_match_registered_by_none_participant_gets_answered_no()
     {
         let db_file = "tempB.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
-        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
-        s.create_user("Bernt".to_string(), "password".to_string()).expect("Creating Bernt");
+        create_user(&s, "Sivert");
+        create_user(&s, "Lars");
+        let uuid = create_user(&s, "Bernt");
 
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
 
-        let token = Some(get_token_from_user(&s, &"Bernt".to_string()));
-        s.register_match(winner.clone(), loser.clone(), token.clone()).expect("Creating match");
-        s.register_match(winner.clone(), loser.clone(), token).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), uuid).expect("Creating match");
 
 
         let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
@@ -1009,16 +1020,14 @@ mod test
     {
         let db_file = "tempA.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
-        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+        let winner_uuid = create_user(&s, "Sivert");
+        let loser_uuid = create_user(&s, "Lars");
 
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-        let token1 = Some(get_token_from_user(&s, &winner));
-        let token2 = Some(get_token_from_user(&s, &loser));
-        s.register_match(winner.clone(), loser.clone(), token1).expect("Creating match");
-        s.register_match(winner.clone(), loser.clone(), token2).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), winner_uuid).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), loser_uuid).expect("Creating match");
 
 
         let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
@@ -1048,14 +1057,14 @@ mod test
     {
         let db_file = "temp2.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
-        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+        let uuid = create_user(&s, "Sivert");
+        create_user(&s, "Lars");
 
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner, loser, None).expect("Creating match");
+        s.register_match(winner, loser, uuid).expect("Creating match");
         respond_to_match(&s, "Sivert", 1);
 
 
@@ -1078,19 +1087,18 @@ mod test
                 == 1);
     }
 
-
     #[test]
     fn test_can_register_match()
     {
         let db_file = "temp3.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
-        s.create_user("Lars".to_string(), "password".to_string()).expect("Creating Lars");
+        let uuid = create_user(&s, "Sivert");
+        create_user(&s, "Lars");
 
         let winner =  "Sivert".to_string();
         let loser = "Lars".to_string();
 
-        s.register_match(winner, loser, None).expect("Creating match");
+        s.register_match(winner, loser, uuid).expect("Creating match");
 
         let mut stmn = s.conn.prepare("select COUNT(*) from match_notification")
                              .expect("creating statement");
@@ -1113,8 +1121,8 @@ mod test
     {
         let db_file = "temp4.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivertt".to_string(), "password".to_string()).expect("Creating Sivertt");
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        create_user(&s, "Sivertt");
+        create_user(&s, "Sivert");
 
         let user = s.get_user_without_matches_by("name", "=", "Sivert");
         std::fs::remove_file(db_file).expect("Removing file temp");
@@ -1126,7 +1134,7 @@ mod test
     {
         let db_file = "temp5.db";
         let s = DataBase::new(db_file);
-        s.create_user("Sivert".to_string(), "password".to_string()).expect("Creating Sivert");
+        create_user(&s, "Sivert");
 
         let user = s.get_user_without_matches_by("id", "=", "1");
         std::fs::remove_file(db_file).expect("Removing file temp");
@@ -1139,7 +1147,7 @@ mod test
         let db_file = "temp6.db";
         let s = DataBase::new(db_file);
         let (name, password) = ("Sivert".to_string(), "password".to_string());
-        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+        create_user(&s, &name);
 
         let uuid = s.login(name, password);
         std::fs::remove_file(db_file).expect("Removing file temp");
@@ -1151,8 +1159,8 @@ mod test
     {
         let db_file = "temp7.db";
         let s = DataBase::new(db_file);
-        let (name, password) = ("Sivert".to_string(), "password".to_string());
-        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+        let name = "Sivert".to_string();
+        create_user(&s, &name);
 
         let uuid = s.login(name, "Not correct password".to_string());
         std::fs::remove_file(db_file).expect("Removing file temp");
@@ -1165,7 +1173,7 @@ mod test
         let db_file = "temp8.db";
         let s = DataBase::new(db_file);
         let (name, password, new) = ("Sivert".to_string(), "password".to_string(), "new".to_string());
-        s.create_user(name.clone(), password.clone()).expect("Creating Sivert");
+        create_user(&s, &name);
         s.change_password(name.clone(), password.clone(), new.clone()).expect("Changing password");
 
         let err = s.login(name.clone(), password);
@@ -1175,6 +1183,7 @@ mod test
         assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
     }
 
+    
     #[test]
     fn test_unix_time_in_ms()
     {
@@ -1183,57 +1192,6 @@ mod test
 
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert!(s.epoch().to_string().len() == 13);
-    }
-
-    fn get_match_noti_winner_elo(s: &Connection) -> Vec<f64>
-    {
-        let mut stmt =  s.prepare("select winner_elo from match_notification;").unwrap();
-        let matches = stmt.query_map(NO_PARAMS, |row|
-        {
-            let win_elo: f64 = row.get(0).unwrap();
-            Ok(win_elo)
-        }).unwrap();
-
-        let mut vec: Vec<f64> = Vec::new();
-        for w in matches
-        {
-            if let Ok(elo) = w
-            {
-                vec.push(elo);
-            }
-        }
-        vec
-    }
-
-    #[test]
-    fn test_match_registration_elos_better()
-    {
-        let db_file = "tempD.db";
-        let s = DataBase::new(db_file);
-
-        let siv = "Sivert".to_string();
-        let lars = "Lars".to_string();
-
-        s.create_user(siv.clone(), "password".to_string()).expect("Creating Sivert");
-        s.create_user(lars.clone(), "password".to_string()).expect("Creating Lars");
-
-        let token_siv = Some(get_token_from_user(&s, &siv));
-
-
-        use std::{thread, time};
-        let five_millis = time::Duration::from_millis(5);
-
-
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        thread::sleep(five_millis);
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        thread::sleep(five_millis);
-
-        let noti_winner_elos = get_match_noti_winner_elo(&s.conn);
-
-        std::fs::remove_file(db_file).expect("Removing file temp");
-
-        assert_ne!(noti_winner_elos[0], noti_winner_elos[1]);
     }
 
     #[test]
@@ -1246,16 +1204,12 @@ mod test
         let lars = "Lars".to_string();
         let bernt = "Bernt".to_string();
 
-        s.create_user(siv.clone(), "password".to_string()).expect("Creating Sivert");
-        s.create_user(lars.clone(), "password".to_string()).expect("Creating Lars");
-        s.create_user(bernt.clone(), "password".to_string()).expect("Creating Bernt");
-
-        let token_siv = Some(get_token_from_user(&s, &siv));
-
+        let token_siv = create_user(&s, siv.as_str());
+        create_user(&s, lars.as_str());
+        create_user(&s, bernt.as_str());
 
         use std::{thread, time};
         let five_millis = time::Duration::from_millis(5);
-
 
         s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
         thread::sleep(five_millis);
@@ -1289,31 +1243,22 @@ mod test
          * S - L 3
          * L - S 1
          * S - L 4
-         * 1484, 1484, 1516
-         * 1516, 1484, 1516
-         *
-         * Before roll_back the ELo's should be:
+         * If no rollback happend the result should be
          * Sivert: 1512.016815723276
          * Lars  : 1471.2468774832018
          * Bernt : 1516.736306793522
          *
-         * But in actuality they should be:
+         * But they should actually be
          * Sivert: 1514.2851406137202
          * Lars  : 1468.2570986091923
          * Bernt : 1517.4577607770875
          * A _little_ different, BUT! More correct, rollback should fix these
          */
-
-        let old_matches = s.get_history().unwrap();
-        s.roll_back(-1).expect("Rolling back");
-        let new_matches = s.get_history().unwrap();
-
-
-        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(),
+        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(), 
                                                  s.get_user_without_matches(&lars).unwrap(),
                                                  s.get_user_without_matches(&bernt).unwrap());
-        std::fs::remove_file(db_file).expect("Removing file tempC");
 
+        std::fs::remove_file(db_file).expect("Removing file temp");
         assert_eq!(siv_user.elo, 1514.2851406137202);
         assert_eq!(lars_user.elo, 1468.2570986091923);
         assert_eq!(bernt_user.elo, 1517.4577607770875);
@@ -1325,11 +1270,11 @@ mod test
         let db_file = "tempE.db";
         let s = DataBase::new(db_file);
 
-        let Siv = "Sivert".to_string();
+        let _siv = "Sivert".to_string();
         let siv = "sivert".to_string();
 
-        s.create_user(Siv.clone(), "password".to_string()).expect("Creating Sivert");
-        s.create_user(siv.clone(), "password".to_string()).expect("Creating sivert");
+        create_user(&s, _siv.as_str());
+        create_user(&s, siv.as_str());
 
         let user = s.get_user(&siv.clone()).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempE");
