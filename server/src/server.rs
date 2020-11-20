@@ -593,12 +593,13 @@ impl DataBase
 
     fn try_login(&self, name: String, password: String) -> Result<String>
     {
-        let mut stmt = self.conn.prepare("select password_hash, uuid from users where name = :name;")?;
+        let mut stmt = self.conn.prepare("select password_hash, uuid, user_role from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
         {
             let passwd: String = row.get(0)?;
             let uuid: String = row.get(1)?;
-            Ok((passwd, uuid))
+            let role: u8 = row.get(2)?;
+            Ok((passwd, uuid, role))
         })?.next();
 
         if info.is_none()
@@ -620,8 +621,13 @@ impl DataBase
 
         match info.unwrap()
         {
-            Ok((p, u)) =>
+            Ok((p, u, r)) =>
             {
+                if r & UserRole::INACTIVE as u8 == UserRole::INACTIVE as u8
+                {
+                    return Err(rusqlite::Error::InvalidParameterName("User is inactive".to_string()))
+                }
+
                 if self.hash(&password) == p
                 {
                     return Ok(u);
