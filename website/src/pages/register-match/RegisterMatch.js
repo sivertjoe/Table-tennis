@@ -26,13 +26,18 @@ class RegisterMatch extends Component {
   }
 
   pressButton(e) {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      this.setErrorLabel('Need to be logged in to register matches')
+      return
+    }
     if (this.winner === undefined || this.loser === undefined)
       return this.setErrorLabel('Please select two players')
 
     if (this.winner === this.loser)
       return this.setErrorLabel('Players cannot be the same')
 
-    Api.registerMatch(this.winner, this.loser).then((res) => {
+    Api.registerMatch(this.winner, this.loser, token).then((res) => {
       if (res.status === 200) return this.props.history.push('/')
       this.setErrorLabel('Something went wrong')
     })
@@ -81,7 +86,13 @@ class RegisterMatch extends Component {
           </tbody>
         </table>
         {this.error && (
-          <h2 className={this.error ? 'error' : 'success'}> {this.error} </h2>
+          <h2
+            className={this.error ? 'error' : 'success'}
+            style={{ textAlign: 'center' }}
+          >
+            {' '}
+            {this.error}{' '}
+          </h2>
         )}
         <div className="button">
           <Button placeholder="Submit" callback={this.pressButton} />

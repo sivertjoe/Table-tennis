@@ -32,13 +32,13 @@ export const replyToMatch = async (match_id, token, ans) =>
     }),
   }).then((req) => req)
 
-export const registerMatch = async (winner, loser) =>
+export const registerMatch = async (winner, loser, token) =>
   fetch(apiUrl + '/register-match', {
     method: 'POST',
     body: JSON.stringify({
       winner: winner,
       loser: loser,
-      token: localStorage.getItem('token') ?? '',
+      token: token,
     }),
   }).then((req) => req)
 
