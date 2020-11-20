@@ -328,7 +328,12 @@ impl DataBase
 
     fn check_unique_name(&self, name: &String) -> ServerResult<bool>
     {
-        let mut stmt = self.conn.prepare("select count(*) from users where name = :name")?;
+        let mut stmt = self.conn.prepare(
+            "select
+             (select count(*) from users where name = :name)+
+             (select count(*) from new_user_notification where name = :name);
+        ")?;
+
         let count = stmt.query_map_named(named_params!{":name": name}, |row|
         {
             let c: i64 = row.get(0)?;
