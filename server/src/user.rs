@@ -3,13 +3,9 @@ use crate::r#match::Match;
 use serde_derive::{Serialize, Deserialize};
 
 
-#[repr(u8)]
-pub enum UserRole
-{
-    USER = 0,
-    SUPERUSER = 1 << 1,
-    INACTIVE = 1 << 2,
-}
+pub const USER_ROLE_REGULAR: u8 = 0;
+pub const USER_ROLE_SUPERUSER: u8 = 1 << 1;
+pub const USER_ROLE_INACTIVE: u8 = 1 << 2;
 
 pub enum EditUserAction
 {
