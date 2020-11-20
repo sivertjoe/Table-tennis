@@ -140,6 +140,16 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
+#[get("/all-users/{token}")]
+async fn get_all_users(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+{
+    match DATABASE!(data).get_all_users(token)
+    {
+        Ok(data) => HttpResponse::Ok().json(data),
+        Err(_) => HttpResponse::NotFound().finish()
+    }
+}
+
 #[get("/notifications/{token}")]
 async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
 {
@@ -232,6 +242,7 @@ async fn main() -> std::io::Result<()>
             .service(edit_users)
             .service(get_profile)
             .service(get_users)
+            .service(get_all_users)
             .service(register_match)
             .service(respond_to_match)
             .service(respond_to_new_user)
