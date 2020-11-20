@@ -26,6 +26,7 @@ pub enum ServerError
 {
     UserNotExist,
     UsernameTaken,
+    WrongUsernameOrPassword,
     PasswordNotMatch,
     Unauthorized,
     WaitingForAdmin,
@@ -678,7 +679,7 @@ impl DataBase
                     return Ok(u);
                 }
 
-                return Err(ServerError::PasswordNotMatch)
+                return Err(ServerError::WrongUsernameOrPassword)
             },
             _ => Err(ServerError::UserNotExist)
         }
