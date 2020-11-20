@@ -1,5 +1,6 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
+import * as NotificationApi from '../../api/NotificationApi'
 import './ProfilePage.css'
 import '../../index.css'
 import { MatchHistory } from '../../components/match-history/MatchHistory'
@@ -16,15 +17,16 @@ class Profile extends Component {
     this.changePassword = this.changePassword.bind(this)
 
     if (localStorage.getItem('token')) {
-      Promise.all([Api.getUser(args.user), Api.getNotifications()]).then(
-        (data) => {
-          this.user = data[0]
-          this.notifications = data[1]
-          this.setState({})
-        },
-      )
+      Promise.all([
+        UserApi.getUser(args.user),
+        NotificationApi.getNotifications(),
+      ]).then((data) => {
+        this.user = data[0]
+        this.notifications = data[1]
+        this.setState({})
+      })
     } else {
-      Api.getUser(args.user).then((user) => {
+      UserApi.getUser(args.user).then((user) => {
         this.user = user
         this.setState({})
       })
@@ -87,7 +89,7 @@ class Profiles extends Component {
 
   constructor() {
     super()
-    Api.getUsers().then((users) => {
+    UserApi.getUsers().then((users) => {
       this.users = users
       this.filtered = users
       this.setState({})

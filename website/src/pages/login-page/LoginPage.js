@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
 import './LoginPage.css'
 import '../../index.css'
 import Button from '../../components/button/Button'
@@ -18,7 +18,7 @@ class LoginPage extends Component {
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
-    Api.login(this.username, this.password).then((res) => {
+    UserApi.login(this.username, this.password).then((res) => {
       if (res.status === 200)
         return res.json().then((token) => {
           localStorage.setItem('token', token)

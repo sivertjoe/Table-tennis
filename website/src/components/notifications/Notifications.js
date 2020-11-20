@@ -1,5 +1,5 @@
 import React from 'react'
-import * as Api from '../../api/Api'
+import * as MatchApi from '../../api/MatchApi'
 import '../../index.css'
 import './Notifications.css'
 
@@ -56,7 +56,7 @@ const NotificationItem = (values) => {
 
 const click_button = (id, ans) => {
   const token = localStorage.getItem('token')
-  Api.replyToMatch(id, token, ans).then(() => {
+  MatchApi.replyToMatch(id, token, ans).then(() => {
     document.getElementById(id).remove()
     document.getElementById('notificationCounter').innerHTML -= 1
   })

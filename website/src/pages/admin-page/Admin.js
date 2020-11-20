@@ -1,5 +1,6 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
+import * as NotificationApi from '../../api/NotificationApi'
 import Select from 'react-select'
 import '../../index.css'
 import './Admin.css'
@@ -23,26 +24,33 @@ class Admin extends Component {
     super()
     const token = localStorage.getItem('token')
     if (token) {
-      Api.isAdmin(token).then((isAdmin) => {
+      UserApi.isAdmin(token).then((isAdmin) => {
         if (isAdmin)
-          Api.getNewUserNotification(token).then((notifications) => {
-            this.isAdmin = 1
-            this.notifications = notifications
-            this.setState({})
-          })
+          NotificationApi.getNewUserNotification(token).then(
+            (notifications) => {
+              this.isAdmin = 1
+              this.notifications = notifications
+              this.setState({})
+            },
+          )
         else {
           this.isAdmin = -1
           this.setState({})
         }
       })
 
-      Api.getAllUsers().then((users) => {
-        this.users = users.map((u) => ({
-          value: u.name,
-          label: u.name,
-        }))
-        this.setState({})
-      })
+      UserApi.getAllUsers()
+        .then((users) => {
+          this.users = users.map((u) => ({
+            value: u.name,
+            label: u.name,
+          }))
+          this.setState({})
+        })
+        .catch((error) => {
+          console.log(error.type)
+          console.log(error.message)
+        })
     } else this.isAdmin = -1
 
     this.selectUser = this.selectUser.bind(this)
@@ -52,7 +60,7 @@ class Admin extends Component {
 
   newUserButton(id, ans) {
     const token = localStorage.getItem('token')
-    Api.replyToNewUser(id, token, ans).then(() => {
+    NotificationApi.replyToNewUser(id, token, ans).then(() => {
       document.getElementById(id).remove()
     })
   }
@@ -69,7 +77,7 @@ class Admin extends Component {
     console.log(this.selectedUsers)
     console.log(this.selectedOption)
     const users = this.selectedUsers.map((u) => u.value)
-    Api.editUsers(users, this.selectedOption.value).then((res) => {
+    UserApi.editUsers(users, this.selectedOption.value).then((res) => {
       if (res.status === 200) {
         this.success = 'Users successfully updated'
         this.setState({})
@@ -150,7 +158,7 @@ class Admin extends Component {
     } else if (this.isAdmin === -1)
       return (
         <div>
-          <img alt='STOP!!!' src={'unauth.png'} />
+          <img alt="STOP!!!" src={'unauth.png'} />
         </div>
       )
     else return <h1 style={{ textAlign: 'center' }}>Loading...</h1>
