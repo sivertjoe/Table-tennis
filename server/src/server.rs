@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use chrono::prelude::*;
 use uuid::Uuid;
 use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
-use crate::user::User;
+use crate::user::{User, UserRole, EditUserAction};
 use elo::EloRank;
 use crate::r#match::Match;
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
@@ -15,14 +16,6 @@ const MATCH_NO_ANS: u8 = 0;
 const ACCEPT_MATCH: u8 = 1;
 #[allow(dead_code)]
 const DECLINE_MATCH: u8 = 2;
-
-#[repr(u8)]
-pub enum UserRole
-{
-    USER = 0,
-    SUPERUSER = 1 << 1,
-    INACTIVE = 1 << 2,
-}
 
 impl DataBase
 {
@@ -263,13 +256,18 @@ impl DataBase
             return Err(rusqlite::Error::InvalidParameterName("User is not admin".into()));
         }
 
-        let func: Box<dyn Fn(String) -> Result<usize>> = match action.as_str()
+        let action = match EditUserAction::from_str(&action)
         {
-            "MAKE_USER_ACTIVE" => Box::new(|name: String| self.make_user_active(name)),
-            "MAKE_USER_REGULAR" => Box::new(|name: String| self.make_user_regular(name)),
-            "MAKE_USER_INACTIVE" => Box::new(|name: String| self.make_user_inactive(name)),
-            "MAKE_USER_SUPERUSER" => Box::new(|name: String| self.make_user_admin(name)),
+            Ok(a) => a,
             _ => return Err(rusqlite::Error::InvalidParameterName(format!("Invalid action"))),
+        };
+
+        let func: Box<dyn Fn(String) -> Result<usize>> = match action
+        {
+            EditUserAction::MakeUserActive => Box::new(|name: String| self.make_user_active(name)),
+            EditUserAction::MakeUserRegular => Box::new(|name: String| self.make_user_regular(name)),
+            EditUserAction::MakeUserInactive => Box::new(|name: String| self.make_user_inactive(name)),
+            EditUserAction::MakeUserSuperuser => Box::new(|name: String| self.make_user_admin(name)),
         };
 
         let mut errors = Vec::<String>::new();
