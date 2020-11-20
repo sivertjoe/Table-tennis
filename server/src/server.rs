@@ -21,7 +21,6 @@ const DECLINE_MATCH: u8 = 2;
 
 pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
 
-#[repr(u8)]
 #[derive(Debug)]
 pub enum ServerError
 {
