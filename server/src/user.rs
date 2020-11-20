@@ -25,3 +25,11 @@ pub struct ChangePasswordInfo
     pub password: String,
     pub new_password: String
 }
+
+#[derive(Deserialize)]
+pub struct EditUsersInfo
+{
+    pub users: Vec<String>,
+    pub action: String,
+    pub token: String,
+}

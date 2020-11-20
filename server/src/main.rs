@@ -6,7 +6,7 @@ mod server_rollback;
 
 use server::DataBase;
 use r#match::{MatchInfo, MatchResponse};
-use user::{LoginInfo, ChangePasswordInfo};
+use user::{LoginInfo, ChangePasswordInfo, EditUsersInfo};
 use notification::NewUserNotificationAns;
 
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -41,17 +41,33 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
 }
 
 
+#[post("/edit-users")]
+async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: EditUsersInfo = match serde_json::from_str(&info)
+    {
+        Ok(info) => info,
+        Err(e) => return HttpResponse::BadRequest().body(format!("{}", e)),
+    };
+
+    match DATABASE!(data).edit_users(info.users, info.action, info.token)
+    {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+    }
+}
+
+
 #[post("/register-match")]
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: MatchInfo = match serde_json::from_str(&info) 
-    { 
-        Ok(info) => info, 
-        Err(_) => return HttpResponse::BadRequest().finish() 
+    let info: MatchInfo = match serde_json::from_str(&info)
+    {
+        Ok(info) => info,
+        Err(_) => return HttpResponse::BadRequest().finish()
     };
-        
-    let token = info.token;
 
+    let token = info.token;
     match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
     {
         Ok(_) => HttpResponse::Ok().finish(),
@@ -213,6 +229,7 @@ async fn main() -> std::io::Result<()>
                   .allow_any_origin()
                   .allow_any_method())
             .service(create_user)
+            .service(edit_users)
             .service(get_profile)
             .service(get_users)
             .service(register_match)
