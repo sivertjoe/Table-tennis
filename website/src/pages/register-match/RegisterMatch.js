@@ -1,5 +1,6 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
+import * as MatchApi from '../../api/MatchApi'
 import './RegisterMatch.css'
 import '../../index.css'
 import Select from 'react-select'
@@ -11,7 +12,7 @@ class RegisterMatch extends Component {
 
   constructor() {
     super()
-    Api.getUsers().then((users) => {
+    UserApi.getUsers().then((users) => {
       this.users = users.map((u) => ({
         value: u.name,
         label: u.name,
@@ -37,7 +38,7 @@ class RegisterMatch extends Component {
     if (this.winner === this.loser)
       return this.setErrorLabel('Players cannot be the same')
 
-    Api.registerMatch(this.winner, this.loser, token).then((res) => {
+    MatchApi.registerMatch(this.winner, this.loser, token).then((res) => {
       if (res.status === 200) return this.props.history.push('/')
       this.setErrorLabel('Something went wrong')
     })

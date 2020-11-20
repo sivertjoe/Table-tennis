@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
 import './ChangePasswordPage.css'
 import '../../index.css'
 import Button from '../../components/button/Button'
@@ -25,7 +25,7 @@ class ChangePasswordPage extends Component {
     if (this.newPassword !== this.confirmPassword)
       return this.setError('Passwords do not match')
 
-    Api.changePassword(
+    UserApi.changePassword(
       localStorage.getItem('username'),
       this.password,
       this.newPassword,

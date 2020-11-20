@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
 import './Leaderboard.css'
 import '../../index.css'
 
@@ -8,7 +8,8 @@ class Leaderboard extends Component {
 
   constructor() {
     super()
-    Api.getUsers().then((users) => {
+
+    UserApi.getUsers().then((users) => {
       this.users = users
       this.setState({})
     })

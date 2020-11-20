@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as MatchApi from '../../api/MatchApi'
 import './History.css'
 import '../../index.css'
 
@@ -8,7 +8,7 @@ class History extends Component {
 
   constructor() {
     super()
-    Api.getHistory().then((history) => {
+    MatchApi.getHistory().then((history) => {
       this.history = history
       this.setState({})
     })

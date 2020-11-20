@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as Api from '../../api/Api'
+import * as UserApi from '../../api/UserApi'
 import './RegisterPage.css'
 import '../../index.css'
 import Button from '../../components/button/Button'
@@ -19,7 +19,7 @@ class RegisterPage extends Component {
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
-    Api.register(this.username, this.password).then((res) => {
+    UserApi.register(this.username, this.password).then((res) => {
       if (res.status === 200)
         this.success = 'Success! Now you have to wait for an admin to accept..!'
       else if (res.status === 409) this.error = 'This username is unavailable'
