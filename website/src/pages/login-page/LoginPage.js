@@ -18,19 +18,14 @@ class LoginPage extends Component {
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
-    UserApi.login(this.username, this.password).then((res) => {
-      if (res.status === 200)
-        return res.json().then((token) => {
-          localStorage.setItem('token', token)
-          localStorage.setItem('username', this.username)
-          window.location.href = '/profiles/' + this.username
-        })
-
-      if (res.status === 400) this.error = 'Invalid username or password'
-      if (res.status === 401) this.error = 'Waiting for admin to accept'
-      else this.error = 'Something went wrong'
-      this.setState({})
-    })
+    UserApi.login(this.username, this.password)
+      .then((token) => {
+        localStorage.setItem('token', token)
+        localStorage.setItem('username', this.username)
+        window.location.href = '/profiles/' + this.username
+      })
+      .catch((error) => (this.error = error.message))
+      .finally(() => this.setState({}))
   }
 
   setError(val) {

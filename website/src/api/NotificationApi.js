@@ -6,7 +6,6 @@ export const getNotifications = () =>
 export const getNewUserNotification = (token) =>
   BaseApi.get('user-notification/' + token)
 
-
 export const replyToNewUser = (id, token, ans) =>
   BaseApi.post('respond-to-user-notification', {
     id: id,

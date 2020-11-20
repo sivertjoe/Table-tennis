@@ -29,15 +29,10 @@ class ChangePasswordPage extends Component {
       localStorage.getItem('username'),
       this.password,
       this.newPassword,
-    ).then((res) => {
-      if (res.status === 200)
-        return window.location.href = '/profiles/' + this.username
-
-      console.log(res)
-      if (res.status === 400) this.error = 'Old password is incorrect'
-      else this.error = 'Something went wrong'
-      this.setState({})
-    })
+    )
+      .then((res) => (window.location.href = '/profiles/' + this.username))
+      .catch((error) => (this.error = error.message))
+      .finally(() => this.setState({}))
   }
 
   setError(val) {

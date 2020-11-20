@@ -12,14 +12,15 @@ class RegisterMatch extends Component {
 
   constructor() {
     super()
-    UserApi.getUsers().then((users) => {
-      this.users = users.map((u) => ({
-        value: u.name,
-        label: u.name,
-      }))
-
-      this.setState({})
-    })
+    UserApi.getUsers()
+      .then((users) => {
+        this.users = users.map((u) => ({
+          value: u.name,
+          label: u.name,
+        }))
+      })
+      .catch((error) => (this.error = error.message))
+      .finally(() => this.setState({}))
 
     this.setWinner = this.setWinner.bind(this)
     this.setLoser = this.setLoser.bind(this)
@@ -38,10 +39,9 @@ class RegisterMatch extends Component {
     if (this.winner === this.loser)
       return this.setErrorLabel('Players cannot be the same')
 
-    MatchApi.registerMatch(this.winner, this.loser, token).then((res) => {
-      if (res.status === 200) return this.props.history.push('/')
-      this.setErrorLabel('Something went wrong')
-    })
+    MatchApi.registerMatch(this.winner, this.loser, token)
+      .then(() => this.props.history.push('/'))
+      .catch((error) => this.setErrorLabel('Something went wrong'))
   }
 
   setErrorLabel(text) {

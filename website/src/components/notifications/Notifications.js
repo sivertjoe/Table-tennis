@@ -41,12 +41,12 @@ const NotificationItem = (values) => {
       <th>{vals.loser}</th>
       <th>{formatDate(vals.epoch)}</th>
       <th>
-        <button onClick={() => click_button(vals.id, 1)}>
+        <button onClick={() => clickButton(vals.id, 1)}>
           <span>&#10003;</span>
         </button>
       </th>
       <th>
-        <button onClick={() => click_button(vals.id, 2)}>
+        <button onClick={() => clickButton(vals.id, 2)}>
           <span>&#10005;</span>
         </button>
       </th>
@@ -54,10 +54,12 @@ const NotificationItem = (values) => {
   )
 }
 
-const click_button = (id, ans) => {
+const clickButton = (id, ans) => {
   const token = localStorage.getItem('token')
-  MatchApi.replyToMatch(id, token, ans).then(() => {
-    document.getElementById(id).remove()
-    document.getElementById('notificationCounter').innerHTML -= 1
-  })
+  MatchApi.replyToMatch(id, token, ans)
+    .then(() => {
+      document.getElementById(id).remove()
+      document.getElementById('notificationCounter').innerHTML -= 1
+    })
+    .catch((err) => console.warn(err.message))
 }

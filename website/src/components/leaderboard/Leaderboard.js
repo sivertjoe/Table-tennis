@@ -9,10 +9,10 @@ class Leaderboard extends Component {
   constructor() {
     super()
 
-    UserApi.getUsers().then((users) => {
-      this.users = users
-      this.setState({})
-    })
+    UserApi.getUsers()
+      .then((users) => (this.users = users))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
   }
 
   render() {
