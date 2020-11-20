@@ -14,10 +14,10 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
 
 use std::sync::{Mutex, Arc};
+use serde_json::json;
 
 const PORT: u32 = 58642;
 const DATABASE_FILE: &'static str = "db.db";
-
 
 
 macro_rules! DATABASE
@@ -28,6 +28,36 @@ macro_rules! DATABASE
     }
 }
 
+fn response_code(e: ServerError) -> u8
+{
+    match e
+    {
+        ServerError::UserNotExist => 1,
+        ServerError::UsernameTaken => 2,
+        ServerError::PasswordNotMatch => 3,
+        ServerError::Unauthorized => 4,
+        ServerError::WaitingForAdmin => 5,
+        ServerError::Critical => 6,
+        _ => 99
+    }
+}
+
+fn response_error(e: ServerError) -> String
+{
+    format!("{{'status': {}}}", response_code(e))
+}
+
+fn response_ok_with(name: &str, item: String) -> String
+{
+    format!("{{'status': 0, '{}': '{}'}}", name, item)
+}
+
+fn response_ok() -> String
+{
+    "{'status': 0}".into()
+}
+
+
 
 #[post("/create-user")]
 async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
@@ -35,11 +65,11 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
-        Ok(_) => HttpResponse::Ok().finish(),
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => match e
         {
-            ServerError::UsernameTaken => HttpResponse::Conflict().finish(),
-            _ => HttpResponse::BadRequest().finish(),
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
         }
     }
 }
@@ -65,16 +95,16 @@ async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
 #[post("/register-match")]
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: MatchInfo = match serde_json::from_str(&info)
-    {
-        Ok(info) => info,
-        Err(_) => return HttpResponse::BadRequest().finish()
-    };
+    let info: MatchInfo = serde_json::from_str(&info).unwrap();
 
     match DATABASE!(data).register_match(info.winner, info.loser, info.token)
     {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::BadRequest().finish(),
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -88,8 +118,12 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
 
     match DATABASE!(data).respond_to_match(id, answer, token)
     {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::BadRequest().finish(),
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -102,14 +136,11 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match DATABASE!(data).login(name, password)
     {
-        Ok(uuid) => HttpResponse::Ok().json(uuid),
-        Err(e) =>
+        Ok(uuid) => HttpResponse::Ok().json(response_ok_with("token", uuid)),
+        Err(e) => match e
         {
-            match e
-            {
-                ServerError::WaitingForAdmin => HttpResponse::Unauthorized().finish(),
-                _ => HttpResponse::BadRequest().finish()
-            }
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
         }
     }
 }
@@ -124,12 +155,11 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
 
     match DATABASE!(data).change_password(name, password, new_password)
     {
-        Ok(_) => HttpResponse::Ok().finish(),
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => match e
         {
-            ServerError::PasswordNotMatch => HttpResponse::Unauthorized().finish(),
-            ServerError::UserNotExist => HttpResponse::Unauthorized().finish(),
-            _ => HttpResponse::BadRequest().finish()
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
         }
     }
 }
@@ -139,8 +169,12 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
     {
-        Ok(data) => HttpResponse::Ok().json(data),
-        Err(_) => HttpResponse::NotFound().finish()
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "users": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -159,8 +193,12 @@ async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(toke
 {
     match DATABASE!(data).get_notifications(token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(_) => HttpResponse::BadRequest().finish()
+        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "notification": notifications})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -169,8 +207,12 @@ async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::
 {
     match DATABASE!(data).get_new_user_notifications(token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(_) => HttpResponse::BadRequest().finish()
+        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "notification": notifications})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -180,8 +222,12 @@ async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String
     let info: NewUserNotificationAns = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).respond_to_new_user(info)
     {
-        Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(_) => HttpResponse::BadRequest().finish()
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -190,8 +236,12 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_history()
     {
-        Ok(data) => HttpResponse::Ok().json(data),
-        Err(_) => HttpResponse::NotFound().finish()
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "history": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -200,8 +250,12 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
 {
     match DATABASE!(data).get_profile(name)
     {
-        Ok(data) => HttpResponse::Ok().json(data),
-        Err(_) => HttpResponse::NotFound().finish(),
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "user": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
@@ -210,8 +264,12 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
 {
     match DATABASE!(data).get_is_admin(token.to_string())
     {
-        Ok(data) => HttpResponse::Ok().json(data),
-        Err(_) => HttpResponse::BadRequest().finish()
+        Ok(val) => HttpResponse::Ok().json(json!({"status": 0, "isAdmin": val})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
