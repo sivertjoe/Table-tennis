@@ -50,7 +50,7 @@ impl From<ServerError> for rusqlite::Error
         match error
         {
             ServerError::Rusqlite(e) => e,
-            _ => unreachable!() 
+            _ => unreachable!()
         }
     }
 }
@@ -954,7 +954,7 @@ mod test
         let mut stmt = s.conn.prepare("select * from match_notification")
                              .expect("creating statement");
 
-        let find  = stmt.query_map(NO_PARAMS, |row| 
+        let find  = stmt.query_map(NO_PARAMS, |row|
         {
             let c: i64 = row.get(0).expect("getting first row");
             Ok(c)
@@ -1190,7 +1190,7 @@ mod test
         assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
     }
 
-    
+
     #[test]
     fn test_unix_time_in_ms()
     {
@@ -1261,7 +1261,7 @@ mod test
          * Bernt : 1517.4577607770875
          * A _little_ different, BUT! More correct, rollback should fix these
          */
-        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(), 
+        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(),
                                                  s.get_user_without_matches(&lars).unwrap(),
                                                  s.get_user_without_matches(&bernt).unwrap());
 

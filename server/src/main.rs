@@ -4,7 +4,7 @@ mod r#match;
 mod notification;
 mod server_rollback;
 
-use server::{DataBase, ServerError}; 
+use server::{DataBase, ServerError};
 use r#match::{MatchInfo, MatchResponse};
 use user::{LoginInfo, ChangePasswordInfo, EditUsersInfo};
 use notification::NewUserNotificationAns;
