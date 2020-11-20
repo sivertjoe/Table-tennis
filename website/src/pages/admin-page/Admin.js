@@ -6,7 +6,7 @@ import './Admin.css'
 import Button from '../../components/button/Button'
 
 class Admin extends Component {
-  isAdmin = false
+  isAdmin = 0
   notifications = []
   users = []
   selectedUsers = []
@@ -26,10 +26,14 @@ class Admin extends Component {
       Api.isAdmin(token).then((isAdmin) => {
         if (isAdmin)
           Api.getNewUserNotification(token).then((notifications) => {
-            this.isAdmin = isAdmin
+            this.isAdmin = 1
             this.notifications = notifications
             this.setState({})
           })
+        else {
+          this.isAdmin = -1
+          this.setState({})
+        }
       })
 
       Api.getAllUsers().then((users) => {
@@ -39,7 +43,7 @@ class Admin extends Component {
         }))
         this.setState({})
       })
-    }
+    } else this.isAdmin = -1
 
     this.selectUser = this.selectUser.bind(this)
     this.selectOption = this.selectOption.bind(this)
@@ -74,7 +78,7 @@ class Admin extends Component {
   }
 
   render() {
-    if (this.isAdmin) {
+    if (this.isAdmin === 1) {
       const items = this.notifications.map((not) => (
         <tr key={not.id} id={not.id}>
           <th>{not.name}</th>
@@ -143,12 +147,13 @@ class Admin extends Component {
           </div>
         </div>
       )
-    }
-    return (
-      <div>
-        <img src={'unauth.png'} />
-      </div>
-    )
+    } else if (this.isAdmin === -1)
+      return (
+        <div>
+          <img alt='STOP!!!' src={'unauth.png'} />
+        </div>
+      )
+    else return <h1 style={{ textAlign: 'center' }}>Loading...</h1>
   }
 }
 
