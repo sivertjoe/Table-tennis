@@ -34,11 +34,12 @@ fn response_code(e: ServerError) -> u8
     {
         ServerError::UserNotExist => 1,
         ServerError::UsernameTaken => 2,
-        ServerError::PasswordNotMatch => 3,
-        ServerError::Unauthorized => 4,
-        ServerError::WaitingForAdmin => 5,
-        ServerError::InactiveUser => 6,
-        ServerError::Critical(_) => 7,
+        ServerError::WrongUsernameOrPassword => 3,
+        ServerError::PasswordNotMatch => 4,
+        ServerError::Unauthorized => 5,
+        ServerError::WaitingForAdmin => 6,
+        ServerError::InactiveUser => 7,
+        ServerError::Critical(_) => 8,
         _ => 69
     }
 }
