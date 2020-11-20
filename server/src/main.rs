@@ -4,7 +4,7 @@ mod r#match;
 mod notification;
 mod server_rollback;
 
-use server::DataBase;
+use server::{DataBase, ServerError}; 
 use r#match::{MatchInfo, MatchResponse};
 use user::{LoginInfo, ChangePasswordInfo, EditUsersInfo};
 use notification::NewUserNotificationAns;
@@ -36,7 +36,11 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::Conflict().body(format!("{}", e))
+        Err(e) => match e
+        {
+            ServerError::UsernameTaken => HttpResponse::Conflict().finish(),
+            _ => HttpResponse::BadRequest().finish(),
+        }
     }
 }
 
@@ -67,11 +71,10 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
         Err(_) => return HttpResponse::BadRequest().finish()
     };
 
-    let token = info.token;
-    match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
+    match DATABASE!(data).register_match(info.winner, info.loser, info.token)
     {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::Conflict().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish(),
     }
 }
 
@@ -86,7 +89,7 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     match DATABASE!(data).respond_to_match(id, answer, token)
     {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish(),
     }
 }
 
@@ -102,15 +105,11 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
         Ok(uuid) => HttpResponse::Ok().json(uuid),
         Err(e) =>
         {
-            if let rusqlite::Error::InvalidParameterName(s) = e
+            match e
             {
-                // Absolutely disgusting
-                if s == "Waiting for admin"
-                {
-                    return HttpResponse::Unauthorized().finish();
-                }
+                ServerError::WaitingForAdmin => HttpResponse::Unauthorized().finish(),
+                _ => HttpResponse::BadRequest().finish()
             }
-            HttpResponse::BadRequest().finish()
         }
     }
 }
@@ -126,7 +125,12 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
     match DATABASE!(data).change_password(name, password, new_password)
     {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(e) => match e
+        {
+            ServerError::PasswordNotMatch => HttpResponse::Unauthorized().finish(),
+            ServerError::UserNotExist => HttpResponse::Unauthorized().finish(),
+            _ => HttpResponse::BadRequest().finish()
+        }
     }
 }
 
@@ -156,7 +160,7 @@ async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(toke
     match DATABASE!(data).get_notifications(token)
     {
         Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish()
     }
 }
 
@@ -166,7 +170,7 @@ async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::
     match DATABASE!(data).get_new_user_notifications(token)
     {
         Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish()
     }
 }
 
@@ -177,7 +181,7 @@ async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String
     match DATABASE!(data).respond_to_new_user(info)
     {
         Ok(notifications) => HttpResponse::Ok().json(notifications),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish()
     }
 }
 
@@ -197,7 +201,7 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
     match DATABASE!(data).get_profile(name)
     {
         Ok(data) => HttpResponse::Ok().json(data),
-        Err(e) => HttpResponse::NotFound().body(format!("{}", e))
+        Err(_) => HttpResponse::NotFound().finish(),
     }
 }
 
@@ -207,7 +211,7 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
     match DATABASE!(data).get_is_admin(token.to_string())
     {
         Ok(data) => HttpResponse::Ok().json(data),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Err(_) => HttpResponse::BadRequest().finish()
     }
 }
 

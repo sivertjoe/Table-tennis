@@ -1,11 +1,13 @@
 use std::str::FromStr;
 use chrono::prelude::*;
 use uuid::Uuid;
-use rusqlite::{Connection, Result, NO_PARAMS, params, named_params};
+use rusqlite::{Connection, NO_PARAMS, params, named_params};
 use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE};
 use elo::EloRank;
 use crate::r#match::Match;
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
+
+use std::convert::From;
 
 pub struct DataBase
 {
@@ -16,6 +18,39 @@ const MATCH_NO_ANS: u8 = 0;
 const ACCEPT_MATCH: u8 = 1;
 #[allow(dead_code)]
 const DECLINE_MATCH: u8 = 2;
+
+pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
+
+pub enum ServerError
+{
+    UserNotExist,
+    UsernameTaken,
+    PasswordNotMatch,
+    Unauthorized,
+    WaitingForAdmin,
+    Critical(String),
+    Rusqlite(rusqlite::Error),
+}
+
+impl From<rusqlite::Error> for ServerError
+{
+    fn from(error: rusqlite::Error) -> Self
+    {
+        Self::Rusqlite(error)
+    }
+}
+
+impl From<ServerError> for rusqlite::Error
+{
+    fn from(error: ServerError) -> Self
+    {
+        match error
+        {
+            ServerError::Rusqlite(e) => e,
+            _ => unreachable!() 
+        }
+    }
+}
 
 impl DataBase
 {
@@ -77,53 +112,53 @@ impl DataBase
         }
     }
 
-    pub fn get_is_admin(&self, token: String) -> Result<bool>
+    pub fn get_is_admin(&self, token: String) -> ServerResult<bool>
     {
         let user = self.get_user_without_matches_by("uuid", "=", &token)?;
         // TODO: Implement & for u8
         Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER )
     }
 
-    pub fn login(&self, name: String, password: String) -> Result<String> // String = Uuid
+    pub fn login(&self, name: String, password: String) -> ServerResult<String> // String = Uuid
     {
         self.try_login(name, password)
     }
 
-    pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> Result<usize>
+    pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
         self.try_respond_to_notification(id, ans, token)
     }
 
-    pub fn create_user(&self, new_user: String, password: String) -> Result<usize>
+    pub fn create_user(&self, new_user: String, password: String) -> ServerResult<()>
     {
         self.create_new_user_notification(new_user, password)
     }
 
-    pub fn edit_users(&self, users: Vec<String>, action: String, token: String) -> Result<usize>
+    pub fn edit_users(&self, users: Vec<String>, action: String, token: String) -> ServerResult<usize>
     {
         self._edit_users(users, action, token)
     }
 
-    pub fn get_profile(&self, user: String) -> Result<User>
+    pub fn get_profile(&self, user: String) -> ServerResult<User>
     {
         self.get_user(&user)
     }
 
-    pub fn get_all_users(&self, token: String) -> Result<Vec<User>>
+    pub fn get_all_users(&self, token: String) -> ServerResult<Vec<User>>
     {
         Ok(self._get_all_users(token)?)
     }
 
-    pub fn get_users(&self) -> Result<Vec<User>>
+    pub fn get_users(&self) -> ServerResult<Vec<User>>
     {
-        Ok(self.get_active_users()?)
+        Ok(self.get_users()?)
     }
 
-    pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> Result<usize>
+    pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> ServerResult<()>
     {
         if self.get_user_without_matches_by("uuid", "=", &token).is_err()
         {
-            return Err(rusqlite::Error::InvalidParameterName("Not a valid user".into()));
+            return Err(ServerError::UserNotExist);
         };
 
         let (winner, loser) = (self.get_user_without_matches(&winner_name)?,
@@ -132,31 +167,31 @@ impl DataBase
         self.create_match_notification(&winner, &loser, token)
     }
 
-    pub fn get_history(&self) -> Result<Vec<Match>>
+    pub fn get_history(&self) -> ServerResult<Vec<Match>>
     {
         self.get_all_matches()
     }
 
-    pub fn change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
+    pub fn change_password(&self, name: String, password: String, new_password: String) -> ServerResult<()>
     {
         self.try_change_password(name, password, new_password)
     }
 
-    pub fn get_notifications(&self, user_token: String) -> Result<Vec<MatchNotification>>
+    pub fn get_notifications(&self, user_token: String) -> ServerResult<Vec<MatchNotification>>
     {
         self.try_get_notifications(user_token)
     }
 
-    pub fn get_new_user_notifications(&self, token: String) -> Result<Vec<NewUserNotification>>
+    pub fn get_new_user_notifications(&self, token: String) -> ServerResult<Vec<NewUserNotification>>
     {
         self.try_get_new_user_notifications(token)
     }
 
-    pub fn respond_to_new_user(&self, not: NewUserNotificationAns) -> Result<usize>
+    pub fn respond_to_new_user(&self, not: NewUserNotificationAns) -> ServerResult<()>
     {
         if !self.get_is_admin(not.token.clone())?
         {
-            return Err(rusqlite::Error::InvalidParameterName("user is not admin".into()));
+            return Err(ServerError::Unauthorized);
         }
 
         // No match is being accepted, but the ans values are the same Xdd
@@ -166,32 +201,27 @@ impl DataBase
         }
         self.delete_new_user_notification(not.id)
     }
-
-    #[allow(dead_code)]
-    pub fn migrate(&self) -> Result<usize>
-    {
-        Ok(0)
-    }
 }
 
 
 // Only private  functions here ~!
 impl DataBase
 {
-    fn create_new_user_notification(&self, name: String, password: String) -> Result<usize>
+    fn create_new_user_notification(&self, name: String, password: String) -> ServerResult<()>
     {
         if !self.check_unique_name(&name)?
         {
-            return Err(rusqlite::Error::InvalidParameterName("user with that name already exist".into()));
+            return Err(ServerError::UsernameTaken);
         }
 
         self.conn.execute(
             "insert into new_user_notification (name, password_hash) values (?1, ?2)",
             params![name, self.hash(&password)],
-            )
+            )?;
+        Ok(())
     }
 
-    fn make_user_admin(&self, name: String) -> Result<usize>
+    fn make_user_admin(&self, name: String) -> ServerResult<usize>
     {
         let user: User = match self.get_user_without_matches(&name)
         {
@@ -204,10 +234,11 @@ impl DataBase
             &format!("update users
                 set user_role = {}
                 where name = \"{}\"", role, name),
-                NO_PARAMS,)
+                NO_PARAMS,)?;
+        Ok(0)
     }
 
-    fn make_user_regular(&self, name: String) -> Result<usize>
+    fn make_user_regular(&self, name: String) -> ServerResult<usize>
     {
         let user: User = match self.get_user_without_matches(&name)
         {
@@ -220,10 +251,11 @@ impl DataBase
             &format!("update users
                 set user_role = {}
                 where name = \"{}\"", role, name),
-                NO_PARAMS,)
+                NO_PARAMS,)?;
+        Ok(0)
     }
 
-    fn make_user_active(&self, name: String) -> Result<usize>
+    fn make_user_active(&self, name: String) -> ServerResult<usize>
     {
         let user: User = match self.get_user_without_matches(&name)
         {
@@ -233,10 +265,11 @@ impl DataBase
 
         let role = user.user_role & !USER_ROLE_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params!{":role": role, ":name": name})
+        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        Ok(0)
     }
 
-    fn make_user_inactive(&self, name: String) -> Result<usize>
+    fn make_user_inactive(&self, name: String) -> ServerResult<usize>
     {
         let user: User = match self.get_user_without_matches(&name)
         {
@@ -246,23 +279,24 @@ impl DataBase
 
         let role = user.user_role | USER_ROLE_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params!{":role": role, ":name": name})
+        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        Ok(0)
     }
 
-    fn _edit_users(&self, users: Vec<String>, action: String, token: String) -> Result<usize>
+    fn _edit_users(&self, users: Vec<String>, action: String, token: String) -> ServerResult<usize>
     {
         if !self.get_is_admin(token)?
         {
-            return Err(rusqlite::Error::InvalidParameterName("User is not admin".into()));
+            return Err(ServerError::Unauthorized);
         }
 
         let action = match EditUserAction::from_str(&action)
         {
             Ok(a) => a,
-            _ => return Err(rusqlite::Error::InvalidParameterName(format!("Invalid action"))),
+            _ => return Err(ServerError::Critical("Invalid action".into())),
         };
 
-        let func: Box<dyn Fn(String) -> Result<usize>> = match action
+        let func: Box<dyn Fn(String) -> ServerResult<usize>> = match action
         {
             EditUserAction::MakeUserActive => Box::new(|name: String| self.make_user_active(name)),
             EditUserAction::MakeUserRegular => Box::new(|name: String| self.make_user_regular(name)),
@@ -282,13 +316,13 @@ impl DataBase
 
         if errors.len() > 0
         {
-            return Err(rusqlite::Error::InvalidParameterName(format!("The following errors occured: {:?}", errors)));
+            return Err(ServerError::Critical(format!("The following errors occured: {:?}", errors)));
         }
 
         Ok(0)
     }
 
-    fn check_unique_name(&self, name: &String) -> Result<bool>
+    fn check_unique_name(&self, name: &String) -> ServerResult<bool>
     {
         let mut stmt = self.conn.prepare("select count(*) from users where name = :name")?;
         let count = stmt.query_map_named(named_params!{":name": name}, |row|
@@ -299,13 +333,14 @@ impl DataBase
         Ok(count == 0)
     }
 
-    fn delete_new_user_notification(&self, id: i64) -> Result<usize>
+    fn delete_new_user_notification(&self, id: i64) -> ServerResult<usize>
     {
         let mut stmt = self.conn.prepare("delete from new_user_notification where id = :id")?;
-        stmt.execute_named(named_params!{":id": id})
+        stmt.execute_named(named_params!{":id": id})?;
+        Ok(0)
     }
 
-    fn create_user_from_notification(&self, id: i64) -> Result<String>
+    fn create_user_from_notification(&self, id: i64) -> ServerResult<String>
     {
         let mut stmt = self.conn.prepare("select name, password_hash from new_user_notification where id = :id")?;
         let user = stmt.query_map_named(named_params!{":id": id}, |row|
@@ -317,14 +352,14 @@ impl DataBase
 
         if user.is_none()
         {
-            return Err(rusqlite::Error::InvalidParameterName("Should not be possible to reach this".into()));
+            return Err(ServerError::Critical("err".into())); // Should not be possible to reach this
         }
 
         let user = user.unwrap().unwrap();
         self.create_user_with_password_hash(user.0, user.1)
     }
 
-    fn create_user_with_password_hash(&self, new_user: String, password_hash: String) -> Result<String>
+    fn create_user_with_password_hash(&self, new_user: String, password_hash: String) -> ServerResult<String>
     {
         let uuid = format!("{}", Uuid::new_v4());
         self.conn.execute(
@@ -336,7 +371,7 @@ impl DataBase
 
     // Get all notifications for the users, exclude already
     // answered ones
-    fn try_get_notifications(&self, token: String) -> Result<Vec<MatchNotification>>
+    fn try_get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
@@ -376,11 +411,11 @@ impl DataBase
         vec.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
         Ok(vec)
     }
-    fn try_get_new_user_notifications(&self, token: String) -> Result<Vec<NewUserNotification>>
+    fn try_get_new_user_notifications(&self, token: String) -> ServerResult<Vec<NewUserNotification>>
     {
         if !self.get_is_admin(token)?
         {
-            return Err(rusqlite::Error::InvalidParameterName("user is not admin".into()));
+            return Err(ServerError::Unauthorized);
         }
 
         let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
@@ -404,7 +439,7 @@ impl DataBase
         }
         Ok(vec)
     }
-    fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> Result<usize>
+    fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
@@ -425,7 +460,7 @@ impl DataBase
 
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
-            return Err(rusqlite::Error::InvalidParameterName("User can't accept this match".to_string()));
+            return Err(ServerError::Unauthorized);
         }
 
         if user.id == match_notification.winner
@@ -439,7 +474,7 @@ impl DataBase
         self.handle_notification_answer(&user, ans, &match_notification)
     }
 
-    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotificationTable) -> Result<usize>
+    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotificationTable) -> ServerResult<()>
     {
         // If both accepted, we need to
         //  * create the match notification,
@@ -464,7 +499,7 @@ impl DataBase
             };
 
             self.delete_match_notification(&match_notification)?;
-            return Ok(0);
+            return Ok(());
         }
         else
         {
@@ -473,19 +508,21 @@ impl DataBase
         }
     }
 
-    fn update_match_notification_answer(&self, col: &str, ans: u8, id: i64) -> Result<usize>
+    fn update_match_notification_answer(&self, col: &str, ans: u8, id: i64) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare(&format!("update match_notification set {} = :ans where id = :id", col))?;
-        stmt.execute_named(named_params!{":id": id, ":ans": ans})
+        stmt.execute_named(named_params!{":id": id, ":ans": ans})?;
+        Ok(())
     }
 
-    fn delete_match_notification(&self, m: &MatchNotificationTable) -> Result<usize>
+    fn delete_match_notification(&self, m: &MatchNotificationTable) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("delete from match_notification where id = :id")?;
-        stmt.execute_named(named_params!{":id": m.id})
+        stmt.execute_named(named_params!{":id": m.id})?;
+        Ok(())
     }
 
-    fn create_match_from_notification(&self, m: &MatchNotificationTable, winner: &User, loser: &User) -> Result<usize>
+    fn create_match_from_notification(&self, m: &MatchNotificationTable, winner: &User, loser: &User) -> ServerResult<()>
     {
         let elo = EloRank { k: 32 };
         let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
@@ -506,15 +543,15 @@ impl DataBase
         if self.need_to_roll_back(m.epoch)?
         {
            self.roll_back(m.epoch)?;
-           return Ok(0);
+           return Ok(());
         }
 
         self.update_elo(winner.id, new_winner_elo)?;
         self.update_elo(loser.id, new_loser_elo)?;
-        Ok(0)
+        Ok(())
     }
 
-    fn need_to_roll_back(&self, epoch: i64) -> Result<bool>
+    fn need_to_roll_back(&self, epoch: i64) -> ServerResult<bool>
     {
         let mut stmt = self.conn.prepare("select count(*) from matches
                                where epoch > :epoch;")?;
@@ -528,26 +565,30 @@ impl DataBase
         Ok(count > 0)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, token: String) -> Result<usize>
+    fn create_match_notification(&self, winner: &User, loser: &User, token: String) -> ServerResult<()>
     {
         if self.user_have_token(winner.id, &token)?
         {
-            return self.conn.execute(
+            self.conn.execute(
                 "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],);
+                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],)?;
         }
         else if self.user_have_token(loser.id, &token)?
         {
-            return self.conn.execute(
+            self.conn.execute(
                 "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],);
+                params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],)?;
         }
-        self.conn.execute(
-            "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
-            params![self.epoch(), winner.id, loser.id],)
+        else
+        {
+            self.conn.execute(
+                "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
+                params![self.epoch(), winner.id, loser.id],)?;
+        }
+        Ok(())
     }
 
-    fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>
+    fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
         let mut stmt = self.conn.prepare("select count(*) from users where id = :id and uuid = :token")?;
         let mut c = stmt.query_map_named(named_params!{":id": user_id, ":token": token}, |row|
@@ -559,7 +600,7 @@ impl DataBase
         Ok(c.next().unwrap().unwrap() == 1)
     }
 
-    fn try_change_password(&self, name: String, password: String, new_password: String) -> Result<usize>
+    fn try_change_password(&self, name: String, password: String, new_password: String) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("select id, password_hash from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
@@ -578,20 +619,21 @@ impl DataBase
                     return self.update_password(id, new_password);
                 }
 
-                return Err(rusqlite::Error::InvalidParameterName("Password did not match".to_string()))
+                return Err(ServerError::PasswordNotMatch);
             },
-            _ => Err(rusqlite::Error::InvalidParameterName("Error finding user..".to_string()))
+            _ => Err(ServerError::UserNotExist)
         }
     }
 
-    fn update_password(&self, id: i64, new_password: String) -> Result<usize>
+    fn update_password(&self, id: i64, new_password: String) -> ServerResult<()>
     {
         let hash = self.hash(&new_password);
         let mut stmt = self.conn.prepare("update users  set password_hash = :hash WHERE id = :id")?;
-        stmt.execute_named(named_params!{":hash": hash, ":id": id})
+        stmt.execute_named(named_params!{":hash": hash, ":id": id})?;
+        Ok(())
     }
 
-    fn try_login(&self, name: String, password: String) -> Result<String>
+    fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
         let mut stmt = self.conn.prepare("select password_hash, uuid, user_role from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
@@ -613,10 +655,10 @@ impl DataBase
 
             if c == 1
             {
-                return Err(rusqlite::Error::InvalidParameterName("Waiting for admin".into()))
+                return Err(ServerError::WaitingForAdmin);
             }
 
-            return Err(rusqlite::Error::InvalidParameterName("No user with that name exist".to_string()))
+            return Err(ServerError::UserNotExist);
         }
 
         match info.unwrap()
@@ -633,9 +675,9 @@ impl DataBase
                     return Ok(u);
                 }
 
-                return Err(rusqlite::Error::InvalidParameterName("Password did not match".to_string()))
+                return Err(ServerError::PasswordNotMatch)
             },
-            _ => Err(rusqlite::Error::InvalidParameterName("Error finding user..".to_string()))
+            _ => Err(ServerError::UserNotExist)
         }
 
     }
@@ -649,7 +691,7 @@ impl DataBase
         format!("{:x}", result)
     }
 
-    fn get_all_matches(&self) -> Result<Vec<Match>>
+    fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
         let mut stmt
           = self.conn.prepare("select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
@@ -681,13 +723,14 @@ impl DataBase
 
     }
 
-    fn update_elo(&self, id: i64, elo: f64) -> Result<usize>
+    fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("update users  set elo = :elo WHERE id = :id")?;
-        stmt.execute_named(named_params!{":elo": elo, ":id": id})
+        stmt.execute_named(named_params!{":elo": elo, ":id": id})?;
+        Ok(())
     }
 
-    fn get_matches(&self, id: i64) -> Result<impl Iterator<Item=Match>>
+    fn get_matches(&self, id: i64) -> ServerResult<Vec<Match>>
     {
         let s = "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch
                 from matches
@@ -716,15 +759,15 @@ impl DataBase
             };
         }
         vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
-        Ok(vec.into_iter())
+        Ok(vec)
     }
 
 
-    fn _get_all_users(&self, token: String) -> Result<Vec<User>>
+    fn _get_all_users(&self, token: String) -> ServerResult<Vec<User>>
     {
         if !self.get_is_admin(token)?
         {
-            return Err(rusqlite::Error::InvalidParameterName("User is not admin".into()));
+            return Err(ServerError::Unauthorized);
         }
 
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users;")?;
@@ -751,7 +794,7 @@ impl DataBase
         Ok(vec)
     }
 
-    fn get_active_users(&self) -> Result<Vec<User>>
+    fn get_active_users(&self) -> ServerResult<Vec<User>>
     {
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users where user_role & :inactive != :inactive;")?;
         let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE}, |row|
@@ -777,19 +820,19 @@ impl DataBase
         Ok(vec)
     }
 
-    fn get_user_without_matches(&self, name: &String) -> Result<User>
+    fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
     {
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
-    fn get_user(&self, name: &String) -> Result<User>
+    fn get_user(&self, name: &String) -> ServerResult<User>
     {
         let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
-        user.match_history = self.get_matches(user.id)?.collect();
+        user.match_history = self.get_matches(user.id)?;
         Ok(user)
     }
 
-    fn  get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> Result<User>
+    fn  get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
         let mut stmt = self.conn.prepare(&format!("select id, name, elo, user_role from users where {} {} :val", col, comp))?;
         let mut users = stmt.query_map_named(named_params!{":val": val}, |row|
@@ -809,8 +852,8 @@ impl DataBase
             {
                 Ok(user)
             },
-            Some(Err(e)) => Err(e),
-            None => Err(rusqlite::Error::InvalidParameterName("User did not exist".to_string()))
+            Some(Err(_)) => Err(ServerError::Critical("???")), // What does this even mean 🤷‍♀️
+            None => Err(ServerError::UserNotExist)
         }
     }
 
