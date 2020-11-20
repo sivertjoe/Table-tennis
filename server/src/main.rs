@@ -49,9 +49,9 @@ fn response_error(e: ServerError) -> serde_json::Value
     json!({"status": response_code(e)})
 }
 
-fn response_ok_with(name: &str, item: String) -> serde_json::Value
+fn response_ok_with(item: String) -> serde_json::Value
 {
-    json!({"status": 0, name: item})
+    json!({"status": 0, "result": item})
 }
 
 fn response_ok() -> serde_json::Value
@@ -138,7 +138,7 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match DATABASE!(data).login(name, password)
     {
-        Ok(uuid) => HttpResponse::Ok().json(response_ok_with("token", uuid)),
+        Ok(uuid) => HttpResponse::Ok().json(response_ok_with(uuid)),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
