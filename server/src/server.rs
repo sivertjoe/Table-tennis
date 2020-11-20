@@ -116,9 +116,14 @@ impl DataBase
         self.get_user(&user)
     }
 
-    pub fn get_users(&self)  -> Result<Vec<User>>
+    pub fn get_all_users(&self, token: String) -> Result<Vec<User>>
     {
-        Ok(self.get_all_users()?.collect())
+        Ok(self._get_all_users(token)?)
+    }
+
+    pub fn get_users(&self) -> Result<Vec<User>>
+    {
+        Ok(self.get_active_users()?)
     }
 
     pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> Result<usize>
@@ -710,8 +715,13 @@ impl DataBase
     }
 
 
-    fn get_all_users(&self) -> Result<impl Iterator<Item=User>>
+    fn _get_all_users(&self, token: String) -> Result<Vec<User>>
     {
+        if !self.get_is_admin(token)?
+        {
+            return Err(rusqlite::Error::InvalidParameterName("User is not admin".into()));
+        }
+
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users;")?;
         let users = stmt.query_map(NO_PARAMS, |row|
         {
@@ -733,7 +743,33 @@ impl DataBase
             };
         }
         vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
-        Ok(vec.into_iter())
+        Ok(vec)
+    }
+
+    fn get_active_users(&self) -> Result<Vec<User>>
+    {
+        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users where user_role & :inactive != :inactive;")?;
+        let users = stmt.query_map_named(named_params!{":inactive": UserRole::INACTIVE as u8}, |row|
+        {
+            Ok(User {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                elo: row.get(2)?,
+                user_role: row.get(3)?,
+                match_history: Vec::new()
+            })
+        })?;
+
+        let mut vec = Vec::new();
+        for user in users
+        {
+            if let Ok(u) = user
+            {
+                vec.push(u);
+            };
+        }
+        vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
+        Ok(vec)
     }
 
     fn get_user_without_matches(&self, name: &String) -> Result<User>
