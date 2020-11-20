@@ -1,10 +1,28 @@
+use std::str::FromStr;
 use crate::r#match::Match;
 use serde_derive::{Serialize, Deserialize};
 
-#[derive(Serialize)]
-pub struct User 
+
+#[repr(u8)]
+pub enum UserRole
 {
-    pub id: i64, 
+    USER = 0,
+    SUPERUSER = 1 << 1,
+    INACTIVE = 1 << 2,
+}
+
+pub enum EditUserAction
+{
+    MakeUserActive,
+    MakeUserRegular,
+    MakeUserInactive,
+    MakeUserSuperuser,
+}
+
+#[derive(Serialize)]
+pub struct User
+{
+    pub id: i64,
     pub elo: f64,
     pub name: String,
     pub user_role: u8,
@@ -32,4 +50,20 @@ pub struct EditUsersInfo
     pub users: Vec<String>,
     pub action: String,
     pub token: String,
+}
+
+impl FromStr for EditUserAction
+{
+    type Err = ();
+    fn from_str(action: &str) -> Result<Self, Self::Err>
+    {
+        match action
+        {
+            "MAKE_USER_ACTIVE" => Ok(EditUserAction::MakeUserActive),
+            "MAKE_USER_REGULAR" => Ok(EditUserAction::MakeUserRegular),
+            "MAKE_USER_INACTIVE" => Ok(EditUserAction::MakeUserInactive),
+            "MAKE_USER_SUPERUSER" => Ok(EditUserAction::MakeUserSuperuser),
+            _ => Err(())
+        }
+    }
 }
