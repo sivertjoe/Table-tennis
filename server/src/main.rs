@@ -37,8 +37,9 @@ fn response_code(e: ServerError) -> u8
         ServerError::PasswordNotMatch => 3,
         ServerError::Unauthorized => 4,
         ServerError::WaitingForAdmin => 5,
-        ServerError::Critical => 6,
-        _ => 99
+        ServerError::InactiveUser => 6,
+        ServerError::Critical(_) => 7,
+        _ => 69
     }
 }
 
@@ -78,16 +79,16 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
 #[post("/edit-users")]
 async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: EditUsersInfo = match serde_json::from_str(&info)
-    {
-        Ok(info) => info,
-        Err(e) => return HttpResponse::BadRequest().body(format!("{}", e)),
-    };
+    let info: EditUsersInfo = serde_json::from_str(&info).unwrap();
 
     match DATABASE!(data).edit_users(info.users, info.action, info.token)
     {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::BadRequest().body(format!("{}", e))
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
     }
 }
 
