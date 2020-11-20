@@ -43,19 +43,19 @@ fn response_code(e: ServerError) -> u8
     }
 }
 
-fn response_error(e: ServerError) -> String
+fn response_error(e: ServerError) -> serde_json::Value
 {
-    format!("{{'status': {}}}", response_code(e))
+    json!({"status": response_code(e)})
 }
 
-fn response_ok_with(name: &str, item: String) -> String
+fn response_ok_with(name: &str, item: String) -> serde_json::Value
 {
-    format!("{{'status': 0, '{}': '{}'}}", name, item)
+    json!({"status": 0, name: item})
 }
 
-fn response_ok() -> String
+fn response_ok() -> serde_json::Value
 {
-    "{'status': 0}".into()
+    json!({"status": 0})
 }
 
 
