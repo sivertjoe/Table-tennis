@@ -1,5 +1,4 @@
-const url =
-  process.env.NODE_ENV === 'prod' ? 'https://sivert.dev' : 'http://localhost'
+const url = process.env.NODE_ENV !== 'development' ? 'https://sivert.dev' : 'http://localhost'
 const ip = '58642'
 const apiUrl = url + ':' + ip
 

@@ -251,13 +251,13 @@ async fn main() -> std::io::Result<()>
             .service(change_password)
     });
 
-    if cfg!(not(debug_assertions))
+    if cfg!(debug_assertions)
     {
-        server.bind_openssl(format!("sivert.dev:{}", PORT), get_builder())?
+        server.bind(format!("0.0.0.0:{}", PORT))?
     }
     else
     {
-        server.bind(format!("0.0.0.0:{}", PORT))?
+        server.bind_openssl(format!("0.0.0.0:{}", PORT), get_builder())?
     }
     .run()
     .await
