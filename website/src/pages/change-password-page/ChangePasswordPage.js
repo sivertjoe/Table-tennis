@@ -25,12 +25,9 @@ class ChangePasswordPage extends Component {
     if (this.newPassword !== this.confirmPassword)
       return this.setError('Passwords do not match')
 
-    UserApi.changePassword(
-      localStorage.getItem('username'),
-      this.password,
-      this.newPassword,
-    )
-      .then((res) => (window.location.href = '/profiles/' + this.username))
+    const username = localStorage.getItem('username')
+    UserApi.changePassword(username, this.password, this.newPassword)
+      .then((res) => (window.location.href = '/profiles/' + username))
       .catch((error) => (this.error = error.message))
       .finally(() => this.setState({}))
   }
