@@ -64,15 +64,15 @@ class Profile extends Component {
         )}
         <h2 style={{ marginTop: '4rem' }}>Match history ({numberOfMatches})</h2>
         <MatchHistory user={this.user} />
-        <div className="row">
-          {loggedIn && (
+        {loggedIn && (
+          <div className="row">
             <Button
               placeholder="Change password"
               callback={this.changePassword}
             />
-          )}
-          <Button placeholder="Logout" callback={this.logout} />
-        </div>
+            <Button placeholder="Logout" callback={this.logout} />
+          </div>
+        )}
       </div>
     )
   }
