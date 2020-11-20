@@ -16,6 +16,12 @@ services:
       - type: bind
         source: ./server/src/db.db
         target: /db.db
+      - type: bind
+        source: ./server/src/cert.pem
+        target: /cert.pem
+      - type: bind
+        source: ./server/src/privkey.pem
+        target: /privkey.pem
 
 networks:
   default:
