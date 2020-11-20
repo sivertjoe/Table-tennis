@@ -50,7 +50,7 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
         Err(_) => return HttpResponse::BadRequest().finish() 
     };
         
-    let token = if info.token.is_empty() { None } else { Some(info.token) };
+    let token = info.token;
 
     match DATABASE!(data).register_match(info.winner.clone(), info.loser.clone(), token)
     {

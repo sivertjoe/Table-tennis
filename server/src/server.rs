@@ -119,8 +119,13 @@ impl DataBase
         Ok(self.get_all_users()?.collect())
     }
 
-    pub fn register_match(&self, winner_name: String, loser_name: String, token: Option<String>) -> Result<usize>
+    pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> Result<usize>
     {
+        if self.get_user_without_matches_by("uuid", "=", &token).is_err()
+        {
+            return Err(rusqlite::Error::InvalidParameterName("Not a valid user".into()));
+        };
+
         let (winner, loser) = (self.get_user_without_matches(&winner_name)?, 
                                self.get_user_without_matches(&loser_name)?);
 
@@ -425,26 +430,23 @@ impl DataBase
         Ok(count > 0)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, token: Option<String>) -> Result<usize>
+    fn create_match_notification(&self, winner: &User, loser: &User, token: String) -> Result<usize>
     {
-        if let Some(token) = token
+        if self.user_have_token(winner.id, &token)?
         {
-            if self.user_have_token(winner.id, &token)?
-            {
-                return self.conn.execute(
-                    "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, ?2, ?3, ?4)",
-                    params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],);
-            }
-            else if self.user_have_token(loser.id, &token)?
-            {
-                return self.conn.execute(
-                    "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, ?2, ?3, ?4)",
-                    params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],);
-            }
+            return self.conn.execute(
+                "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, ?2, ?3, ?4)",
+                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],);
         }
-            self.conn.execute(
-                "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
-                params![self.epoch(), winner.id, loser.id],)
+        else if self.user_have_token(loser.id, &token)?
+        {
+            return self.conn.execute(
+                "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, ?2, ?3, ?4)",
+                params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],);
+        }
+        self.conn.execute(
+            "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
+            params![self.epoch(), winner.id, loser.id],)
     }
 
     fn user_have_token(&self, user_id: i64, token: &String) -> Result<bool>
