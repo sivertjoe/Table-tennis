@@ -26,7 +26,12 @@ input {
   text-align: center;
 }
 
+.success {
+  color: green;
+  text-align: center;
+}
+
 .button {
-    width: fit-content;
-    margin: 2rem auto;
+  width: fit-content;
+  margin: 2rem auto;
 }

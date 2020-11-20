@@ -6,6 +6,7 @@ import Button from '../../components/button/Button'
 
 class RegisterPage extends Component {
   error = ''
+  success = ''
 
   constructor() {
     super()
@@ -20,7 +21,7 @@ class RegisterPage extends Component {
 
     Api.register(this.username, this.password).then((res) => {
       if (res.status === 200)
-        this.error = 'Success! Now you have to wait for an admin to accept..!'
+        this.success = 'Success! Now you have to wait for an admin to accept..!'
       else if (res.status === 409) this.error = 'This username is unavailable'
       else this.error = 'Something went wrong'
       this.setState({})
@@ -59,6 +60,7 @@ class RegisterPage extends Component {
           />
         </div>
         {this.error && <h2 className="error"> {this.error} </h2>}
+        {this.success && <h2 className="success"> {this.success} </h2>}
         <div className="button">
           <Button placeholder="Register" callback={this.onClick} />
         </div>
