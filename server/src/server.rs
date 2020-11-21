@@ -914,16 +914,51 @@ mod test
         s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
     }
 
-    /*#[test]
-    fn test_register_user_creats_notification()
+    #[test]
+    fn test_register_user_creates_notification()
     {
+        let db_file = "temp0.db";
+        let s = DataBase::new(db_file);
+
+        let markus = "markus".to_string();
+        s.create_user(markus.clone(), "password".to_string()).unwrap();
+
+        let mut stmt = s.conn.prepare("select name from new_user_notification;").unwrap();
+        let user_notification_name = stmt.query_map(NO_PARAMS, |row|
+        {
+            let name: String = row.get(0).expect("Getting first (and only) row");
+            Ok(name)
+        }).unwrap().next().unwrap().unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file temp0");
+        assert_eq!(user_notification_name, markus);
     }
 
     #[test]
     fn test_register_user_can_accept_user()
     {
+        let db_file = "temp01.db";
+        let s = DataBase::new(db_file);
+
+        let admin = "admin".to_string();
+        let admin_token = create_user(&s, &admin);
+        s.make_user_admin(admin.clone()).unwrap();
+
+        let markus = "markus".to_string();
+        s.create_user(markus.clone(), "password".to_string()).unwrap();
+
+        let id = s.get_new_user_notifications(admin_token.clone()).unwrap()[0].id;
+        let answer = NewUserNotificationAns {
+            id: id,
+            token: admin_token.clone(),
+            ans: ACCEPT_MATCH,
+        };
+        s.respond_to_new_user(answer).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file temp01");
+        assert_eq!(s.get_new_user_notifications(admin_token.clone()).unwrap().len(), 0);
+        assert!(s.get_user_without_matches(&markus).is_ok());
     }
-    */
 
     fn create_user(s: &DataBase, name: &str) -> String
     {
@@ -1190,7 +1225,6 @@ mod test
         assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
     }
 
-
     #[test]
     fn test_unix_time_in_ms()
     {
@@ -1286,5 +1320,65 @@ mod test
         let user = s.get_user(&siv.clone()).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempE");
         assert_eq!(user.name, siv);
+    }
+
+    #[test]
+    fn test_make_user_admin_and_regular()
+    {
+        let db_file = "tempF.db";
+        let s = DataBase::new(db_file);
+
+        let mark = "markus".to_string();
+        create_user(&s, mark.as_str());
+
+        let user_init = s.get_user_without_matches(&mark).unwrap();
+
+        s.make_user_admin(mark.clone()).unwrap();
+        let user_admin = s.get_user_without_matches(&mark).unwrap();
+
+        s.make_user_regular(mark.clone()).unwrap();
+        let user_regular = s.get_user_without_matches(&mark).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempE");
+        assert_eq!(user_init.user_role, USER_ROLE_REGULAR);
+        assert_eq!(user_admin.user_role, USER_ROLE_SUPERUSER);
+        assert_eq!(user_regular.user_role, USER_ROLE_REGULAR);
+    }
+
+    #[test]
+    fn test_make_user_active_and_inactive()
+    {
+        let db_file = "tempG.db";
+        let s = DataBase::new(db_file);
+
+        let mark = "markus".to_string();
+        create_user(&s, mark.as_str());
+
+        let user_init = s.get_user_without_matches(&mark).unwrap();
+
+        s.make_user_inactive(mark.clone()).unwrap();
+        let user_inactive = s.get_user_without_matches(&mark).unwrap();
+
+        s.make_user_active(mark.clone()).unwrap();
+        let user_active = s.get_user_without_matches(&mark).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempG");
+        assert_eq!(user_init.user_role, USER_ROLE_REGULAR);
+        assert_eq!(user_inactive.user_role, USER_ROLE_INACTIVE);
+        assert_eq!(user_active.user_role, USER_ROLE_REGULAR);
+    }
+
+    #[test]
+    fn test_wrong_change_password()
+    {
+        let db_file = "tempH.db";
+        let s = DataBase::new(db_file);
+
+        let markus = "Markus".to_string();
+        create_user(&s, &markus);
+        let res = s.change_password(markus.clone(), "Wrong".to_string(), ":woman_shrug:".to_string());
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert!(res.is_err());
     }
 }
