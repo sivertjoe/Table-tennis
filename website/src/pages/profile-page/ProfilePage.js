@@ -20,8 +20,7 @@ class Profile extends Component {
       .catch((error) => console.warn(error.message))
       .finally(() => this.setState({}))
 
-    if (localStorage.getItem('token'))
-      // TODO: Only send request if my profile page
+    if (localStorage.getItem('username') === args.user)
       NotificationApi.getNotifications()
         .then((notifications) => (this.notifications = notifications))
         .catch((error) => console.warn(error.message))
