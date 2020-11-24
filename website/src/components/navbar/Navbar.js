@@ -1,10 +1,10 @@
 import { React, Component } from 'react'
 import './Navbar.css'
+import Logo from '../../assets/rankzter_big.png'
 
 class Navbar extends Component {
   menuOpen = false
   items = [
-    { name: 'Home', path: '/home' },
     { name: 'Match', path: '/match' },
     { name: 'History', path: '/history' },
     { name: 'Profiles', path: '/profiles' },
@@ -13,8 +13,6 @@ class Navbar extends Component {
 
   constructor() {
     super()
-    this.renderDesktop = this.renderDesktop.bind(this)
-    this.renderMobile = this.renderMobile.bind(this)
     this.toggleMenu = this.toggleMenu.bind(this)
 
     if (localStorage.getItem('token'))
@@ -29,56 +27,37 @@ class Navbar extends Component {
       })
   }
 
-  renderDesktop() {
-    return (
-      <div className="navbar">
-        <div className="items">
-          {this.items.map((item, i) => (
-            <h2 key={i} className="item">
-              <a href={item.path}>{item.name}</a>
-            </h2>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  renderMobile() {
-    return (
-      <div>
-        <button className="hamburger" onClick={this.toggleMenu}>
-          <div className="slice"></div>
-          <div className="slice"></div>
-          <div className="slice"></div>
-        </button>
-        <div
-          className={'overlay ' + (this.menuOpen ? 'overlay-open' : '')}
-          onClick={this.toggleMenu}
-        >
-          <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
-            <ul className="list">
-              {this.items.map((item, i) => (
-                <li key={i}>
-                  <h2>
-                    <a href={item.path}>{item.name}</a>
-                  </h2>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   toggleMenu() {
     this.menuOpen = !this.menuOpen
     this.setState({})
   }
 
   render() {
-    const large = window.matchMedia('(min-width: 600px)').matches
-    return large ? this.renderDesktop() : this.renderMobile()
+    return (
+      <div className="navbar">
+        <button className="hamburger" onClick={this.toggleMenu}>
+          <div className="slice"></div>
+          <div className="slice"></div>
+          <div className="slice"></div>
+        </button>
+        <a className="logo-box" href="/">
+          <img className="logo" alt="Logo" src={Logo} />
+        </a>
+        <div
+          className={'overlay ' + (this.menuOpen ? 'overlay-open' : '')}
+          onClick={this.toggleMenu}
+        ></div>
+        <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
+          <div className="items">
+            {this.items.map((item, i) => (
+              <h2 key={i}>
+                <a href={item.path}>{item.name}</a>
+              </h2>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 }
 
