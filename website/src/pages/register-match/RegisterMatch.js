@@ -58,25 +58,24 @@ class RegisterMatch extends Component {
   }
 
   render() {
-    const large = window.matchMedia('(min-width: 900px)').matches
     return (
       <div className="container">
         <h1 className="center">Register Match</h1>
         <table>
           <tbody>
             <tr>
-              <th className={large ? 'large' : 'small'}>Winner</th>
-              <th className={large ? 'large' : 'small'}>Loser</th>
+              <th>Winner</th>
+              <th>Loser</th>
             </tr>
             <tr>
-              <th className={large ? 'large' : 'small'}>
+              <th>
                 <Select
                   onChange={this.setWinner}
                   className="selector"
                   options={this.users}
                 />
               </th>
-              <th className={large ? 'large' : 'small'}>
+              <th>
                 <Select
                   onChange={this.setLoser}
                   className="selector"
@@ -91,8 +90,7 @@ class RegisterMatch extends Component {
             className={this.error ? 'error' : 'success'}
             style={{ textAlign: 'center' }}
           >
-            {' '}
-            {this.error}{' '}
+            {this.error}
           </h2>
         )}
         <div className="button">

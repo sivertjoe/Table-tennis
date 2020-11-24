@@ -11,13 +11,15 @@ table {
   border-spacing: 1rem;
 }
 
-.large {
-  width: 33%;
+th {
+  width: 50%;
 }
 
-.small {
-  display: grid;
-  width: 100%;
+@media only screen and (max-width: 800px) {
+  th {
+    display: grid;
+    width: 100%;
+  }
 }
 
 .selector {
@@ -29,6 +31,6 @@ table {
 }
 
 .button {
-    width: fit-content;
-    margin: 2rem auto;
+  width: fit-content;
+  margin: 2rem auto;
 }

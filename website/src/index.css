@@ -31,8 +31,10 @@ code {
   right: 0;
 }
 
-.mobile {
-  top: 2rem;
+@media only screen and (max-width: 800px) {
+  .main {
+    top: 2rem;
+  }
 }
 
 .container {
