@@ -4,7 +4,7 @@ import '../../index.css'
 function formatDate(ms) {
   const d = new Date(ms)
   return (
-    `${d.getFullYear()}/${d.getMonth()}/${d.getDate()} ` +
+    `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ` +
     `${d.getHours()}:${d.getMinutes()}`
   )
 }
