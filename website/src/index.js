@@ -8,11 +8,10 @@ import Navbar from './components/navbar/Navbar'
 
 class App extends Component {
   render() {
-    const large = window.matchMedia('(min-width: 600px)').matches
     return (
       <Suspense fallback={<div>Loading...</div>}>
         <Navbar />
-        <div className={'main ' + (large ? '' : 'mobile')}>
+        <div className="main">
           <Routes />
         </div>
       </Suspense>
