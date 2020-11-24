@@ -73,17 +73,17 @@ a {
 
   .menu {
     position: fixed;
+    z-index: 5;
     top: 0;
     bottom: 0;
-    width: 280px;
-    z-index: 5;
     background-color: #232730;
-    transform: translateX(-100%);
+    width: 280px;
+    left: -280px;
     transition: transform 300ms ease-in-out;
   }
 
   .menu-open {
-    transform: translateX(0);
+    transform: translateX(100%);
   }
 
   .overlay {
