@@ -1,4 +1,4 @@
-![alt text](https://github.com/sivertjoe/Table-tennis/raw/master/assets/rankzter_big.png)
+![alt text](https://github.com/sivertjoe/Table-tennis/raw/master/website/src/assets/rankzter_big.png)
 
 A website for logging table tennis matches against your friends :couple:
 
