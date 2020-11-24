@@ -4,27 +4,10 @@ import Logo from '../../assets/rankzter_big.png'
 
 class Navbar extends Component {
   menuOpen = false
-  items = [
-    { name: 'Match', path: '/match' },
-    { name: 'History', path: '/history' },
-    { name: 'Profiles', path: '/profiles' },
-    { name: 'Register', path: '/register' },
-  ]
 
   constructor() {
     super()
     this.toggleMenu = this.toggleMenu.bind(this)
-
-    if (localStorage.getItem('token'))
-      this.items.push({
-        name: 'Profile',
-        path: '/profiles/' + localStorage.getItem('username'),
-      })
-    else
-      this.items.push({
-        name: 'Login',
-        path: '/login',
-      })
   }
 
   toggleMenu() {
@@ -49,11 +32,27 @@ class Navbar extends Component {
         ></div>
         <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
           <div className="items">
-            {this.items.map((item, i) => (
-              <h2 key={i}>
-                <a href={item.path}>{item.name}</a>
-              </h2>
-            ))}
+            <h2>
+              <a href="/match"> Match</a>
+            </h2>
+            <h2>
+              <a href="/history"> History</a>
+            </h2>
+            <h2>
+              <a href="/profiles"> Profiles</a>
+            </h2>
+            <h2>
+              <a href="/register"> Register</a>
+            </h2>
+            <h2>
+              {localStorage.getItem('token') ? (
+                <a href={'/profiles/' + localStorage.getItem('username')}>
+                  Profile
+                </a>
+              ) : (
+                <a href="/login">Login</a>
+              )}
+            </h2>
           </div>
         </div>
       </div>
