@@ -2,23 +2,13 @@
   position: fixed;
   top: 0;
   left: 0;
-  border-bottom: solid 1px black;
   background-color: #232730;
-  height: 5rem;
   width: 100%;
   z-index: 10;
-}
 
-.items {
   display: flex;
   flex-direction: row;
-  width: fit-content;
-  height: 100%;
-  margin: auto 1rem auto auto;
-}
-
-.item {
-  margin: auto 1rem;
+  justify-content: space-between;
 }
 
 a {
@@ -26,60 +16,109 @@ a {
   text-decoration: none;
 }
 
-.hamburger {
-  all: unset;
-  outline: 0;
-  position: fixed;
-  top: 0;
-  z-index: 10;
+@media only screen and (min-width: 800px) {
+  .hamburger,
+  .overlay {
+    display: none;
+  }
+
+  .navbar {
+    height: 5rem;
+    border-bottom: solid 1px black;
+  }
+
+  .logo-box {
+    margin: auto auto auto 1rem;
+  }
+
+  .logo {
+    height: 3rem;
+  }
+
+  .items {
+    display: flex;
+    flex-direction: row;
+    width: fit-content;
+    height: 100%;
+    margin: auto;
+  }
+
+  .items h2 {
+    margin-right: 1rem;
+  }
 }
 
-.hamburger:hover {
-  cursor: pointer;
-}
+@media only screen and (max-width: 800px) {
+  .navbar {
+    height: fit-content;
+  }
 
-.slice {
-  width: 30px;
-  height: 5px;
-  background-color: #ebf0f2;
-  border-radius: 5px;
-  margin: 6px 6px;
-}
+  .hamburger {
+    all: unset;
+    outline: 0;
+    z-index: 10;
+  }
 
-.menu {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 280px;
-  z-index: 5;
-  background-color: #232730;
-  transform: translateX(-100%);
-  transition: transform 300ms ease-in-out;
-}
+  .hamburger:hover {
+    cursor: pointer;
+  }
 
-.menu-open {
-  transform: translateX(0);
-}
+  .slice {
+    width: 30px;
+    height: 5px;
+    background-color: #ebf0f2;
+    border-radius: 5px;
+    margin: 6px 6px;
+  }
 
-.list {
-  padding-top: 2rem;
-  padding-left: 4rem;
-  list-style: none;
-}
+  .menu {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 5;
+    background-color: #232730;
+    transform: translateX(-100%);
+    transition: transform 300ms ease-in-out;
+  }
 
-.overlay {
-  visibility: hidden;
-  background-color: rgba(0, 0, 0, 0.5);
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 4;
-  transition: opacity 300ms ease-in-out;
-}
+  .menu-open {
+    transform: translateX(0);
+  }
 
-.overlay-open {
-  visibility: visible;
-  opacity: 1;
+  .overlay {
+    visibility: hidden;
+    background-color: rgba(0, 0, 0, 0.5);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 4;
+    transition: opacity 300ms ease-in-out;
+  }
+
+  .overlay-open {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .logo-box {
+    margin: 0.5rem 1rem auto auto;
+  }
+
+  .logo {
+    height: 39px;
+  }
+
+  .items {
+    display: flex;
+    flex-direction: column;
+    margin: 4rem auto auto 4rem;
+  }
+
+  .items h2 {
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
 }
