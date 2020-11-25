@@ -18,6 +18,12 @@ class RegisterMatch extends Component {
           value: u.name,
           label: u.name,
         }))
+        const name = localStorage.getItem('username')
+        if (name) {
+          const index = this.users.findIndex((user) => user.label === name)
+          const user = this.users.splice(index, 1)[0]
+          this.users.unshift(user)
+        }
       })
       .catch((error) => (this.error = error.message))
       .finally(() => this.setState({}))
@@ -79,7 +85,7 @@ class RegisterMatch extends Component {
                 <Select
                   onChange={this.setLoser}
                   className="selector"
-                  options={this.users}
+                  options={this.users} /* log */
                 />
               </th>
             </tr>
