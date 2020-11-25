@@ -95,7 +95,7 @@ fn get_initial_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
     match matches.iter()
         .skip(1)
         .find(|(m, _)| &m.winner == name || &m.loser == name)
-    {	
+    {
         Some((m, _)) => if &m.winner == name
         {
             m.winner_elo - m.elo_diff
@@ -106,7 +106,7 @@ fn get_initial_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
         },
 
         None => if &matches[0].0.winner == name
-        {	    
+        {
             matches[0].0.winner_elo - matches[0].0.elo_diff
         }
         else
