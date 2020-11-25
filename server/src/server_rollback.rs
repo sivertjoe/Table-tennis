@@ -92,15 +92,27 @@ impl DataBase
 
 fn get_initial_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
 {
-    let m = &matches[0].0;
+    match matches.iter()
+        .skip(1)
+        .find(|(m, _)| &m.winner == name || &m.loser == name)
+    {	
+        Some((m, _)) => if &m.winner == name
+        {
+            m.winner_elo - m.elo_diff
+        }
+        else
+        {
+            m.loser_elo + m.elo_diff
+        },
 
-    if &m.winner == name
-    {
-        m.winner_elo - m.elo_diff
-    }
-    else
-    {
-        m.loser_elo + m.elo_diff
+        None => if &matches[0].0.winner == name
+        {	    
+            matches[0].0.winner_elo - matches[0].0.elo_diff
+        }
+        else
+        {
+            matches[0].0.loser_elo + matches[0].0.elo_diff
+        },
     }
 }
 
