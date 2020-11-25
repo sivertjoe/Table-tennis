@@ -122,6 +122,15 @@ impl DataBase
         Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER )
     }
 
+    pub fn admin_rollback(&self, token: String) -> ServerResult<()>
+    {
+        if self.get_is_admin(token)?
+        {
+            self.roll_back(-1)?;
+        }
+        Ok(())
+    }
+
     pub fn login(&self, name: String, password: String) -> ServerResult<String> // String = Uuid
     {
         self.try_login(name, password)
@@ -1295,6 +1304,7 @@ mod test
          * Bernt : 1517.4577607770875
          * A _little_ different, BUT! More correct, rollback should fix these
          */
+        s.roll_back(-1).expect("Rolling back");
         let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(),
                                                  s.get_user_without_matches(&lars).unwrap(),
                                                  s.get_user_without_matches(&bernt).unwrap());

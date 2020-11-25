@@ -1,13 +1,26 @@
 use crate::server::DataBase;
 use std::collections::HashMap;
 use crate::r#match::Match;
-use rusqlite::{Connection, Result, named_params};
+use rusqlite::{Connection, NO_PARAMS, named_params};
 use elo::EloRank;
-
+use crate::server::ServerResult;
 
 impl DataBase
 {
-    pub fn roll_back(&self, time: i64) -> Result<usize>
+    pub fn roll_back(&self, time: i64) -> ServerResult<()>
+    {
+        self.conn.execute("BEGIN TRANSACTION;", NO_PARAMS)?;
+        if let Err(e) = self._roll_back(time)
+        {
+            self.conn.execute("ROLLBACK;", NO_PARAMS)?;
+            return Err(e);
+        }
+
+        self.conn.execute("COMMIT;", NO_PARAMS)?;
+        Ok(())
+    }
+
+    fn _roll_back(&self, time: i64) -> ServerResult<()>
     {
         let elo = EloRank { k: 32 };
         
@@ -35,9 +48,15 @@ impl DataBase
             }
         };
 
+        let initial_elo = |name: &String, matches: &Vec<(Match, i64)>| ->  f64
+        {
+            if flag { 1500.0 }
+            else { get_initial_elo(name, matches) }
+        };
+
         let matches = get_all_matches_before(&self.conn, time)?;
-        map.insert(matches[0].0.winner.clone(), get_inital_elo(&matches[0].0.winner, &matches));
-        map.insert(matches[0].0.loser.clone(), get_inital_elo(&matches[0].0.loser, &matches));
+        map.insert(matches[0].0.winner.clone(), initial_elo(&matches[0].0.winner, &matches));
+        map.insert(matches[0].0.loser.clone(), initial_elo(&matches[0].0.loser, &matches));
 
         for (m, id) in matches
         {
@@ -70,38 +89,26 @@ impl DataBase
             update_match(&self.conn, m)?;
         }
 
-        Ok(0)
+        Ok(())
     }
 
 }
 
-fn get_inital_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
+fn get_initial_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
 {
-    match matches.iter()
-        .skip(1)
-        .find(|(m, _)| &m.winner == name || &m.loser == name)
-    {
-        Some((m, _)) => if &m.winner == name
-        {
-            m.winner_elo - m.elo_diff
-        }
-        else
-        {
-            m.loser_elo + m.elo_diff
-        },
+    let m = &matches[0].0;
 
-        None => if &matches[0].0.winner == name
-        {
-            matches[0].0.winner_elo - matches[0].0.elo_diff
-        }
-        else
-        {
-            matches[0].0.loser_elo + matches[0].0.elo_diff
-        },
+    if &m.winner == name
+    {
+        m.winner_elo - m.elo_diff
+    }
+    else
+    {
+        m.loser_elo + m.elo_diff
     }
 }
 
-fn update_match(s: &Connection, m: (Match, i64)) -> Result<usize>
+fn update_match(s: &Connection, m: (Match, i64)) -> ServerResult<()>
 {
     let id = m.1;
     let m = m.0;
@@ -110,13 +117,15 @@ fn update_match(s: &Connection, m: (Match, i64)) -> Result<usize>
                                     loser_elo = :l_elo,
                                     elo_diff = :diff
                                 where id = :id")?;
-    stmt.execute_named(named_params!{":w_elo": m.winner_elo, ":l_elo": m.loser_elo, ":diff": m.elo_diff, ":id": id})
+    stmt.execute_named(named_params!{":w_elo": m.winner_elo, ":l_elo": m.loser_elo, ":diff": m.elo_diff, ":id": id})?;
+    Ok(())
 }
 
-fn update_elo(s: &Connection, name: String, elo: f64) -> Result<usize>
+fn update_elo(s: &Connection, name: String, elo: f64) -> ServerResult<()>
 {
     let mut stmt = s.prepare("update users  set elo = :elo WHERE name like :name")?;
-    stmt.execute_named(named_params!{":elo": elo, ":name": name})
+    stmt.execute_named(named_params!{":elo": elo, ":name": name})?;
+    Ok(())
 }
 
 fn create_match(mut m: Match, winner_new_elo: f64, loser_new_elo: f64, elo_diff: f64) -> Match
@@ -127,7 +136,7 @@ fn create_match(mut m: Match, winner_new_elo: f64, loser_new_elo: f64, elo_diff:
     m
 }
 
-fn get_all_matches_before(s: &Connection, time: i64) -> Result<Vec<(Match, i64)>>
+fn get_all_matches_before(s: &Connection, time: i64) -> ServerResult<Vec<(Match, i64)>>
 {
     let zin = "select a.name, b.name, m.id, m.elo_diff, m.winner_elo, m.loser_elo, m.epoch
             from matches as m
