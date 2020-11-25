@@ -174,7 +174,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
         {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            ServerError::Rusqlite(s) => HttpResponse::InternalServerError().body(format!("{}", s)),
             _ => HttpResponse::Ok().json(response_error(e))
         }
     }

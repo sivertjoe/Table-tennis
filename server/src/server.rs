@@ -714,7 +714,8 @@ impl DataBase
         let mut stmt
           = self.conn.prepare("select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
                                inner join users as a on a.id = winner
-                               inner join users as b on b.id = loser;")?;
+                               inner join users as b on b.id = loser
+                               order by epoch;")?;
         let matches = stmt.query_map(NO_PARAMS, |row|
         {
             Ok(Match {
@@ -736,9 +737,8 @@ impl DataBase
                 vec.push(u);
             };
         }
-        vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+        vec.reverse();
         Ok(vec)
-
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
@@ -814,7 +814,8 @@ impl DataBase
 
     fn get_active_users(&self) -> ServerResult<Vec<User>>
     {
-        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users where user_role & :inactive != :inactive;")?;
+        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users
+                                         where user_role & :inactive != :inactive;")?;
         let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE}, |row|
         {
             Ok(User {
