@@ -86,7 +86,7 @@ class RegisterMatch extends Component {
                 <Select
                   onChange={this.setLoser}
                   className="selector"
-                  options={this.users} /* log */
+                  options={this.users}
                 />
               </th>
             </tr>
