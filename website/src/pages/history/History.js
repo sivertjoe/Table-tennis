@@ -16,6 +16,7 @@ class History extends Component {
 
   render() {
     let ranking = 0
+    const name = localStorage.getItem('username')
     return (
       <div className="container">
         <h1 className="center">Match History</h1>
@@ -32,7 +33,9 @@ class History extends Component {
                 ranking += 1
                 return (
                   <tr key={ranking}>
-                    <td>
+                    <td
+                      style={match.winner === name ? { color: '#F8A532' } : {}}
+                    >
                       <a href={'/profiles/' + match.winner}>{match.winner}</a>
                     </td>
                     <td>
@@ -40,7 +43,9 @@ class History extends Component {
                       <div className="green">+{Math.trunc(match.elo_diff)}</div>
                       )
                     </td>
-                    <td>
+                    <td
+                      style={match.loser === name ? { color: '#F8A532' } : {}}
+                    >
                       <a href={'/profiles/' + match.loser}>{match.loser}</a>
                     </td>
                     <td>

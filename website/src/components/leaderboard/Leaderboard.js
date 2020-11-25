@@ -17,6 +17,7 @@ class Leaderboard extends Component {
 
   render() {
     let ranking = 0
+    const name = localStorage.getItem('username')
     return (
       <div className="container">
         <h1 className="center">Leaderboard</h1>
@@ -31,7 +32,10 @@ class Leaderboard extends Component {
               {this.users.map((user) => {
                 ranking += 1
                 return (
-                  <tr key={ranking}>
+                  <tr
+                    key={ranking}
+                    style={user['name'] === name ? { color: '#F8A532' } : {}}
+                  >
                     <td>{ranking}</td>
                     <td>
                       <a href={'/profiles/' + user.name}>{user.name}</a>
