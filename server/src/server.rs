@@ -180,9 +180,9 @@ impl DataBase
         self.try_change_password(name, password, new_password)
     }
 
-    pub fn get_notifications(&self, user_token: String) -> ServerResult<Vec<MatchNotification>>
+    pub fn get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
-        self.try_get_notifications(user_token)
+        self.try_get_notifications(token)
     }
 
     pub fn get_new_user_notifications(&self, token: String) -> ServerResult<Vec<NewUserNotification>>
