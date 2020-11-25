@@ -16,6 +16,7 @@ class Navbar extends Component {
   }
 
   render() {
+    const username = localStorage.getItem('username')
     return (
       <div className="navbar">
         <button className="hamburger" onClick={this.toggleMenu}>
@@ -41,10 +42,10 @@ class Navbar extends Component {
             <h2>
               <a href="/profiles">Profiles</a>
             </h2>
-            {localStorage.getItem('token') ? (
+            {username ? (
               <h2>
-                <a href={'/profiles/' + localStorage.getItem('username')}>
-                  Profile
+                <a href={'/profiles/' + username}>
+                  {username}
                 </a>
               </h2>
             ) : (
