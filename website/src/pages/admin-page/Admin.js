@@ -149,7 +149,7 @@ class Admin extends Component {
     } else if (this.isAdmin === -1)
       return (
         <div>
-          <img alt="STOP!!!" src={'unauth.png'} />
+          <img className="arnold" alt="STOP!!!" src={'unauth.png'} />
         </div>
       )
     else return <h1 style={{ textAlign: 'center' }}>Loading...</h1>
