@@ -51,6 +51,7 @@ class Admin extends Component {
     this.selectUser = this.selectUser.bind(this)
     this.selectOption = this.selectOption.bind(this)
     this.editUsersButton = this.editUsersButton.bind(this)
+    this.rollBack = this.rollBack.bind(this)
   }
 
   newUserButton(id, ans) {
@@ -77,10 +78,10 @@ class Admin extends Component {
   }
 
   rollBack() {
-      AdminApi.rollBack()
-        .then(() => (this.success = 'Rolled back successfully))
-        .catch((error) => console.warn(error.message))
-        .finally(() => this.setState({}))
+    AdminApi.rollBack()
+      .then(() => (this.success = 'Rolled back successfully'))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
   }
 
   render() {

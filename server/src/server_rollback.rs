@@ -43,7 +43,7 @@ impl DataBase
                 }
                 else 
                 { 
-                    m.loser_elo - m.elo_diff 
+                    m.loser_elo + m.elo_diff
                 }
             }
         };
@@ -62,17 +62,13 @@ impl DataBase
         {
             let winner_name = m.winner.clone();
             let loser_name = m.loser.clone();
-            if !map.contains_key(&winner_name) && !map.contains_key(&loser_name)
-            {
-                continue;
-            }
-            let winner_elo = *map.entry(winner_name).or_insert(default_score(&m, true));
-            let loser_elo = *map.entry(loser_name).or_insert(default_score(&m, false));
+            let winner_elo = *map.entry(winner_name.clone()).or_insert(default_score(&m, true));
+            let loser_elo = *map.entry(loser_name.clone()).or_insert(default_score(&m, false));
 
             let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 
-            map.insert(m.winner.clone(), new_winner_elo);
-            map.insert(m.loser.clone(), new_loser_elo);
+            map.insert(winner_name, new_winner_elo);
+            map.insert(loser_name, new_loser_elo);
             modified.push(
                 (create_match(m, new_winner_elo, new_loser_elo, new_winner_elo - winner_elo), 
                  id)
@@ -142,7 +138,8 @@ fn get_all_matches_before(s: &Connection, time: i64) -> ServerResult<Vec<(Match,
             from matches as m
             inner join users as a on a.id = m.winner
             inner join users as b on b.id = m.loser
-            where epoch >= :epoch";
+            where epoch >= :epoch
+            order by epoch;";
     let mut stmt = s.prepare(zin)?;
     let matches = stmt.query_map_named(named_params!{":epoch" : time}, |row|
     {
@@ -165,6 +162,5 @@ fn get_all_matches_before(s: &Connection, time: i64) -> ServerResult<Vec<(Match,
             vec.push((u, id));
         };
     }
-    vec.sort_by(|a, b| a.0.epoch.partial_cmp(&b.0.epoch).unwrap());
     Ok(vec)
 }
