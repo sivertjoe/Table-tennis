@@ -275,6 +275,20 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
     }
 }
 
+#[get("/admin/roll-back/{token}")]
+async fn roll_back(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+{
+    match DATABASE!(data).admin_rollback(token.to_string())
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
+    }
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
      let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -313,6 +327,7 @@ async fn main() -> std::io::Result<()>
             .service(get_is_admin)
             .service(login)
             .service(change_password)
+            .service(roll_back)
     });
 
     if cfg!(debug_assertions)

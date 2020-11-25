@@ -1,5 +1,5 @@
 import { React, Component } from 'react'
-import * as UserApi from '../../api/UserApi'
+import * as AdminApi from '../../api/AdminApi'
 import * as NotificationApi from '../../api/NotificationApi'
 import Select from 'react-select'
 import '../../index.css'
@@ -24,7 +24,7 @@ class Admin extends Component {
     super()
     const token = localStorage.getItem('token')
     if (token) {
-      UserApi.isAdmin(token).then((isAdmin) => {
+      AdminApi.isAdmin(token).then((isAdmin) => {
         if (isAdmin) {
           this.isAdmin = 1
           NotificationApi.getNewUserNotification(token)
@@ -37,7 +37,7 @@ class Admin extends Component {
         }
       })
 
-      UserApi.getAllUsers()
+      AdminApi.getAllUsers()
         .then((users) => {
           this.users = users.map((u) => ({
             value: u.name,
@@ -70,10 +70,17 @@ class Admin extends Component {
 
   editUsersButton() {
     const users = this.selectedUsers.map((u) => u.value)
-    UserApi.editUsers(users, this.selectedOption.value)
+    AdminApi.editUsers(users, this.selectedOption.value)
       .then(() => (this.success = 'Users successfully updated'))
       .catch((error) => console.warn(error.message))
       .finally(() => this.setState({}))
+  }
+
+  rollBack() {
+      AdminApi.rollBack()
+        .then(() => (this.success = 'Rolled back successfully))
+        .catch((error) => console.warn(error.message))
+        .finally(() => this.setState({}))
   }
 
   render() {
@@ -143,6 +150,7 @@ class Admin extends Component {
                 <Button placeholder="Submit" callback={this.editUsersButton} />
               </div>
             </div>
+            <Button placeholder="Rollback" callback={this.rollBack} />
           </div>
         </div>
       )

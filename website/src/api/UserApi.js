@@ -2,12 +2,7 @@ import * as BaseApi from './BaseApi'
 
 export const getUsers = () => BaseApi.get('users')
 
-export const getAllUsers = () =>
-  BaseApi.get('all-users/' + localStorage.getItem('token'))
-
 export const getUser = (username) => BaseApi.get('user/' + username)
-
-export const isAdmin = (token) => BaseApi.get('is-admin/' + token)
 
 export const register = (username, password) =>
   BaseApi.post('create-user', {
@@ -26,11 +21,4 @@ export const changePassword = (username, password, newPassword) =>
     username: username,
     password: password,
     new_password: newPassword,
-  })
-
-export const editUsers = (users, action) =>
-  BaseApi.post('edit-users', {
-    users: users,
-    action: action,
-    token: localStorage.getItem('token') ?? '',
   })
