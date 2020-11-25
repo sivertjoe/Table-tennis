@@ -33,26 +33,30 @@ class Navbar extends Component {
         <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
           <div className="items">
             <h2>
-              <a href="/match"> Match</a>
+              <a href="/match">Match</a>
             </h2>
             <h2>
-              <a href="/history"> History</a>
+              <a href="/history">History</a>
             </h2>
             <h2>
-              <a href="/profiles"> Profiles</a>
+              <a href="/profiles">Profiles</a>
             </h2>
-            <h2>
-              <a href="/register"> Register</a>
-            </h2>
-            <h2>
-              {localStorage.getItem('token') ? (
+            {localStorage.getItem('token') ? (
+              <h2>
                 <a href={'/profiles/' + localStorage.getItem('username')}>
                   Profile
                 </a>
-              ) : (
-                <a href="/login">Login</a>
-              )}
-            </h2>
+              </h2>
+            ) : (
+              <>
+                <h2>
+                  <a href="/register">Register</a>
+                </h2>
+                <h2>
+                  <a href="/login">Login</a>
+                </h2>
+              </>
+            )}
           </div>
         </div>
       </div>
