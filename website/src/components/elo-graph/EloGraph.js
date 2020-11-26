@@ -2,6 +2,17 @@ import { React, Component } from 'react'
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import './EloGraph.css'
 
+function yearDate(date) {
+  var start = new Date(date.getFullYear(), 0, 0)
+  var diff =
+    date -
+    start +
+    (start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000
+  var oneDay = 1000 * 60 * 60 * 24
+  var day = Math.floor(diff / oneDay)
+  return day
+}
+
 function formatDate(ms) {
   const d = new Date(ms)
   return `${d.getDate()}`
@@ -33,7 +44,7 @@ function setXticks(array) {
   let minDay = array[0].date
   let newArray = []
   for (let i = min; i + 1 <= max; i += 2) {
-    newArray.push(minDay + (i - minDay) * oneDay)
+    newArray.push({ date: minDay + (i - min) * oneDay, elo: 1500 })
   }
   return newArray
 }
@@ -42,12 +53,12 @@ function reduceArray(array, nMonths) {
   const new_array = []
 
   var temp = array.slice().reverse()
-  const oldestMonth = new Date(temp[temp.length - 1].date).getMonth()
+  const oldestDay = yearDate(new Date(temp[0].date))
 
   // Filter such that you only get the game in that month interval, e.g 1 month, 3 months
   for (let i = temp.length - 2; i >= 0; i--) {
-    const date = new Date(temp[i].date).getMonth()
-    if (date - oldestMonth <= nMonths) {
+    const date = new Date(temp[i].date)
+    if (oldestDay - yearDate(date) <= 30) {
       new_array.push(temp[i])
     }
   }
@@ -68,7 +79,6 @@ function reduceArray(array, nMonths) {
     let d2 = new Date(day)
     let dayDiff = d1.getDate() - d2.getDate()
 
-    final_array.push({ date: new_array[i].date, elo: new_array[i].elo })
     if (dayDiff !== 0) {
       // Okay, _at_ _least_ one day of no play have happend, figure out
       // how much and padd it
@@ -77,8 +87,9 @@ function reduceArray(array, nMonths) {
       dayScore = new_array[i].elo
       day = new_array[i].date
     }
+    dayScore = new_array[i].elo
+    final_array.push({ date: new_array[i].date, elo: new_array[i].elo })
   }
-
   return final_array
 }
 
@@ -87,6 +98,20 @@ function padDays(array, elo, nDays, day) {
   for (let i = 1; i < nDays; i++) {
     array.push({ date: day + oneDay * i, elo: elo })
   }
+}
+
+function smoothGraph(array) {
+    console.log(array)
+    if(array.length < 5) return;
+    for(let i = 1; i < array.length - 1; i++) { 
+        const left = array[i - 1].elo
+        const right = array[i + 1].elo
+        let center = array[i].elo
+
+        if((left < center && right < center) || (left > center && right > center)) {
+            array[i].elo  = (left + right) / 2
+        }
+    }
 }
 
 class EloGraph extends Component {
@@ -106,6 +131,7 @@ class EloGraph extends Component {
     this.items = this.data
     if (this.items) {
       this.items = reduceArray(this.items, 1)
+      smoothGraph(this.items)
       this.yTicks = setYticks(this.items)
       this.xTicks = setXticks(this.items)
     }
@@ -115,13 +141,14 @@ class EloGraph extends Component {
     return (
       <ResponsiveContainer>
         <LineChart data={this.items}>
-          <Line dot={false} type="monotone" dataKey="elo" stroke="gold" />
+          <Line dot={false} dataKey="elo" stroke="gold" />
           <XAxis
             dataKey={(v) => v.date}
-            stroke="#ebf0f2"
-            ticks={this.xTicks}
             tickFormatter={formatDate}
-            interval={0}
+            stroke="#ebf0f2"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            scale={'time'}
           />
           <YAxis
             type="number"
