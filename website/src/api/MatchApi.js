@@ -6,7 +6,7 @@ export const replyToMatch = (match_id, token, ans) =>
   BaseApi.post('respond-to-match', {
     match_notification_id: match_id,
     ans: ans,
-    user_token: token,
+    token: token,
   })
 
 export const registerMatch = (winner, loser, token) =>
