@@ -12,6 +12,14 @@ pub struct Match
     pub loser_elo: f64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct EditMatchInfo
+{
+    pub winner: String, 
+    pub loser: String,
+    pub epoch: i64, 
+    pub id: i64
+}
 
 // Match info sent from the front end
 #[derive(Debug, Deserialize)]
