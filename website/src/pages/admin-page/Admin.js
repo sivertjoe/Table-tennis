@@ -153,6 +153,12 @@ class Admin extends Component {
             </div>
             <Button placeholder="Rollback" callback={this.rollBack} />
           </div>
+          <div className="container">
+            <h2>Other Admin pages</h2>
+            <a href="/admin/edit-match">
+              <Button placeholder="Edit Match" />
+            </a>
+          </div>
         </div>
       )
     } else if (this.isAdmin === -1)

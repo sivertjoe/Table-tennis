@@ -1,0 +1,64 @@
+table {
+  width: 100%;
+  margin: auto auto;
+  text-align: center;
+  border-spacing: 1rem;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  width: 16.6%;
+}
+
+.table-row:hover {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+@media only screen and (max-width: 1024) {
+  th {
+    display: grid;
+    width: 100%;
+  }
+}
+
+.selector {
+  color: black;
+}
+
+.accept {
+  background-color: #89d400;
+}
+
+.decline {
+  background-color: #ff2811;
+}
+.trash {
+  background-color: white;
+}
+
+.button {
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+}
+
+span {
+  position: relative;
+  font-size: 25px;
+  text-align: center;
+}
+
+.success {
+  color: green;
+}
+
+h2 {
+  text-align: center;
+}
