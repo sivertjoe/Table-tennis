@@ -2,14 +2,7 @@ import React from 'react'
 import * as MatchApi from '../../api/MatchApi'
 import '../../index.css'
 import './Notifications.css'
-
-function formatDate(ms) {
-  const d = new Date(ms)
-  return (
-    `${d.getFullYear()}/${d.getMonth()}/${d.getDate()} ` +
-    `${d.getHours()}:${d.getMinutes()}`
-  )
-}
+import { getDateTime } from '../../utils/Date'
 
 export const Notifications = (notifications, token) => {
   const items = notifications.values?.map((not) => {
@@ -39,7 +32,7 @@ const NotificationItem = (values) => {
     <tr id={vals.id} className="tr">
       <th>{vals.winner}</th>
       <th>{vals.loser}</th>
-      <th>{formatDate(vals.epoch)}</th>
+      <th>{getDateTime(vals.epoch)}</th>
       <th>
         <button onClick={() => clickButton(vals.id, 1)}>
           <span>&#10003;</span>
