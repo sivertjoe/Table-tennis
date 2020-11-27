@@ -55,6 +55,12 @@ impl DataBase
         };
 
         let matches = get_all_matches_before(&self.conn, time)?;
+
+        if matches.len() == 0
+        {
+            return Ok(());
+        }
+
         map.insert(matches[0].0.winner.clone(), initial_elo(&matches[0].0.winner, &matches));
         map.insert(matches[0].0.loser.clone(), initial_elo(&matches[0].0.loser, &matches));
 

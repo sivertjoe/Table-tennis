@@ -22,6 +22,13 @@ pub struct EditMatchInfo
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DeleteMatchInfo
+{
+    pub id: i64,
+    pub token: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct NewEditMatchInfo
 {
     pub winner: String, 
