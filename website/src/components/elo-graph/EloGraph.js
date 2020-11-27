@@ -163,7 +163,7 @@ class EloGraph extends Component {
 
     return (
       <>
-        <h2 style={{ marginTop: '4rem' }}>Elo history</h2>
+        <h2>Elo history</h2>
         <div className="inputs">
           <Select
             className="selector"
