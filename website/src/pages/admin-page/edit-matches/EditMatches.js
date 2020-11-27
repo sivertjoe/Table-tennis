@@ -4,14 +4,7 @@ import * as MatchApi from '../../../api/MatchApi'
 import '../../../index.css'
 import './EditMatches.css'
 import Select from 'react-select'
-
-function formatDate(ms) {
-  const d = new Date(ms)
-  return (
-    `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ` +
-    `${d.getHours()}:${d.getMinutes()}`
-  )
-}
+import { getDateTime } from '../../../utils/Date'
 
 class EditMatches extends Component {
   users = []
@@ -223,7 +216,7 @@ class EditMatches extends Component {
               <td>{his.winner}</td>
               <td>{his.loser}</td>
               <td>
-                <p>{formatDate(his.epoch)}</p>
+                <p>{getDateTime(his.epoch)}</p>
               </td>
               <td></td>
               <td></td>
