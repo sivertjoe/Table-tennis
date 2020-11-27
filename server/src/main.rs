@@ -5,7 +5,7 @@ mod notification;
 mod server_rollback;
 
 use server::{DataBase, ServerError};
-use r#match::{MatchInfo, MatchResponse};
+use r#match::{MatchInfo, MatchResponse, NewEditMatchInfo};
 use user::{LoginInfo, ChangePasswordInfo, EditUsersInfo};
 use notification::NewUserNotificationAns;
 
@@ -247,7 +247,22 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
-#[get("/edit_history")]
+#[post("/edit-match")]
+async fn edit_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: NewEditMatchInfo = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).edit_match(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
+    }
+}
+
+#[get("/edit-history")]
 async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_edit_match_history()
@@ -329,6 +344,7 @@ async fn main() -> std::io::Result<()>
                   .allow_any_method())
             .service(create_user)
             .service(edit_users)
+            .service(edit_match)
             .service(get_profile)
             .service(get_users)
             .service(get_all_users)

@@ -21,6 +21,16 @@ pub struct EditMatchInfo
     pub id: i64
 }
 
+#[derive(Debug, Deserialize)]
+pub struct NewEditMatchInfo
+{
+    pub winner: String, 
+    pub loser: String,
+    pub epoch: i64, 
+    pub id: i64,
+    pub token: String,
+}
+
 // Match info sent from the front end
 #[derive(Debug, Deserialize)]
 pub struct MatchInfo
