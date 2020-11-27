@@ -4,7 +4,7 @@ use uuid::Uuid;
 use rusqlite::{Connection, NO_PARAMS, params, named_params};
 use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE};
 use elo::EloRank;
-use crate::r#match::Match;
+use crate::r#match::{Match, EditMatchInfo};
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
 
 use std::convert::From;
@@ -182,6 +182,11 @@ impl DataBase
     pub fn get_history(&self) -> ServerResult<Vec<Match>>
     {
         self.get_all_matches()
+    }
+
+    pub fn get_edit_match_history(&self) -> ServerResult<Vec<EditMatchInfo>>
+    {
+        self.get_all_edit_matches()
     }
 
     pub fn change_password(&self, name: String, password: String, new_password: String) -> ServerResult<()>
@@ -709,6 +714,35 @@ impl DataBase
         format!("{:x}", result)
     }
 
+    fn get_all_edit_matches(&self) -> ServerResult<Vec<EditMatchInfo>>
+    {
+        let mut stmt
+          = self.conn.prepare("select a.name, b.name, epoch, m.id from matches as m
+                               inner join users as a on a.id = winner
+                               inner join users as b on b.id = loser
+                               order by epoch;")?;
+        let matches = stmt.query_map(NO_PARAMS, |row|
+        {
+            Ok(EditMatchInfo {
+                winner: row.get(0)?,
+                loser: row.get(1)?,
+                epoch: row.get(2)?,
+                id: row.get(3)?,
+
+            })
+        })?;
+
+        let mut vec = Vec::new();
+        for m in matches
+        {
+            if let Ok(u) = m
+            {
+                vec.push(u);
+            };
+        }
+        vec.reverse();
+        Ok(vec)
+    }
     fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
         let mut stmt

@@ -247,6 +247,20 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
+#[get("/edit_history")]
+async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_edit_match_history()
+    {
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e))
+        }
+    }
+}
+
 #[get("/user/{name}")]
 async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
 {
@@ -322,6 +336,7 @@ async fn main() -> std::io::Result<()>
             .service(respond_to_match)
             .service(respond_to_new_user)
             .service(get_history)
+            .service(get_edit_history)
             .service(get_notifications)
             .service(get_new_user_notifications)
             .service(get_is_admin)
