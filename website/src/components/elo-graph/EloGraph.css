@@ -1,0 +1,16 @@
+.tooltip {
+  color: #1c1b1b;
+  background-color: #ebf0f2;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.selector {
+  color: black;
+  width: 10rem;
+}
+
+.inputs {
+  display: flex;
+  flex-direction: row;
+}
