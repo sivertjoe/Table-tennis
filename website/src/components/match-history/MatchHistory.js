@@ -1,13 +1,6 @@
 import React from 'react'
 import '../../index.css'
-
-function formatDate(ms) {
-  const d = new Date(ms)
-  return (
-    `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ` +
-    `${d.getHours()}:${d.getMinutes()}`
-  )
-}
+import { getDateTime } from '../../utils/Date'
 
 export const MatchHistory = (user) => {
   let wins = 0
@@ -18,7 +11,7 @@ export const MatchHistory = (user) => {
       <tr key={i}>
         <td>{elem.winner}</td>
         <td>{elem.loser}</td>
-        <td>{formatDate(elem.epoch)}</td>
+        <td>{getDateTime(elem.epoch)}</td>
       </tr>
     )
   })
