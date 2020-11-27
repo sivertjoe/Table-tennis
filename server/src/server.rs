@@ -4,7 +4,7 @@ use uuid::Uuid;
 use rusqlite::{Connection, NO_PARAMS, params, named_params};
 use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE};
 use elo::EloRank;
-use crate::r#match::{Match, EditMatchInfo, NewEditMatchInfo};
+use crate::r#match::{Match, EditMatchInfo, NewEditMatchInfo, DeleteMatchInfo};
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
 
 use std::convert::From;
@@ -130,6 +130,18 @@ impl DataBase
         Ok(())
     }
 
+    pub fn delete_match(&self, info: DeleteMatchInfo) -> ServerResult<()>
+    {
+        if !self.get_is_admin(info.token.clone())?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        self.try_delete_match(info)?;
+        self.roll_back(-1)?;
+        Ok(())
+    }
+
     pub fn edit_match(&self, info: NewEditMatchInfo) -> ServerResult<()>
     {
         if !self.get_is_admin(info.token.clone())?
@@ -236,6 +248,13 @@ impl DataBase
 // Only private  functions here ~!
 impl DataBase
 {
+    fn try_delete_match(&self, info: DeleteMatchInfo) -> ServerResult<()>
+    {
+        self.conn.execute(
+            &format!("delete from matches where id = {}", info.id), NO_PARAMS)?;
+        Ok(())
+    }
+
     fn update_match(&self, info: NewEditMatchInfo) -> ServerResult<()>
     {
         let winner = self.get_user_without_matches(&info.winner)?.id;
@@ -1482,5 +1501,34 @@ mod test
         assert_eq!(m.epoch, 15);
         assert_eq!(m.winner, loser);
         assert_eq!(m.loser, winner);
+    }
+
+    #[test]
+    fn test_can_delete_match()
+    {
+        let db_file = "tempJ.db";
+        let s = DataBase::new(db_file);
+        let uuid = create_user(&s, "Sivert");
+        s.make_user_admin("Sivert".to_string()).expect("Making admin");
+        create_user(&s, "Lars");
+
+        let winner = "Sivert".to_string();
+        let loser = "Lars".to_string();
+
+
+        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        respond_to_match(&s, "Lars", 1);
+
+
+        let info = DeleteMatchInfo {
+            token: uuid,
+            id: 1
+        };
+
+        s.delete_match(info).expect("delete match");
+
+        let m = &s.get_all_matches().unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(m.len(), 0);
     }
 }
