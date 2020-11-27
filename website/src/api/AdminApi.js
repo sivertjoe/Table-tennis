@@ -12,5 +12,20 @@ export const editUsers = (users, action) =>
     token: localStorage.getItem('token') ?? '',
   })
 
-export const rollBack = () => 
-    BaseApi.get('admin/roll-back/' + localStorage.getItem('token'))
+export const rollBack = () =>
+  BaseApi.get('admin/roll-back/' + localStorage.getItem('token'))
+
+export const editMatch = (newWinner, newLoser, epoch, id) =>
+  BaseApi.post('edit-match', {
+    winner: newWinner,
+    loser: newLoser,
+    epoch: epoch,
+    token: localStorage.getItem('token'),
+    id: id,
+  })
+
+export const deleteMatch = (id) =>
+  BaseApi.post('delete-match', {
+    id: id,
+    token: localStorage.getItem('token'),
+  })
