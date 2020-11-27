@@ -7,7 +7,6 @@ import { MatchHistory } from '../../components/match-history/MatchHistory'
 import { Notifications } from '../../components/notifications/Notifications'
 import SearchBar from '../../components/search-bar/SearchBar'
 import Button from '../../components/button/Button'
-import EloGraph from '../../components/elo-graph/EloGraph'
 
 class Profile extends Component {
   user = {}
@@ -64,9 +63,6 @@ class Profile extends Component {
         )}
         <h2 style={{ marginTop: '4rem' }}>Match history ({numberOfMatches})</h2>
         <MatchHistory user={this.user} />
-        <div style={{width: "100%", height: "300px"}}>
-        {Object.keys(this.user).length !== 0 && <EloGraph user={this.user} />}
-        </div>
         {loggedIn && (
           <div className="row">
             <Button
