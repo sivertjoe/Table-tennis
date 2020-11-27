@@ -62,9 +62,9 @@ class Profile extends Component {
             />
           </div>
         )}
+        {Object.keys(this.user).length !== 0 && <EloGraph user={this.user} />}
         <h2 style={{ marginTop: '4rem' }}>Match history ({numberOfMatches})</h2>
         <MatchHistory user={this.user} />
-        {Object.keys(this.user).length !== 0 && <EloGraph user={this.user} />}
         {loggedIn && (
           <div className="row">
             <Button
