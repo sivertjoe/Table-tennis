@@ -18,7 +18,7 @@ class Profile extends Component {
 
     UserApi.getUser(args.user)
       .then((user) => (this.user = user))
-      .catch((error) => console.warn(error.message))
+      .catch((error) => (window.location.href = '/profiles'))
       .finally(() => this.setState({}))
 
     if (localStorage.getItem('username') === args.user)
