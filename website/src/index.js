@@ -5,6 +5,10 @@ import './index.css'
 import reportWebVitals from './reportWebVitals'
 import Routes from './Routes'
 import Navbar from './components/navbar/Navbar'
+import { library } from '@fortawesome/fontawesome-svg-core'
+import { faCrown, faTrophy, faMedal, faAward } from '@fortawesome/free-solid-svg-icons'
+
+library.add(faCrown, faTrophy, faMedal, faAward)
 
 class App extends Component {
   render() {
