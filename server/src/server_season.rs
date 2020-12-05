@@ -13,9 +13,9 @@ impl DataBase
         self._end_season()
     }
 
-    pub fn start_new_season(&self) -> ServerResult<()>
+    pub fn start_new_season(&self, inactive: bool) -> ServerResult<()>
     {
-        self._start_new_season()
+        self._start_new_season(inactive)
     }
 }
 
@@ -25,8 +25,8 @@ impl DataBase
 {
     fn _end_season(&self) -> ServerResult<()>
     {
-        // If there was a season before, could be that no seasons have occured
-        if let Some(season) = self.archive_season_and_get_prev()?
+        // Only award badges if there were a season
+        if let Some(season) = self.get_latest_season()?
         {
             for (i, user) in self.get_users()?.into_iter().take(4).enumerate()
             {
@@ -44,43 +44,21 @@ impl DataBase
             params![season, badge_index, pid],)?;
         Ok(())
     }
-
-    fn archive_season_and_get_prev(&self) -> ServerResult<Option<Season>>
-    {
-        let mut stmt = self.conn.prepare(
-            "select id, start_epoch from seasons order by id")?;
-        let mut seasons = stmt.query_map(NO_PARAMS, |row|
-        {
-            Ok(Season {
-                id: row.get(0)?,
-                start_epoch: row.get(1)?,
-            })
-        })?;
-
-        let season = seasons.next();
-        if season.is_none()
-        {
-            // This is the first ever season, and no awards should be awarded
-            return Ok(None);
-        }
-
-        let old_season = season.unwrap().unwrap();
-        Ok(Some(old_season))
-    }
 }
 
 
 // ~ start new season functions
 impl DataBase
 {
-
-
-    fn _start_new_season(&self) -> ServerResult<()>
+    fn _start_new_season(&self, inactive: bool) -> ServerResult<()>
     {
         let season_number = self.create_new_season()?;
         self.archive_match_history(season_number)?;
         self.reset_elos()?;
-        self.set_users_soft_inactive()?;
+        if inactive
+        {
+            self.set_users_soft_inactive()?;
+        }
         Ok(())
     }
 
@@ -131,6 +109,11 @@ impl DataBase
         Ok(old_season.id)
     }
 
+}
+
+// ~ Common functions :thinking:
+impl DataBase
+{
     fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
         let mut stmt = self.conn.prepare(
@@ -143,36 +126,6 @@ impl DataBase
             })
         })?;
 
-        let season = seasons.next();
-        if season.is_none()
-        {
-            /*let now = Utc::now();
-            let m = now.month();
-            let year = now.year();
-
-            let num_days = 
-            if m == 12 
-            {
-                NaiveDate::from_ymd(year + 1, 1, 1)
-            } 
-            else
-            {
-                NaiveDate::from_ymd(year, m + 1, 1)
-            }.signed_duration_since(NaiveDate::from_ymd(year, m, 1))
-            .num_days();
-
-            // This is just a dummy season to create the first
-            let mock_season = Season { 
-                id: -1, 
-                start_epoch: now.timestamp_millis() - (num_days * 24 * 60 * 60 * 1000), 
-                end_epoch: now.timestamp_millis()
-            };
-            return Ok(mock_season);*/
-            return Ok(None);
-        }
-
-        // Should be okay to unwrap here, there _has_ to be as seanson :thinking:
-        let season = season.unwrap().unwrap();
-        Ok(Some(season))
+        Ok(seasons.next().map(|s| s.unwrap()))
     }
 }
