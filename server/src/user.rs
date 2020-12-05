@@ -7,12 +7,14 @@ use crate::badge::*;
 pub const USER_ROLE_REGULAR: u8 = 0;
 pub const USER_ROLE_SUPERUSER: u8 = 1 << 1;
 pub const USER_ROLE_INACTIVE: u8 = 1 << 2;
+pub const USER_ROLE_SOFT_INACTIVE: u8 = 1 << 4;
 
 pub enum EditUserAction
 {
     MakeUserActive,
     MakeUserRegular,
     MakeUserInactive,
+    MakeUserSoftInactive,
     MakeUserSuperuser,
 }
 
@@ -61,6 +63,7 @@ impl FromStr for EditUserAction
             "MAKE_USER_ACTIVE" => Ok(EditUserAction::MakeUserActive),
             "MAKE_USER_REGULAR" => Ok(EditUserAction::MakeUserRegular),
             "MAKE_USER_INACTIVE" => Ok(EditUserAction::MakeUserInactive),
+            "MAKE_USER_SOFT_INACTIVE" => Ok(EditUserAction::MakeUserSoftInactive),
             "MAKE_USER_SUPERUSER" => Ok(EditUserAction::MakeUserSuperuser),
             _ => Err(())
         }
