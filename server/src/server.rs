@@ -126,7 +126,7 @@ impl DataBase
 
 
         conn.execute(
-            "create table if not exists season (
+            "create table if not exists seasons (
                 id              integer primary key autoincrement,
                 start_epoch     integer
             )",
@@ -1706,21 +1706,71 @@ mod test
     }
 
     #[test]
-    fn test_can_start_new_season()
+    // OOF
+    fn test_start_new_season_creates_season_table_and_resets_users_and_history()
     {
         let db_file = "tempM.db";
         let s = DataBase::new(db_file);
 
+        let mark = "Markus".to_string();
+        let siv = "Sivert".to_string();
+        let uuid_m = create_user(&s, mark.as_str());
+        create_user(&s, siv.as_str());
+
+        s.register_match(mark.clone(), siv.clone(), uuid_m).unwrap();
+        respond_to_match(&s, siv.as_str(), 1);
+
+        let (s_elo_old, m_elo_old) = (s.get_user(&siv).unwrap().elo, 
+                                      s.get_user(&mark).unwrap().elo);
+
         s.start_new_season().unwrap();
 
-        let mut stmt = s.conn.prepare("select count(*) from season").unwrap();
+        let (s_elo_new, m_elo_new) = (s.get_user(&siv).unwrap().elo, 
+                                      s.get_user(&mark).unwrap().elo);
+
+        let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
         let count = stmt.query_map(NO_PARAMS, |row|
         {
             let c: i64 = row.get(0)?;
             Ok(c)
         }).unwrap().next().unwrap().unwrap();
 
+        let mut stmt = s.conn.prepare("select count(*) from matches").unwrap();
+        let match_history_count = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: i64 = row.get(0)?;
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+        let users = s.get_users().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 1);
+        assert_eq!(match_history_count, 0);
+        assert_eq!(users.len(), 0);
+        assert!(s_elo_old < 1500.0); assert!(m_elo_old > 1500.0);
+        assert!(s_elo_new == 1500.0); assert!(m_elo_new == 1500.0);
+    }
+
+    #[test]
+    fn  test_creating_multiple_seasons()
+    {
+        let db_file = "tempMM.db";
+        let s = DataBase::new(db_file);
+
+        let five_millis = std::time::Duration::from_millis(5);
+        s.start_new_season().unwrap();
+        std::thread::sleep(five_millis);
+        s.start_new_season().unwrap();
+        std::thread::sleep(five_millis);
+        s.start_new_season().unwrap();
+
+        let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
+        let count = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: i64 = row.get(0)?;
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(count, 3);
     }
 }
