@@ -1,9 +1,8 @@
 use crate::server::DataBase;
-use crate::server::{ServerError, ServerResult};
+use crate::server::{ServerResult};
 use rusqlite::{params, NO_PARAMS};
 use crate::season::Season;
 use chrono::prelude::*;
-use chrono::Duration;
 
 
 impl DataBase
