@@ -363,6 +363,7 @@ fn spawn_season_checker(data: Arc<Mutex<DataBase>>)
             s.end_season().expect("Endig season");
             s.start_new_season(true).expect("starting new season");
             _month = Utc::now().month();
+            drop(s);
         }
     });
 }
