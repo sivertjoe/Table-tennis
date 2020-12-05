@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use crate::r#match::Match;
 use serde_derive::{Serialize, Deserialize};
+use crate::badge::*;
 
 
 pub const USER_ROLE_REGULAR: u8 = 0;
@@ -15,15 +16,17 @@ pub enum EditUserAction
     MakeUserSuperuser,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct User
 {
     pub id: i64,
     pub elo: f64,
     pub name: String,
     pub user_role: u8,
-    pub match_history: Vec<Match>
+    pub match_history: Vec<Match>,
+    pub badges: Vec<Badge>,
 }
+
 
 #[derive(Deserialize)]
 pub struct LoginInfo

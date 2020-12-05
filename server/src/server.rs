@@ -6,6 +6,7 @@ use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, 
 use elo::EloRank;
 use crate::r#match::{Match, EditMatchInfo, NewEditMatchInfo, DeleteMatchInfo};
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
+use crate::badge::*;
 
 use std::convert::From;
 
@@ -110,6 +111,28 @@ impl DataBase
                 password_hash   varchar(64) not null
             )",
             NO_PARAMS,).expect("Creating new_user_notification");
+
+
+        conn.execute(
+            "create table if not exists badges (
+                id              integer primary key autoincrement,
+                season_id       integer,
+                badge_index     integer,
+                pid             integer,
+                foreign key(pid) references users(id),
+                foreign key(season_id) references season(id)
+            )",
+            NO_PARAMS,).expect("Creating badges table");
+
+
+        conn.execute(
+            "create table if not exists season (
+                id              integer primary key autoincrement,
+                start_epoch     integer
+            )",
+            NO_PARAMS,).expect("Creating season table");
+
+
         DataBase {
             conn: conn
         }
@@ -856,7 +879,6 @@ impl DataBase
         Ok(vec)
     }
 
-
     fn _get_all_users(&self, token: String) -> ServerResult<Vec<User>>
     {
         if !self.get_is_admin(token)?
@@ -872,7 +894,8 @@ impl DataBase
                 name: row.get(1)?,
                 elo: row.get(2)?,
                 user_role: row.get(3)?,
-                match_history: Vec::new()
+                match_history: Vec::new(),
+                badges: Vec::new(),
             })
         })?;
 
@@ -888,6 +911,34 @@ impl DataBase
         Ok(vec)
     }
 
+    fn get_badges(&self, pid: i64) -> ServerResult<Vec<Badge>>
+    {
+        let mut stmt = self.conn.prepare(
+            "select id, season_id, badge_index, pid from badges where pid = :pid")?;
+        let badges = stmt.query_map_named(named_params!{":pid": pid}, |row|
+        {
+            let index: u32 = row.get(2)?;
+            let index = index  as usize;
+
+            Ok(Badge {
+                id: row.get(0)?,
+                season: row.get(1)?,
+                badge_name: BADGES[index].to_string()
+            })
+        })?;
+
+        let mut vec = Vec::new();
+        for badge in badges
+        {
+            if let Ok(b) = badge
+            {
+                vec.push(b);
+            }
+        }
+        return Ok(vec);
+    }
+
+
     fn get_active_users(&self) -> ServerResult<Vec<User>>
     {
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users
@@ -899,15 +950,17 @@ impl DataBase
                 name: row.get(1)?,
                 elo: row.get(2)?,
                 user_role: row.get(3)?,
-                match_history: Vec::new()
+                match_history: Vec::new(),
+                badges: Vec::new(),
             })
         })?;
 
         let mut vec = Vec::new();
         for user in users
         {
-            if let Ok(u) = user
+            if let Ok(mut u) = user
             {
+                u.badges = self.get_badges(u.id)?;
                 vec.push(u);
             };
         }
@@ -924,6 +977,7 @@ impl DataBase
     {
         let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
         user.match_history = self.get_matches(user.id)?;
+        user.badges = self.get_badges(user.id)?;
         Ok(user)
     }
 
@@ -938,6 +992,7 @@ impl DataBase
                 elo: row.get(2)?,
                 user_role: row.get(3)?,
                 match_history: Vec::new(),
+                badges: Vec::new()
             })
         })?;
 
@@ -1530,5 +1585,74 @@ mod test
         let m = &s.get_all_matches().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(m.len(), 0);
+    }
+
+    #[test]
+    fn test_ending_season_yields_awards()
+    {
+        let db_file = "tempK.db";
+        let s = DataBase::new(db_file);
+        let uuid = create_user(&s, "Sivert");
+        s.make_user_admin("Sivert".to_string()).expect("Making admin");
+        create_user(&s, "Lars");
+        let ella_uuid = create_user(&s, "Bernt");
+        create_user(&s, "Ella");
+
+        let winner = "Sivert".to_string();
+        let loser = "Lars".to_string();
+
+        s.start_new_season();
+
+
+        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        respond_to_match(&s, "Lars", 1);
+
+        s.register_match(winner.clone(), "Ella".to_string(), uuid.clone()).expect("Creating match");
+        respond_to_match(&s, "Ella", 2);
+
+        s.register_match("Ella".to_string(), "Lars".to_string(), ella_uuid.clone()).expect("Creating match");
+        respond_to_match(&s, "Lars", 3);
+
+
+
+        s.end_season().expect("ending season");
+
+        let users = s.get_users().expect("Getting users");
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        users.into_iter().enumerate().for_each(|(i, u)|
+        {
+            assert_eq!(u.badges[0].badge_name, BADGES[i]);
+        });
+    }
+
+    fn test_ending_season_when_no_exist_yields_no_awards()
+    {
+        let db_file = "tempL.db";
+        let s = DataBase::new(db_file);
+        create_user(&s, "Sivert");
+
+        s.end_season().expect("ending season");
+
+        let users = s.get_users().expect("Getting users");
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        users.into_iter().for_each(|u| assert!(u.badges.len() == 0));
+    }
+
+    fn tet_can_start_new_season()
+    {
+        let db_file = "tempM.db";
+        let s = DataBase::new(db_file);
+
+        s.start_new_season();
+
+        let mut stmt = s.conn.prepare("select count(*) from season").unwrap();
+        let count = stmt.query_map(NO_PARAMS, |row|
+        {
+            let c: i64 = row.get(0)?;
+            Ok(c)
+        }).unwrap().next().unwrap().unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(count, 1);
     }
 }
