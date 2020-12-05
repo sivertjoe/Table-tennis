@@ -3,6 +3,9 @@ mod user;
 mod r#match;
 mod notification;
 mod server_rollback;
+mod server_season;
+mod badge;
+mod season;
 
 use server::{DataBase, ServerError};
 use r#match::{MatchInfo, MatchResponse, NewEditMatchInfo, DeleteMatchInfo};
