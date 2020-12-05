@@ -15,6 +15,7 @@ use notification::NewUserNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
+use chrono::prelude::*;
 
 use std::sync::{Mutex, Arc};
 use serde_json::json;
@@ -348,10 +349,29 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
       builder
 }
 
+fn spawn_season_checker(data: Arc<Mutex<DataBase>>)
+{
+    actix_rt::spawn(async move
+    {
+        loop
+        {
+        	let mut _month = Utc::now().month();
+			while Utc::now().month() == _month { continue; }
+
+
+            let s = data.lock().expect("Getting mutex");
+            s.end_season().expect("Endig season");
+            s.start_new_season(true).expect("starting new season");
+            _month = Utc::now().month();
+        }
+    });
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
+    spawn_season_checker(data.clone());
 
     let server = HttpServer::new(move || {
         App::new()
