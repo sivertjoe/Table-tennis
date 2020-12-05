@@ -8,8 +8,9 @@ edition = "2018"
 
 [dependencies]
 actix-web = { version = "3.1.0", features = ["openssl"] }
-openssl = { version  = "0.10", features = ["vendored"] }
 actix-cors= "0.5.0"
+actix-rt = "1.1.1"
+openssl = { version  = "0.10", features = ["vendored"] }
 elo  = "0.3.0"
 sha2 = "0.9.2"
 uuid = { version = "0.8", features = ["v4"] }
