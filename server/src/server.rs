@@ -2,7 +2,7 @@ use std::str::FromStr;
 use chrono::prelude::*;
 use uuid::Uuid;
 use rusqlite::{Connection, NO_PARAMS, params, named_params};
-use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE};
+use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE};
 use elo::EloRank;
 use crate::r#match::{Match, EditMatchInfo, NewEditMatchInfo, DeleteMatchInfo};
 use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
@@ -346,7 +346,7 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role & !USER_ROLE_INACTIVE;
+        let role = user.user_role & !USER_ROLE_INACTIVE & !USER_ROLE_SOFT_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
         stmt.execute_named(named_params!{":role": role, ":name": name})?;
         Ok(0)
@@ -361,6 +361,20 @@ impl DataBase
         };
 
         let role = user.user_role | USER_ROLE_INACTIVE;
+        let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
+        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        Ok(0)
+    }
+
+    fn make_user_soft_inactive(&self, name: String) -> ServerResult<usize>
+    {
+        let user: User = match self.get_user_without_matches(&name)
+        {
+            Ok(user) => user,
+            Err(e) => return Err(e),
+        };
+
+        let role = user.user_role | USER_ROLE_SOFT_INACTIVE;
         let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
         stmt.execute_named(named_params!{":role": role, ":name": name})?;
         Ok(0)
@@ -384,6 +398,7 @@ impl DataBase
             EditUserAction::MakeUserActive => Box::new(|name: String| self.make_user_active(name)),
             EditUserAction::MakeUserRegular => Box::new(|name: String| self.make_user_regular(name)),
             EditUserAction::MakeUserInactive => Box::new(|name: String| self.make_user_inactive(name)),
+            EditUserAction::MakeUserSoftInactive => Box::new(|name: String| self.make_user_soft_inactive(name)),
             EditUserAction::MakeUserSuperuser => Box::new(|name: String| self.make_user_admin(name)),
         };
 
@@ -723,13 +738,14 @@ impl DataBase
 
     fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
-        let mut stmt = self.conn.prepare("select password_hash, uuid, user_role from users where name = :name;")?;
+        let mut stmt = self.conn.prepare("select password_hash, uuid, user_role, name from users where name = :name;")?;
         let info = stmt.query_map_named(named_params!{":name" : name}, |row|
         {
             let passwd: String = row.get(0)?;
             let uuid: String = row.get(1)?;
             let role: u8 = row.get(2)?;
-            Ok((passwd, uuid, role))
+            let name: String = row.get(3)?;
+            Ok((passwd, uuid, role, name))
         })?.next();
 
         if info.is_none()
@@ -751,11 +767,16 @@ impl DataBase
 
         match info.unwrap()
         {
-            Ok((p, u, r)) =>
+            Ok((p, u, r, name)) =>
             {
                 if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
                 {
                     return Err(ServerError::InactiveUser);
+                }
+
+                if r & USER_ROLE_SOFT_INACTIVE == USER_ROLE_SOFT_INACTIVE
+                {
+                    self.make_user_active(name)?;
                 }
 
                 if self.hash(&password) == p
@@ -942,8 +963,8 @@ impl DataBase
     fn get_active_users(&self) -> ServerResult<Vec<User>>
     {
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users
-                                         where user_role & :inactive != :inactive;")?;
-        let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE}, |row|
+                                         where user_role & :inactive = 0;")?;
+        let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE}, |row|
         {
             Ok(User {
                 id: row.get(0)?,
@@ -1511,6 +1532,51 @@ mod test
     }
 
     #[test]
+    fn test_inactive_users_are_not_retrieved_when_calling_get_users()
+    {
+        let db_file = "tempGG.db";
+        let s = DataBase::new(db_file);
+
+        let mark = "markus".to_string();
+        let sv = "Sivert".to_string();
+        create_user(&s, mark.as_str());
+        create_user(&s, sv.as_str());
+        create_user(&s, "Bernt");
+
+        let users = s.get_users().unwrap();
+        assert_eq!(users.len(),  3);
+
+        s.make_user_inactive(mark.clone()).unwrap();
+        s.make_user_soft_inactive(sv).unwrap();
+
+        let users = s.get_users().unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempG");
+
+        assert_eq!(users.len(),  1);
+    }
+
+    #[test]
+    fn test_soft_inactive_user_gets_active_when_logging_in()
+    {
+        let db_file = "tempGGG.db";
+        let s = DataBase::new(db_file);
+
+        let mark = "markus".to_string();
+        create_user(&s, mark.as_str());
+
+        s.make_user_soft_inactive(mark.clone()).unwrap();
+
+        let users = s.get_users().unwrap();
+        assert_eq!(users.len(),  0);
+
+        s.login(mark, "password".to_string()).unwrap();
+        let users = s.get_users().unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempG");
+
+        assert_eq!(users.len(),  1);
+    }
+
+    #[test]
     fn test_wrong_change_password()
     {
         let db_file = "tempH.db";
@@ -1601,7 +1667,7 @@ mod test
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-        s.start_new_season();
+        s.start_new_season().unwrap();
 
 
         s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
@@ -1625,6 +1691,7 @@ mod test
         });
     }
 
+    #[test]
     fn test_ending_season_when_no_exist_yields_no_awards()
     {
         let db_file = "tempL.db";
@@ -1638,12 +1705,13 @@ mod test
         users.into_iter().for_each(|u| assert!(u.badges.len() == 0));
     }
 
-    fn tet_can_start_new_season()
+    #[test]
+    fn test_can_start_new_season()
     {
         let db_file = "tempM.db";
         let s = DataBase::new(db_file);
 
-        s.start_new_season();
+        s.start_new_season().unwrap();
 
         let mut stmt = s.conn.prepare("select count(*) from season").unwrap();
         let count = stmt.query_map(NO_PARAMS, |row|
