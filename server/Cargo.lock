@@ -1606,6 +1606,7 @@ name = "table_tennis"
 version = "0.1.0"
 dependencies = [
  "actix-cors",
+ "actix-rt",
  "actix-web",
  "chrono",
  "elo",
