@@ -120,7 +120,7 @@ impl DataBase
                 badge_index     integer,
                 pid             integer,
                 foreign key(pid) references users(id),
-                foreign key(season_id) references season(id)
+                foreign key(season_id) references seasons(id)
             )",
             NO_PARAMS,).expect("Creating badges table");
 
@@ -1658,36 +1658,33 @@ mod test
     {
         let db_file = "tempK.db";
         let s = DataBase::new(db_file);
-        let uuid = create_user(&s, "Sivert");
-        s.make_user_admin("Sivert".to_string()).expect("Making admin");
+
+        create_user(&s, "Sivert");
         create_user(&s, "Lars");
-        let ella_uuid = create_user(&s, "Bernt");
+        create_user(&s, "Bernt");
         create_user(&s, "Ella");
 
-        let winner = "Sivert".to_string();
-        let loser = "Lars".to_string();
+        s.start_new_season(false).expect("Staring first season");
+        s.end_season().expect("ending first season");
 
-        s.start_new_season().unwrap();
+        let users1 = s.get_users().expect("Getting users");
+        // Do this scheme to check that a new season gave _new_ awards
+        s.start_new_season(false).expect("Starting season");
+        s.end_season().expect("Ending season");
 
-
-        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
-        respond_to_match(&s, "Lars", 1);
-
-        s.register_match(winner.clone(), "Ella".to_string(), uuid.clone()).expect("Creating match");
-        respond_to_match(&s, "Ella", 2);
-
-        s.register_match("Ella".to_string(), "Lars".to_string(), ella_uuid.clone()).expect("Creating match");
-        respond_to_match(&s, "Lars", 3);
+        let users2 = s.get_users().expect("Getting users");
 
 
-
-        s.end_season().expect("ending season");
-
-        let users = s.get_users().expect("Getting users");
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        users.into_iter().enumerate().for_each(|(i, u)|
+
+        users1
+            .into_iter()
+            .zip(users2.into_iter())
+            .enumerate()
+            .for_each(|(i, (u1, u2))|
         {
-            assert_eq!(u.badges[0].badge_name, BADGES[i]);
+            assert_eq!(u1.badges[0].badge_name, BADGES[i]);
+            assert_eq!(u2.badges[0].season, 1); assert_eq!(u2.badges[1].season, 2);
         });
     }
 
@@ -1723,7 +1720,7 @@ mod test
         let (s_elo_old, m_elo_old) = (s.get_user(&siv).unwrap().elo, 
                                       s.get_user(&mark).unwrap().elo);
 
-        s.start_new_season().unwrap();
+        s.start_new_season(true).unwrap();
 
         let (s_elo_new, m_elo_new) = (s.get_user(&siv).unwrap().elo, 
                                       s.get_user(&mark).unwrap().elo);
@@ -1758,11 +1755,11 @@ mod test
         let s = DataBase::new(db_file);
 
         let five_millis = std::time::Duration::from_millis(5);
-        s.start_new_season().unwrap();
+        s.start_new_season(false).unwrap();
         std::thread::sleep(five_millis);
-        s.start_new_season().unwrap();
+        s.start_new_season(false).unwrap();
         std::thread::sleep(five_millis);
-        s.start_new_season().unwrap();
+        s.start_new_season(false).unwrap();
 
         let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
         let count = stmt.query_map(NO_PARAMS, |row|
