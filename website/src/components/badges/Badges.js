@@ -23,7 +23,7 @@ class Leaderboard extends Component {
             strokeWidth: '24',
           }}
         />
-        <p className="badge-info">Season: {badge.season}</p>
+        <div className="badge-info">Season: {badge.season}</div>
       </div>
     )
   }
