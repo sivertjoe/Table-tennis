@@ -1,9 +1,11 @@
-use crate::server::DataBase;
-use crate::server::{ServerResult};
-use rusqlite::{params, NO_PARAMS};
-use crate::season::Season;
 use chrono::prelude::*;
-use crate::user::USER_ROLE_SOFT_INACTIVE;
+use rusqlite::{params, NO_PARAMS};
+
+use crate::{
+    season::Season,
+    server::{DataBase, ServerResult},
+    user::USER_ROLE_SOFT_INACTIVE,
+};
 
 
 impl DataBase
@@ -41,7 +43,8 @@ impl DataBase
     {
         self.conn.execute(
             "insert into badges (season_id, badge_index, pid) values (?1, ?2, ?3)",
-            params![season, badge_index, pid],)?;
+            params![season, badge_index, pid],
+        )?;
         Ok(())
     }
 }
@@ -66,7 +69,8 @@ impl DataBase
     {
         self.conn.execute(
             &format!("update users set user_role = {}", USER_ROLE_SOFT_INACTIVE),
-            NO_PARAMS)?;
+            NO_PARAMS,
+        )?;
 
         Ok(())
     }
@@ -81,34 +85,33 @@ impl DataBase
     {
         self.conn.execute(
             &format!("alter table matches rename to matches{}", season_number),
-            NO_PARAMS)?;
+            NO_PARAMS,
+        )?;
 
         self.conn.execute(
             &format!("create table matches as select * from matches{} where 0", season_number),
-            NO_PARAMS)?;
+            NO_PARAMS,
+        )?;
 
         Ok(())
     }
 
     fn create_new_season(&self) -> ServerResult<i64>
     {
-        let old_season = self.get_latest_season()?.unwrap_or_else(||
-        {
+        let old_season = self.get_latest_season()?.unwrap_or_else(|| {
             // First ever season!!
             let now = Utc::now();
             Season {
-                id: 0,
-                start_epoch: now.timestamp_millis(),
+                id: 0, start_epoch: now.timestamp_millis()
             }
         });
 
-        self.conn.execute(
-            "insert into seasons (start_epoch) values (?1)",
-            params![old_season.start_epoch])?;
+        self.conn.execute("insert into seasons (start_epoch) values (?1)", params![
+            old_season.start_epoch
+        ])?;
 
         Ok(old_season.id)
     }
-
 }
 
 // ~ Common functions :thinking:
@@ -116,13 +119,10 @@ impl DataBase
 {
     fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
-        let mut stmt = self.conn.prepare(
-            "select id, start_epoch from seasons order by id desc")?;
-        let mut seasons = stmt.query_map(NO_PARAMS, |row|
-        {
+        let mut stmt = self.conn.prepare("select id, start_epoch from seasons order by id desc")?;
+        let mut seasons = stmt.query_map(NO_PARAMS, |row| {
             Ok(Season {
-                id: row.get(0)?,
-                start_epoch: row.get(1)?,
+                id: row.get(0)?, start_epoch: row.get(1)?
             })
         })?;
 
