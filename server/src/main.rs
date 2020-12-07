@@ -1,35 +1,32 @@
-mod server;
-mod user;
+mod badge;
 mod r#match;
 mod notification;
+mod season;
+mod server;
 mod server_rollback;
 mod server_season;
-mod badge;
-mod season;
+mod user;
 
-use server::{DataBase, ServerError};
-use r#match::{MatchInfo, MatchResponse, NewEditMatchInfo, DeleteMatchInfo};
-use user::{LoginInfo, ChangePasswordInfo, EditUsersInfo};
-use notification::NewUserNotificationAns;
+use std::sync::{Arc, Mutex};
 
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use actix_cors::Cors;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use chrono::prelude::*;
-
-use std::sync::{Mutex, Arc};
+use r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
+use notification::NewUserNotificationAns;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde_json::json;
+use server::{DataBase, ServerError};
+use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo};
 
 const PORT: u32 = 58642;
 const DATABASE_FILE: &'static str = "db.db";
 
 
-macro_rules! DATABASE
-{
-    ($data:expr) =>
-    {
+macro_rules! DATABASE {
+    ($data:expr) => {
         &*$data.get_ref().lock().expect("Could not get  database lock");
-    }
+    };
 }
 
 fn response_code(e: ServerError) -> u8
@@ -44,13 +41,13 @@ fn response_code(e: ServerError) -> u8
         ServerError::WaitingForAdmin => 6,
         ServerError::InactiveUser => 7,
         ServerError::Critical(_) => 8,
-        _ => 69
+        _ => 69,
     }
 }
 
 fn response_error(e: ServerError) -> serde_json::Value
 {
-    json!({"status": response_code(e)})
+    json!({ "status": response_code(e) })
 }
 
 fn response_ok_with(item: String) -> serde_json::Value
@@ -64,7 +61,6 @@ fn response_ok() -> serde_json::Value
 }
 
 
-
 #[post("/create-user")]
 async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
@@ -75,8 +71,8 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -92,8 +88,8 @@ async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -109,8 +105,8 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -128,8 +124,8 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -146,8 +142,8 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -165,8 +161,8 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -179,23 +175,29 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Err(e) => match e
         {
             ServerError::Rusqlite(s) => HttpResponse::InternalServerError().body(format!("{}", s)),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 #[get("/all-users/{token}")]
-async fn get_all_users(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+async fn get_all_users(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(token): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).get_all_users(token)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(_) => HttpResponse::NotFound().finish()
+        Err(_) => HttpResponse::NotFound().finish(),
     }
 }
 
 #[get("/notifications/{token}")]
-async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+async fn get_notifications(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(token): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).get_notifications(token)
     {
@@ -203,13 +205,16 @@ async fn get_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(toke
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 #[get("/user-notification/{token}")]
-async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+async fn get_new_user_notifications(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(token): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).get_new_user_notifications(token)
     {
@@ -217,8 +222,8 @@ async fn get_new_user_notifications(data: web::Data<Arc<Mutex<DataBase>>>, web::
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -232,8 +237,8 @@ async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -246,8 +251,8 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -261,8 +266,8 @@ async fn delete_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -276,8 +281,8 @@ async fn edit_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
@@ -290,13 +295,16 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 #[get("/user/{name}")]
-async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web::Path<String>) -> HttpResponse
+async fn get_profile(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(name): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).get_profile(name)
     {
@@ -304,13 +312,16 @@ async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(name): web
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 #[get("/is-admin/{token}")]
-async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+async fn get_is_admin(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(token): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).get_is_admin(token.to_string())
     {
@@ -318,13 +329,16 @@ async fn get_is_admin(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): w
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 #[get("/admin/roll-back/{token}")]
-async fn roll_back(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web::Path<String>) -> HttpResponse
+async fn roll_back(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(token): web::Path<String>,
+) -> HttpResponse
 {
     match DATABASE!(data).admin_rollback(token.to_string())
     {
@@ -332,31 +346,31 @@ async fn roll_back(data: web::Data<Arc<Mutex<DataBase>>>, web::Path(token): web:
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e))
-        }
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
     }
 }
 
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
-     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-     builder
-          .set_private_key_file("privkey.pem", SslFiletype::PEM)
-          .expect("failed to open/read key.pem");
-      builder
-          .set_certificate_chain_file("cert.pem")
-          .expect("failed to open/read cert.pem");
-      builder
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("privkey.pem", SslFiletype::PEM)
+        .expect("failed to open/read key.pem");
+    builder.set_certificate_chain_file("cert.pem").expect("failed to open/read cert.pem");
+    builder
 }
 
 fn spawn_season_checker(data: Arc<Mutex<DataBase>>)
 {
-    actix_rt::spawn(async move
-    {
+    actix_rt::spawn(async move {
         loop
         {
-        	let mut _month = Utc::now().month();
-			while Utc::now().month() == _month { continue; }
+            let mut _month = Utc::now().month();
+            while Utc::now().month() == _month
+            {
+                continue;
+            }
 
 
             let s = data.lock().expect("Getting mutex");
@@ -377,10 +391,7 @@ async fn main() -> std::io::Result<()>
     let server = HttpServer::new(move || {
         App::new()
             .data(data.clone())
-            .wrap(Cors::default()
-                  .allow_any_header()
-                  .allow_any_origin()
-                  .allow_any_method())
+            .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
