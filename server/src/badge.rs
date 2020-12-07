@@ -5,9 +5,11 @@ pub struct Badge
 {
     pub id: i64,
     pub season: i64,
-    pub badge_name: String,
+    pub name: String,
+    pub color: String,
 }
 
 
-pub static BADGES: &'static [&'static str] = &["trophy", "medal", "medal", "award"];
+pub static BADGES: &'static [&'static str] = &["crown", "medal", "medal", "award", "trophy"];
+pub static BADGE_COLORS: &'static [&'static str] = &["yellow", "silver", "orange", "turquoise", "yellow"];
 
