@@ -8,6 +8,7 @@ import { Notifications } from '../../components/notifications/Notifications'
 import SearchBar from '../../components/search-bar/SearchBar'
 import Button from '../../components/button/Button'
 import EloGraph from '../../components/elo-graph/EloGraph'
+import Badges from '../../components/badges/Badges'
 
 class Profile extends Component {
   user = {}
@@ -47,6 +48,11 @@ class Profile extends Component {
       <div className="container">
         <h1 className="name">{this.user.name}</h1>
         <h2 className="elo">{Math.trunc(this.user.elo ?? 0)}</h2>
+        <div style={{ width: 'fit-content', margin: 'auto' }}>
+          {Object.keys(this.user).length > 0 && (
+            <Badges user={this.user} size="40px" />
+          )}
+        </div>
         {loggedIn && numberOfNotifications > 0 && (
           <div>
             <h2>
