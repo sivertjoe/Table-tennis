@@ -944,7 +944,8 @@ impl DataBase
             Ok(Badge {
                 id: row.get(0)?,
                 season: row.get(1)?,
-                badge_name: BADGES[index].to_string()
+                name: BADGES[index].to_string(),
+                color: BADGE_COLORS[index].to_string(),
             })
         })?;
 
@@ -1683,7 +1684,7 @@ mod test
             .enumerate()
             .for_each(|(i, (u1, u2))|
         {
-            assert_eq!(u1.badges[0].badge_name, BADGES[i]);
+            assert_eq!(u1.badges[0].name, BADGES[i]);
             assert_eq!(u2.badges[0].season, 1); assert_eq!(u2.badges[1].season, 2);
         });
     }

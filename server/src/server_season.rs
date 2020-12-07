@@ -33,7 +33,7 @@ impl DataBase
                 self.award_badge(i as i64, season.id, user.id)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -105,7 +105,7 @@ impl DataBase
         self.conn.execute(
             "insert into seasons (start_epoch) values (?1)",
             params![old_season.start_epoch])?;
-        
+
         Ok(old_season.id)
     }
 
