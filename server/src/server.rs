@@ -1,18 +1,25 @@
-use std::str::FromStr;
-use chrono::prelude::*;
-use uuid::Uuid;
-use rusqlite::{Connection, NO_PARAMS, params, named_params};
-use crate::user::{User, EditUserAction, USER_ROLE_REGULAR, USER_ROLE_SUPERUSER, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE};
-use elo::EloRank;
-use crate::r#match::{Match, EditMatchInfo, NewEditMatchInfo, DeleteMatchInfo};
-use crate::notification::{MatchNotificationTable, MatchNotification, NewUserNotification, NewUserNotificationAns};
-use crate::badge::*;
+use std::{convert::From, str::FromStr};
 
-use std::convert::From;
+use chrono::prelude::*;
+use elo::EloRank;
+use rusqlite::{named_params, params, Connection, NO_PARAMS};
+use uuid::Uuid;
+
+use crate::{
+    badge::*,
+    r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
+    notification::{
+        MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
+    },
+    user::{
+        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE,
+        USER_ROLE_SUPERUSER,
+    },
+};
 
 pub struct DataBase
 {
-    pub conn: Connection
+    pub conn: Connection,
 }
 #[allow(dead_code)]
 const MATCH_NO_ANS: u8 = 0;
@@ -51,7 +58,7 @@ impl From<ServerError> for rusqlite::Error
         match error
         {
             ServerError::Rusqlite(e) => e,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -63,22 +70,27 @@ impl DataBase
         let conn = match Connection::open(file)
         {
             Err(e) => panic!(format!("Could not create connection, {}", e)),
-            Ok(c) => c
+            Ok(c) => c,
         };
 
-        conn.execute(&format!(
-            "create table if not exists users (
+        conn.execute(
+            &format!(
+                "create table if not exists users (
                 id              integer primary key autoincrement,
                 name            VARCHAR(20) not null unique,
                 elo             float  default 1500.0,
                 password_hash   varchar(64) not null,
                 uuid            varchar(36) not null,
                 user_role       smallint default {}
-                )", USER_ROLE_REGULAR),
-                NO_PARAMS,).expect("Creating user table");
+                )",
+                USER_ROLE_REGULAR
+            ),
+            NO_PARAMS,
+        )
+        .expect("Creating user table");
 
         conn.execute(
-             "create table if not exists matches (
+            "create table if not exists matches (
                 id              integer primary key autoincrement,
                 epoch           bigint not null,
                 elo_diff        integer,
@@ -89,10 +101,12 @@ impl DataBase
                 foreign key(winner) references users(id),
                 foreign key(loser) references users(id)
                 )",
-                NO_PARAMS,).expect("Creating matches table");
+            NO_PARAMS,
+        )
+        .expect("Creating matches table");
 
         conn.execute(
-             "create table if not exists match_notification (
+            "create table if not exists match_notification (
                 id              integer primary key autoincrement,
                 winner_accept   smallint default 0,
                 loser_accept    smallint default 0,
@@ -102,7 +116,9 @@ impl DataBase
                 foreign key(winner) references users(id),
                 foreign key(loser) references users(id)
                 )",
-                NO_PARAMS,).expect("Creating match_notification table");
+            NO_PARAMS,
+        )
+        .expect("Creating match_notification table");
 
         conn.execute(
             "create table if not exists new_user_notification (
@@ -110,7 +126,9 @@ impl DataBase
                 name            VARCHAR(20) not null unique,
                 password_hash   varchar(64) not null
             )",
-            NO_PARAMS,).expect("Creating new_user_notification");
+            NO_PARAMS,
+        )
+        .expect("Creating new_user_notification");
 
 
         conn.execute(
@@ -122,7 +140,9 @@ impl DataBase
                 foreign key(pid) references users(id),
                 foreign key(season_id) references seasons(id)
             )",
-            NO_PARAMS,).expect("Creating badges table");
+            NO_PARAMS,
+        )
+        .expect("Creating badges table");
 
 
         conn.execute(
@@ -130,7 +150,9 @@ impl DataBase
                 id              integer primary key autoincrement,
                 start_epoch     integer
             )",
-            NO_PARAMS,).expect("Creating season table");
+            NO_PARAMS,
+        )
+        .expect("Creating season table");
 
 
         DataBase {
@@ -141,7 +163,7 @@ impl DataBase
     pub fn get_is_admin(&self, token: String) -> ServerResult<bool>
     {
         let user = self.get_user_without_matches_by("uuid", "=", &token)?;
-        Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER )
+        Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER)
     }
 
     pub fn admin_rollback(&self, token: String) -> ServerResult<()>
@@ -192,7 +214,12 @@ impl DataBase
         self.create_new_user_notification(new_user, password)
     }
 
-    pub fn edit_users(&self, users: Vec<String>, action: String, token: String) -> ServerResult<usize>
+    pub fn edit_users(
+        &self,
+        users: Vec<String>,
+        action: String,
+        token: String,
+    ) -> ServerResult<usize>
     {
         self._edit_users(users, action, token)
     }
@@ -212,15 +239,22 @@ impl DataBase
         Ok(self.get_active_users()?)
     }
 
-    pub fn register_match(&self, winner_name: String, loser_name: String, token: String) -> ServerResult<()>
+    pub fn register_match(
+        &self,
+        winner_name: String,
+        loser_name: String,
+        token: String,
+    ) -> ServerResult<()>
     {
         if self.get_user_without_matches_by("uuid", "=", &token).is_err()
         {
             return Err(ServerError::UserNotExist);
         };
 
-        let (winner, loser) = (self.get_user_without_matches(&winner_name)?,
-                               self.get_user_without_matches(&loser_name)?);
+        let (winner, loser) = (
+            self.get_user_without_matches(&winner_name)?,
+            self.get_user_without_matches(&loser_name)?,
+        );
 
         self.create_match_notification(&winner, &loser, token)
     }
@@ -235,7 +269,12 @@ impl DataBase
         self.get_all_edit_matches()
     }
 
-    pub fn change_password(&self, name: String, password: String, new_password: String) -> ServerResult<()>
+    pub fn change_password(
+        &self,
+        name: String,
+        password: String,
+        new_password: String,
+    ) -> ServerResult<()>
     {
         self.try_change_password(name, password, new_password)
     }
@@ -245,7 +284,10 @@ impl DataBase
         self.try_get_notifications(token)
     }
 
-    pub fn get_new_user_notifications(&self, token: String) -> ServerResult<Vec<NewUserNotification>>
+    pub fn get_new_user_notifications(
+        &self,
+        token: String,
+    ) -> ServerResult<Vec<NewUserNotification>>
     {
         self.try_get_new_user_notifications(token)
     }
@@ -273,8 +315,7 @@ impl DataBase
 {
     fn try_delete_match(&self, info: DeleteMatchInfo) -> ServerResult<()>
     {
-        self.conn.execute(
-            &format!("delete from matches where id = {}", info.id), NO_PARAMS)?;
+        self.conn.execute(&format!("delete from matches where id = {}", info.id), NO_PARAMS)?;
         Ok(())
     }
 
@@ -283,12 +324,16 @@ impl DataBase
         let winner = self.get_user_without_matches(&info.winner)?.id;
         let loser = self.get_user_without_matches(&info.loser)?.id;
         self.conn.execute(
-            &format!("update matches
+            &format!(
+                "update matches
                 set winner = {}, loser = {}, epoch = {}
-                where id = {}", winner, loser, info.epoch, info.id),
-                NO_PARAMS,)?;
+                where id = {}",
+                winner, loser, info.epoch, info.id
+            ),
+            NO_PARAMS,
+        )?;
         Ok(())
-    }    
+    }
 
     fn create_new_user_notification(&self, name: String, password: String) -> ServerResult<()>
     {
@@ -300,7 +345,7 @@ impl DataBase
         self.conn.execute(
             "insert into new_user_notification (name, password_hash) values (?1, ?2)",
             params![name, self.hash(&password)],
-            )?;
+        )?;
         Ok(())
     }
 
@@ -314,10 +359,14 @@ impl DataBase
 
         let role = user.user_role | USER_ROLE_SUPERUSER;
         self.conn.execute(
-            &format!("update users
+            &format!(
+                "update users
                 set user_role = {}
-                where name = \"{}\"", role, name),
-                NO_PARAMS,)?;
+                where name = \"{}\"",
+                role, name
+            ),
+            NO_PARAMS,
+        )?;
         Ok(0)
     }
 
@@ -331,10 +380,14 @@ impl DataBase
 
         let role = user.user_role & !USER_ROLE_SUPERUSER;
         self.conn.execute(
-            &format!("update users
+            &format!(
+                "update users
                 set user_role = {}
-                where name = \"{}\"", role, name),
-                NO_PARAMS,)?;
+                where name = \"{}\"",
+                role, name
+            ),
+            NO_PARAMS,
+        )?;
         Ok(0)
     }
 
@@ -347,8 +400,9 @@ impl DataBase
         };
 
         let role = user.user_role & !USER_ROLE_INACTIVE & !USER_ROLE_SOFT_INACTIVE;
-        let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        let mut stmt =
+            self.conn.prepare("update users set user_role = :role where name = :name")?;
+        stmt.execute_named(named_params! {":role": role, ":name": name})?;
         Ok(0)
     }
 
@@ -361,8 +415,9 @@ impl DataBase
         };
 
         let role = user.user_role | USER_ROLE_INACTIVE;
-        let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        let mut stmt =
+            self.conn.prepare("update users set user_role = :role where name = :name")?;
+        stmt.execute_named(named_params! {":role": role, ":name": name})?;
         Ok(0)
     }
 
@@ -375,12 +430,14 @@ impl DataBase
         };
 
         let role = user.user_role | USER_ROLE_SOFT_INACTIVE;
-        let mut stmt = self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params!{":role": role, ":name": name})?;
+        let mut stmt =
+            self.conn.prepare("update users set user_role = :role where name = :name")?;
+        stmt.execute_named(named_params! {":role": role, ":name": name})?;
         Ok(0)
     }
 
-    fn _edit_users(&self, users: Vec<String>, action: String, token: String) -> ServerResult<usize>
+    fn _edit_users(&self, users: Vec<String>, action: String, token: String)
+        -> ServerResult<usize>
     {
         if !self.get_is_admin(token)?
         {
@@ -396,10 +453,22 @@ impl DataBase
         let func: Box<dyn Fn(String) -> ServerResult<usize>> = match action
         {
             EditUserAction::MakeUserActive => Box::new(|name: String| self.make_user_active(name)),
-            EditUserAction::MakeUserRegular => Box::new(|name: String| self.make_user_regular(name)),
-            EditUserAction::MakeUserInactive => Box::new(|name: String| self.make_user_inactive(name)),
-            EditUserAction::MakeUserSoftInactive => Box::new(|name: String| self.make_user_soft_inactive(name)),
-            EditUserAction::MakeUserSuperuser => Box::new(|name: String| self.make_user_admin(name)),
+            EditUserAction::MakeUserRegular =>
+            {
+                Box::new(|name: String| self.make_user_regular(name))
+            },
+            EditUserAction::MakeUserInactive =>
+            {
+                Box::new(|name: String| self.make_user_inactive(name))
+            },
+            EditUserAction::MakeUserSoftInactive =>
+            {
+                Box::new(|name: String| self.make_user_soft_inactive(name))
+            },
+            EditUserAction::MakeUserSuperuser =>
+            {
+                Box::new(|name: String| self.make_user_admin(name))
+            },
         };
 
         let mut errors = Vec::<String>::new();
@@ -414,7 +483,10 @@ impl DataBase
 
         if errors.len() > 0
         {
-            return Err(ServerError::Critical(format!("The following errors occured: {:?}", errors)));
+            return Err(ServerError::Critical(format!(
+                "The following errors occured: {:?}",
+                errors
+            )));
         }
 
         Ok(0)
@@ -426,32 +498,39 @@ impl DataBase
             "select
              (select count(*) from users where name = :name)+
              (select count(*) from new_user_notification where name = :name);
-        ")?;
+        ",
+        )?;
 
-        let count = stmt.query_map_named(named_params!{":name": name}, |row|
-        {
-            let c: i64 = row.get(0)?;
-            Ok(c)
-        })?.next().unwrap().unwrap();
+        let count = stmt
+            .query_map_named(named_params! {":name": name}, |row| {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })?
+            .next()
+            .unwrap()
+            .unwrap();
         Ok(count == 0)
     }
 
     fn delete_new_user_notification(&self, id: i64) -> ServerResult<usize>
     {
         let mut stmt = self.conn.prepare("delete from new_user_notification where id = :id")?;
-        stmt.execute_named(named_params!{":id": id})?;
+        stmt.execute_named(named_params! {":id": id})?;
         Ok(0)
     }
 
     fn create_user_from_notification(&self, id: i64) -> ServerResult<String>
     {
-        let mut stmt = self.conn.prepare("select name, password_hash from new_user_notification where id = :id")?;
-        let user = stmt.query_map_named(named_params!{":id": id}, |row|
-        {
-            let name: String = row.get(0)?;
-            let password_hash: String = row.get(1)?;
-            Ok((name, password_hash))
-        })?.next();
+        let mut stmt = self
+            .conn
+            .prepare("select name, password_hash from new_user_notification where id = :id")?;
+        let user = stmt
+            .query_map_named(named_params! {":id": id}, |row| {
+                let name: String = row.get(0)?;
+                let password_hash: String = row.get(1)?;
+                Ok((name, password_hash))
+            })?
+            .next();
 
         if user.is_none()
         {
@@ -462,13 +541,17 @@ impl DataBase
         self.create_user_with_password_hash(user.0, user.1)
     }
 
-    fn create_user_with_password_hash(&self, new_user: String, password_hash: String) -> ServerResult<String>
+    fn create_user_with_password_hash(
+        &self,
+        new_user: String,
+        password_hash: String,
+    ) -> ServerResult<String>
     {
         let uuid = format!("{}", Uuid::new_v4());
         self.conn.execute(
             "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
             params![new_user, password_hash, uuid],
-            )?;
+        )?;
         Ok(uuid)
     }
 
@@ -479,28 +562,27 @@ impl DataBase
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
             "select id, winner, loser, epoch from match_notification
-            where
-                winner = :id and winner_accept = 0
+            where winner = :id and winner_accept = 0
             union
             select id, winner, loser, epoch from match_notification
-            where
-                loser = :id and loser_accept = 0
-            ")?;
+            where loser = :id and loser_accept = 0
+            ",
+        )?;
 
-        let notifications = stmt.query_map_named(named_params!{":id": user.id}, |row|
-        {
+        let notifications = stmt.query_map_named(named_params! {":id": user.id}, |row| {
             let winner_id: i64 = row.get(1)?;
             let loser_id: i64 = row.get(2)?;
 
-            let winner_name: String = self.get_user_without_matches_by("id", "=", &winner_id.to_string())?.name;
-            let loser_name: String = self.get_user_without_matches_by("id", "=", &loser_id.to_string())?.name;
-            Ok(
-                MatchNotification {
-                    id: row.get(0)?,
-                    winner: winner_name,
-                    loser: loser_name,
-                    epoch: row.get(3)?
-                })
+            let winner_name: String =
+                self.get_user_without_matches_by("id", "=", &winner_id.to_string())?.name;
+            let loser_name: String =
+                self.get_user_without_matches_by("id", "=", &loser_id.to_string())?.name;
+            Ok(MatchNotification {
+                id:     row.get(0)?,
+                winner: winner_name,
+                loser:  loser_name,
+                epoch:  row.get(3)?,
+            })
         })?;
 
         let mut vec: Vec<MatchNotification> = Vec::new();
@@ -514,7 +596,11 @@ impl DataBase
         vec.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
         Ok(vec)
     }
-    fn try_get_new_user_notifications(&self, token: String) -> ServerResult<Vec<NewUserNotification>>
+
+    fn try_get_new_user_notifications(
+        &self,
+        token: String,
+    ) -> ServerResult<Vec<NewUserNotification>>
     {
         if !self.get_is_admin(token)?
         {
@@ -523,13 +609,10 @@ impl DataBase
 
         let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
 
-        let notifications = stmt.query_map(NO_PARAMS, |row|
-        {
-            Ok(
-                NewUserNotification {
-                    id: row.get(0)?,
-                    name: row.get(1)?
-                })
+        let notifications = stmt.query_map(NO_PARAMS, |row| {
+            Ok(NewUserNotification {
+                id: row.get(0)?, name: row.get(1)?
+            })
         })?;
 
         let mut vec: Vec<NewUserNotification> = Vec::new();
@@ -542,24 +625,28 @@ impl DataBase
         }
         Ok(vec)
     }
+
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
             "select id, winner_accept, loser_accept, epoch, winner, loser
-            from match_notification where id = :id")?;
-        let mut match_notification = stmt.query_map_named(named_params!{":id": id}, |row|
-        {
-            Ok(
-                MatchNotificationTable {
-                    id: row.get(0)?,
+            from match_notification where id = :id",
+        )?;
+        let mut match_notification = stmt
+            .query_map_named(named_params! {":id": id}, |row| {
+                Ok(MatchNotificationTable {
+                    id:            row.get(0)?,
                     winner_accept: row.get(1)?,
-                    loser_accept: row.get(2)?,
-                    epoch: row.get(3)?,
-                    winner: row.get(4)?,
-                    loser: row.get(5)?
+                    loser_accept:  row.get(2)?,
+                    epoch:         row.get(3)?,
+                    winner:        row.get(4)?,
+                    loser:         row.get(5)?,
                 })
-        })?.next().expect("Unwrapping element").expect("Unwrapping Option");
+            })?
+            .next()
+            .expect("Unwrapping element")
+            .expect("Unwrapping Option");
 
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
@@ -577,27 +664,32 @@ impl DataBase
         self.handle_notification_answer(&user, ans, &match_notification)
     }
 
-    fn handle_notification_answer(&self, user: &User, ans: u8, match_notification: &MatchNotificationTable) -> ServerResult<()>
+    fn handle_notification_answer(
+        &self,
+        user: &User,
+        ans: u8,
+        match_notification: &MatchNotificationTable,
+    ) -> ServerResult<()>
     {
-        // If both accepted, we need to
-        //  * create the match notification,
-        //  * delet the match notification
-        //  * update both elos
-        //
-        //  Here alternativly, we can delete the notification if the other'
-        //  person have already responded
         if match_notification.loser_accept == ACCEPT_MATCH
             && match_notification.winner_accept == ACCEPT_MATCH
         {
             if user.id == match_notification.winner
             {
-
-                let loser = &self.get_user_without_matches_by("id", "=", &match_notification.loser.to_string())?;
+                let loser = &self.get_user_without_matches_by(
+                    "id",
+                    "=",
+                    &match_notification.loser.to_string(),
+                )?;
                 self.create_match_from_notification(&match_notification, user, &loser)?;
             }
             else
             {
-                let winner = &self.get_user_without_matches_by("id", "=", &match_notification.winner.to_string())?;
+                let winner = &self.get_user_without_matches_by(
+                    "id",
+                    "=",
+                    &match_notification.winner.to_string(),
+                )?;
                 self.create_match_from_notification(&match_notification, &winner, user)?;
             };
 
@@ -606,28 +698,38 @@ impl DataBase
         }
         else
         {
-            let col = if user.id == match_notification.winner { "winner_accept" } else { "loser_accept" };
+            let col =
+                if user.id == match_notification.winner { "winner_accept" } else { "loser_accept" };
             self.update_match_notification_answer(col, ans, match_notification.id)
         }
     }
 
     fn update_match_notification_answer(&self, col: &str, ans: u8, id: i64) -> ServerResult<()>
     {
-        let mut stmt = self.conn.prepare(&format!("update match_notification set {} = :ans where id = :id", col))?;
-        stmt.execute_named(named_params!{":id": id, ":ans": ans})?;
+        let mut stmt = self
+            .conn
+            .prepare(&format!("update match_notification set {} = :ans where id = :id", col))?;
+        stmt.execute_named(named_params! {":id": id, ":ans": ans})?;
         Ok(())
     }
 
     fn delete_match_notification(&self, m: &MatchNotificationTable) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("delete from match_notification where id = :id")?;
-        stmt.execute_named(named_params!{":id": m.id})?;
+        stmt.execute_named(named_params! {":id": m.id})?;
         Ok(())
     }
 
-    fn create_match_from_notification(&self, m: &MatchNotificationTable, winner: &User, loser: &User) -> ServerResult<()>
+    fn create_match_from_notification(
+        &self,
+        m: &MatchNotificationTable,
+        winner: &User,
+        loser: &User,
+    ) -> ServerResult<()>
     {
-        let elo = EloRank { k: 32 };
+        let elo = EloRank {
+            k: 32
+        };
         let (new_winner_elo, new_loser_elo) = elo.calculate(winner.elo, loser.elo);
 
 
@@ -640,13 +742,15 @@ impl DataBase
                 m.loser,
                 new_winner_elo - winner.elo,
                 new_winner_elo,
-                new_loser_elo],)?;
+                new_loser_elo
+            ],
+        )?;
 
 
         if self.need_to_roll_back(m.epoch)?
         {
-           self.roll_back(m.epoch)?;
-           return Ok(());
+            self.roll_back(m.epoch)?;
+            return Ok(());
         }
 
         self.update_elo(winner.id, new_winner_elo)?;
@@ -656,62 +760,86 @@ impl DataBase
 
     fn need_to_roll_back(&self, epoch: i64) -> ServerResult<bool>
     {
-        let mut stmt = self.conn.prepare("select count(*) from matches
-                               where epoch > :epoch;")?;
+        let mut stmt = self.conn.prepare(
+            "select count(*) from matches
+             where epoch > :epoch;",
+        )?;
 
-        let count = stmt.query_map_named(named_params!{":epoch": epoch}, |row|
-        {
-            let n: i64 = row.get(0)?;
-            Ok(n)
-        })?.next().unwrap().unwrap();
+        let count = stmt
+            .query_map_named(named_params! {":epoch": epoch}, |row| {
+                let n: i64 = row.get(0)?;
+                Ok(n)
+            })?
+            .next()
+            .unwrap()
+            .unwrap();
 
         Ok(count > 0)
     }
 
-    fn create_match_notification(&self, winner: &User, loser: &User, token: String) -> ServerResult<()>
+    fn create_match_notification(
+        &self,
+        winner: &User,
+        loser: &User,
+        token: String,
+    ) -> ServerResult<()>
     {
         if self.user_have_token(winner.id, &token)?
         {
             self.conn.execute(
-                "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],)?;
+                "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, \
+                 ?2, ?3, ?4)",
+                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],
+            )?;
         }
         else if self.user_have_token(loser.id, &token)?
         {
             self.conn.execute(
-                "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id,  ACCEPT_MATCH],)?;
+                "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, \
+                 ?2, ?3, ?4)",
+                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],
+            )?;
         }
         else
         {
             self.conn.execute(
                 "insert into match_notification (epoch, winner, loser) values (?1, ?2, ?3)",
-                params![self.epoch(), winner.id, loser.id],)?;
+                params![self.epoch(), winner.id, loser.id],
+            )?;
         }
         Ok(())
     }
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let mut stmt = self.conn.prepare("select count(*) from users where id = :id and uuid = :token")?;
-        let mut c = stmt.query_map_named(named_params!{":id": user_id, ":token": token}, |row|
-        {
-            let c: i64 = row.get(0)?;
-            Ok(c)
-        })?;
+        let mut stmt =
+            self.conn.prepare("select count(*) from users where id = :id and uuid = :token")?;
+        let mut c =
+            stmt.query_map_named(named_params! {":id": user_id, ":token": token}, |row| {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })?;
 
         Ok(c.next().unwrap().unwrap() == 1)
     }
 
-    fn try_change_password(&self, name: String, password: String, new_password: String) -> ServerResult<()>
+    fn try_change_password(
+        &self,
+        name: String,
+        password: String,
+        new_password: String,
+    ) -> ServerResult<()>
     {
-        let mut stmt = self.conn.prepare("select id, password_hash from users where name = :name;")?;
-        let info = stmt.query_map_named(named_params!{":name" : name}, |row|
-        {
-            let id: i64 = row.get(0)?;
-            let passwd: String = row.get(1)?;
-            Ok((id, passwd))
-        })?.next().expect("getting user");
+        let mut stmt =
+            self.conn.prepare("select id, password_hash from users where name = :name;")?;
+        let info = stmt
+            .query_map_named(named_params! {":name" : name}, |row| {
+                let id: i64 = row.get(0)?;
+                let passwd: String = row.get(1)?;
+                Ok((id, passwd))
+            })?
+            .next()
+            .expect("getting user");
 
         match info
         {
@@ -724,38 +852,47 @@ impl DataBase
 
                 return Err(ServerError::PasswordNotMatch);
             },
-            _ => Err(ServerError::UserNotExist)
+            _ => Err(ServerError::UserNotExist),
         }
     }
 
     fn update_password(&self, id: i64, new_password: String) -> ServerResult<()>
     {
         let hash = self.hash(&new_password);
-        let mut stmt = self.conn.prepare("update users  set password_hash = :hash WHERE id = :id")?;
-        stmt.execute_named(named_params!{":hash": hash, ":id": id})?;
+        let mut stmt =
+            self.conn.prepare("update users  set password_hash = :hash WHERE id = :id")?;
+        stmt.execute_named(named_params! {":hash": hash, ":id": id})?;
         Ok(())
     }
 
     fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
-        let mut stmt = self.conn.prepare("select password_hash, uuid, user_role, name from users where name = :name;")?;
-        let info = stmt.query_map_named(named_params!{":name" : name}, |row|
-        {
-            let passwd: String = row.get(0)?;
-            let uuid: String = row.get(1)?;
-            let role: u8 = row.get(2)?;
-            let name: String = row.get(3)?;
-            Ok((passwd, uuid, role, name))
-        })?.next();
+        let mut stmt = self.conn.prepare(
+            "select password_hash, uuid, user_role, name from users where name = :name;",
+        )?;
+        let info = stmt
+            .query_map_named(named_params! {":name" : name}, |row| {
+                let passwd: String = row.get(0)?;
+                let uuid: String = row.get(1)?;
+                let role: u8 = row.get(2)?;
+                let name: String = row.get(3)?;
+                Ok((passwd, uuid, role, name))
+            })?
+            .next();
 
         if info.is_none()
         {
-            let mut stmt = self.conn.prepare("select count(*) from new_user_notification where name = :name")?;
-            let c = stmt.query_map_named(named_params!{":name": &name}, |row|
-            {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?.next().unwrap().unwrap();
+            let mut stmt = self
+                .conn
+                .prepare("select count(*) from new_user_notification where name = :name")?;
+            let c = stmt
+                .query_map_named(named_params! {":name": &name}, |row| {
+                    let c: i64 = row.get(0)?;
+                    Ok(c)
+                })?
+                .next()
+                .unwrap()
+                .unwrap();
 
             if c == 1
             {
@@ -784,16 +921,15 @@ impl DataBase
                     return Ok(u);
                 }
 
-                return Err(ServerError::WrongUsernameOrPassword)
+                return Err(ServerError::WrongUsernameOrPassword);
             },
-            _ => Err(ServerError::UserNotExist)
+            _ => Err(ServerError::UserNotExist),
         }
-
     }
 
     fn hash(&self, word: &String) -> String
     {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(word);
         let result = hasher.finalize();
@@ -802,19 +938,18 @@ impl DataBase
 
     fn get_all_edit_matches(&self) -> ServerResult<Vec<EditMatchInfo>>
     {
-        let mut stmt
-          = self.conn.prepare("select a.name, b.name, epoch, m.id from matches as m
-                               inner join users as a on a.id = winner
-                               inner join users as b on b.id = loser
-                               order by epoch;")?;
-        let matches = stmt.query_map(NO_PARAMS, |row|
-        {
+        let mut stmt = self.conn.prepare(
+            "select a.name, b.name, epoch, m.id from matches as m
+             inner join users as a on a.id = winner
+             inner join users as b on b.id = loser
+             order by epoch;",
+        )?;
+        let matches = stmt.query_map(NO_PARAMS, |row| {
             Ok(EditMatchInfo {
                 winner: row.get(0)?,
-                loser: row.get(1)?,
-                epoch: row.get(2)?,
-                id: row.get(3)?,
-
+                loser:  row.get(1)?,
+                epoch:  row.get(2)?,
+                id:     row.get(3)?,
             })
         })?;
 
@@ -829,23 +964,23 @@ impl DataBase
         vec.reverse();
         Ok(vec)
     }
+
     fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
-        let mut stmt
-          = self.conn.prepare("select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
-                               inner join users as a on a.id = winner
-                               inner join users as b on b.id = loser
-                               order by epoch;")?;
-        let matches = stmt.query_map(NO_PARAMS, |row|
-        {
+        let mut stmt = self.conn.prepare(
+            "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
+             inner join users as a on a.id = winner
+             inner join users as b on b.id = loser
+             order by epoch;",
+        )?;
+        let matches = stmt.query_map(NO_PARAMS, |row| {
             Ok(Match {
-                winner: row.get(0)?,
-                loser: row.get(1)?,
-                elo_diff: row.get(2)?,
+                winner:     row.get(0)?,
+                loser:      row.get(1)?,
+                elo_diff:   row.get(2)?,
                 winner_elo: row.get(3)?,
-                loser_elo: row.get(4)?,
-                epoch: row.get(5)?,
-
+                loser_elo:  row.get(4)?,
+                epoch:      row.get(5)?,
             })
         })?;
 
@@ -864,7 +999,7 @@ impl DataBase
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("update users  set elo = :elo WHERE id = :id")?;
-        stmt.execute_named(named_params!{":elo": elo, ":id": id})?;
+        stmt.execute_named(named_params! {":elo": elo, ":id": id})?;
         Ok(())
     }
 
@@ -876,15 +1011,14 @@ impl DataBase
                 inner join users as b on b.id = loser
                 where winner = :id or loser = :id";
         let mut stmt = self.conn.prepare(s)?;
-        let matches = stmt.query_map_named(named_params!{":id" : id}, |row|
-        {
+        let matches = stmt.query_map_named(named_params! {":id" : id}, |row| {
             Ok(Match {
-                winner: row.get(0)?,
-                loser: row.get(1)?,
-                elo_diff: row.get(2)?,
+                winner:     row.get(0)?,
+                loser:      row.get(1)?,
+                elo_diff:   row.get(2)?,
                 winner_elo: row.get(3)?,
-                loser_elo: row.get(4)?,
-                epoch: row.get(5)?,
+                loser_elo:  row.get(4)?,
+                epoch:      row.get(5)?,
             })
         })?;
 
@@ -908,15 +1042,14 @@ impl DataBase
         }
 
         let mut stmt = self.conn.prepare("select id, name, elo, user_role from users;")?;
-        let users = stmt.query_map(NO_PARAMS, |row|
-        {
+        let users = stmt.query_map(NO_PARAMS, |row| {
             Ok(User {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                elo: row.get(2)?,
-                user_role: row.get(3)?,
+                id:            row.get(0)?,
+                name:          row.get(1)?,
+                elo:           row.get(2)?,
+                user_role:     row.get(3)?,
                 match_history: Vec::new(),
-                badges: Vec::new(),
+                badges:        Vec::new(),
             })
         })?;
 
@@ -934,18 +1067,18 @@ impl DataBase
 
     fn get_badges(&self, pid: i64) -> ServerResult<Vec<Badge>>
     {
-        let mut stmt = self.conn.prepare(
-            "select id, season_id, badge_index, pid from badges where pid = :pid")?;
-        let badges = stmt.query_map_named(named_params!{":pid": pid}, |row|
-        {
+        let mut stmt = self
+            .conn
+            .prepare("select id, season_id, badge_index, pid from badges where pid = :pid")?;
+        let badges = stmt.query_map_named(named_params! {":pid": pid}, |row| {
             let index: u32 = row.get(2)?;
-            let index = index  as usize;
+            let index = index as usize;
 
             Ok(Badge {
-                id: row.get(0)?,
+                id:     row.get(0)?,
                 season: row.get(1)?,
-                name: BADGES[index].to_string(),
-                color: BADGE_COLORS[index].to_string(),
+                name:   BADGES[index].to_string(),
+                color:  BADGE_COLORS[index].to_string(),
             })
         })?;
 
@@ -960,22 +1093,25 @@ impl DataBase
         return Ok(vec);
     }
 
-
     fn get_active_users(&self) -> ServerResult<Vec<User>>
     {
-        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users
-                                         where user_role & :inactive = 0;")?;
-        let users = stmt.query_map_named(named_params!{":inactive": USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE}, |row|
-        {
-            Ok(User {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                elo: row.get(2)?,
-                user_role: row.get(3)?,
-                match_history: Vec::new(),
-                badges: Vec::new(),
-            })
-        })?;
+        let mut stmt = self.conn.prepare(
+            "select id, name, elo, user_role from users
+             where user_role & :inactive = 0;",
+        )?;
+        let users = stmt.query_map_named(
+            named_params! {":inactive": USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE},
+            |row| {
+                Ok(User {
+                    id:            row.get(0)?,
+                    name:          row.get(1)?,
+                    elo:           row.get(2)?,
+                    user_role:     row.get(3)?,
+                    match_history: Vec::new(),
+                    badges:        Vec::new(),
+                })
+            },
+        )?;
 
         let mut vec = Vec::new();
         for user in users
@@ -1003,39 +1139,41 @@ impl DataBase
         Ok(user)
     }
 
-    fn  get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
+    fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
-        let mut stmt = self.conn.prepare(&format!("select id, name, elo, user_role from users where {} {} :val", col, comp))?;
-        let mut users = stmt.query_map_named(named_params!{":val": val}, |row|
-        {
+        let mut stmt = self.conn.prepare(&format!(
+            "select id, name, elo, user_role from users where {} {} :val",
+            col, comp
+        ))?;
+        let mut users = stmt.query_map_named(named_params! {":val": val}, |row| {
             Ok(User {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                elo: row.get(2)?,
-                user_role: row.get(3)?,
+                id:            row.get(0)?,
+                name:          row.get(1)?,
+                elo:           row.get(2)?,
+                user_role:     row.get(3)?,
                 match_history: Vec::new(),
-                badges: Vec::new()
+                badges:        Vec::new(),
             })
         })?;
 
         match users.next()
         {
-            Some(Ok(user)) =>
-            {
-                Ok(user)
-            },
-            Some(Err(_)) => Err(ServerError::Critical("???".into())), // What does this even mean 🤷‍♀️
-            None => Err(ServerError::UserNotExist)
+            Some(Ok(user)) => Ok(user),
+            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even
+                                                                        * mean 🤷‍♀️ */
+            None => Err(ServerError::UserNotExist),
         }
     }
 
     #[allow(dead_code)]
     fn get_default_password() -> String
     {
-        use std::io::prelude::*;
-        use std::io::BufReader;
-        use std::fs::File;
-        use sha2::{Sha256, Digest};
+        use std::{
+            fs::File,
+            io::{prelude::*, BufReader},
+        };
+
+        use sha2::{Digest, Sha256};
 
         let mut buffer = String::new();
         let file = File::open("default_password.txt").expect("Opening default password file");
@@ -1055,24 +1193,27 @@ impl DataBase
 }
 
 
-
 #[cfg(test)]
 mod test
 {
+    use rusqlite::NO_PARAMS;
+
     use super::*;
-    use rusqlite::{NO_PARAMS};
 
 
     fn respond_to_match(s: &DataBase, name: &str, id: i64)
     {
-        let mut stmt = s.conn
-                        .prepare("select uuid from users where name = :name")
-                        .expect("Creating query");
-        let token:  String = stmt.query_map_named(named_params!{":name": name}, |row|
-        {
-            let token: String = row.get(0).expect("Getting first row");
-            Ok(token)
-        }).expect("Executing stmt").next().unwrap().unwrap();
+        let mut stmt =
+            s.conn.prepare("select uuid from users where name = :name").expect("Creating query");
+        let token: String = stmt
+            .query_map_named(named_params! {":name": name}, |row| {
+                let token: String = row.get(0).expect("Getting first row");
+                Ok(token)
+            })
+            .expect("Executing stmt")
+            .next()
+            .unwrap()
+            .unwrap();
 
         s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
     }
@@ -1087,11 +1228,15 @@ mod test
         s.create_user(markus.clone(), "password".to_string()).unwrap();
 
         let mut stmt = s.conn.prepare("select name from new_user_notification;").unwrap();
-        let user_notification_name = stmt.query_map(NO_PARAMS, |row|
-        {
-            let name: String = row.get(0).expect("Getting first (and only) row");
-            Ok(name)
-        }).unwrap().next().unwrap().unwrap();
+        let user_notification_name = stmt
+            .query_map(NO_PARAMS, |row| {
+                let name: String = row.get(0).expect("Getting first (and only) row");
+                Ok(name)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp0");
         assert_eq!(user_notification_name, markus);
@@ -1111,11 +1256,10 @@ mod test
         s.create_user(markus.clone(), "password".to_string()).unwrap();
 
         let id = s.get_new_user_notifications(admin_token.clone()).unwrap()[0].id;
-        let answer = NewUserNotificationAns {
-            id: id,
-            token: admin_token.clone(),
-            ans: ACCEPT_MATCH,
-        };
+        let answer =
+            NewUserNotificationAns {
+                id: id, token: admin_token.clone(), ans: ACCEPT_MATCH
+            };
         s.respond_to_new_user(answer).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp01");
@@ -1126,10 +1270,13 @@ mod test
     fn create_user(s: &DataBase, name: &str) -> String
     {
         let uuid = format!("{}", Uuid::new_v4());
-        s.conn.execute(
-            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
-            params![name, s.hash(&"password".to_string()), uuid],
-            ).unwrap();
+        s.conn
+            .execute("insert into users (name, password_hash, uuid) values (?1, ?2, ?3)", params![
+                name,
+                s.hash(&"password".to_string()),
+                uuid
+            ])
+            .unwrap();
         uuid
     }
 
@@ -1149,34 +1296,30 @@ mod test
         respond_to_match(&s, "Sivert", 1);
         respond_to_match(&s, "Lars", 1);
 
-        let mut stmt = s.conn.prepare("select * from match_notification")
-                             .expect("creating statement");
+        let mut stmt =
+            s.conn.prepare("select * from match_notification").expect("creating statement");
 
-        let find  = stmt.query_map(NO_PARAMS, |row|
-        {
+        let find = stmt.query_map(NO_PARAMS, |row| {
             let c: i64 = row.get(0).expect("getting first row");
             Ok(c)
         });
 
         assert!(find.expect("unwrapping quey map").next().is_none());
 
-        let mut stmn = s.conn.prepare("select COUNT(*) from matches")
-                             .expect("creating statement");
+        let mut stmn = s.conn.prepare("select COUNT(*) from matches").expect("creating statement");
 
-        let find  = stmn.query_map(NO_PARAMS, |row|
-        {
+        let find = stmn.query_map(NO_PARAMS, |row| {
             let c: i64 = row.get(0).expect("getting first row");
             Ok(c)
         });
 
         std::fs::remove_file(db_file).expect("Removing file temp2");
-        assert!(find.unwrap()
-                    .next()
-                    .unwrap()
-                    .unwrap() == 1);
+        assert!(find.unwrap().next().unwrap().unwrap() == 1);
 
-        let (sivert, lars) = (s.get_user_without_matches(&"Sivert".to_string()).unwrap(),
-                              s.get_user_without_matches(&"Lars".to_string()).unwrap());
+        let (sivert, lars) = (
+            s.get_user_without_matches(&"Sivert".to_string()).unwrap(),
+            s.get_user_without_matches(&"Lars".to_string()).unwrap(),
+        );
         assert!(sivert.elo > 1500.0);
         assert!(lars.elo < 1500.0);
     }
@@ -1198,21 +1341,31 @@ mod test
         s.register_match(winner.clone(), loser.clone(), uuid).expect("Creating match");
 
 
-        let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
-        let winner_accept = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: u8 = row.get(0).expect("Getting first (and only) row");
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let mut stmt =
+            s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let winner_accept = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: u8 = row.get(0).expect("Getting first (and only) row");
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
 
 
-        let mut stmt = s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
-        let loser_accept = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: u8 = row.get(0).expect("Getting first (and only) row");
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let mut stmt =
+            s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let loser_accept = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: u8 = row.get(0).expect("Getting first (and only) row");
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
 
         std::fs::remove_file(db_file).expect("Removing file tempA");
@@ -1235,21 +1388,31 @@ mod test
         s.register_match(winner.clone(), loser.clone(), loser_uuid).expect("Creating match");
 
 
-        let mut stmt = s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
-        let winner_accept = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: u8 = row.get(0).expect("Getting first (and only) row");
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let mut stmt =
+            s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let winner_accept = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: u8 = row.get(0).expect("Getting first (and only) row");
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
 
 
-        let mut stmt = s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
-        let loser_accept = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: u8 = row.get(0).expect("Getting first (and only) row");
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let mut stmt =
+            s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let loser_accept = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: u8 = row.get(0).expect("Getting first (and only) row");
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
 
         std::fs::remove_file(db_file).expect("Removing file tempA");
@@ -1273,23 +1436,16 @@ mod test
         respond_to_match(&s, "Sivert", 1);
 
 
-        let mut stmt = s.conn
-                    .prepare("select * from match_notification")
-                    .expect("creating statement");
+        let mut stmt =
+            s.conn.prepare("select * from match_notification").expect("creating statement");
 
-        let find  = stmt.query_map(NO_PARAMS, |row|
-        {
+        let find = stmt.query_map(NO_PARAMS, |row| {
             let c: i64 = row.get(1).expect("getting first row");
             Ok(c)
         });
 
         std::fs::remove_file(db_file).expect("Removing file temp2");
-        assert!(
-                find.unwrap()
-                    .next()
-                    .unwrap()
-                    .unwrap()
-                == 1);
+        assert!(find.unwrap().next().unwrap().unwrap() == 1);
     }
 
     #[test]
@@ -1300,25 +1456,21 @@ mod test
         let uuid = create_user(&s, "Sivert");
         create_user(&s, "Lars");
 
-        let winner =  "Sivert".to_string();
+        let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
         s.register_match(winner, loser, uuid).expect("Creating match");
 
-        let mut stmn = s.conn.prepare("select COUNT(*) from match_notification")
-                             .expect("creating statement");
+        let mut stmn =
+            s.conn.prepare("select COUNT(*) from match_notification").expect("creating statement");
 
-        let find  = stmn.query_map(NO_PARAMS, |row|
-        {
+        let find = stmn.query_map(NO_PARAMS, |row| {
             let c: i64 = row.get(0).expect("getting first row");
             Ok(c)
         });
 
         std::fs::remove_file(db_file).expect("Removing file temp");
-        assert!(find.unwrap()
-                    .next()
-                    .unwrap()
-                    .unwrap() == 1);
+        assert!(find.unwrap().next().unwrap().unwrap() == 1);
     }
 
     #[test]
@@ -1377,7 +1529,8 @@ mod test
     {
         let db_file = "temp8.db";
         let s = DataBase::new(db_file);
-        let (name, password, new) = ("Sivert".to_string(), "password".to_string(), "new".to_string());
+        let (name, password, new) =
+            ("Sivert".to_string(), "password".to_string(), "new".to_string());
         create_user(&s, &name);
         s.change_password(name.clone(), password.clone(), new.clone()).expect("Changing password");
 
@@ -1459,9 +1612,11 @@ mod test
          * A _little_ different, BUT! More correct, rollback should fix these
          */
         s.roll_back(-1).expect("Rolling back");
-        let (siv_user, lars_user, bernt_user) = (s.get_user_without_matches(&siv).unwrap(),
-                                                 s.get_user_without_matches(&lars).unwrap(),
-                                                 s.get_user_without_matches(&bernt).unwrap());
+        let (siv_user, lars_user, bernt_user) = (
+            s.get_user_without_matches(&siv).unwrap(),
+            s.get_user_without_matches(&lars).unwrap(),
+            s.get_user_without_matches(&bernt).unwrap(),
+        );
 
         std::fs::remove_file(db_file).expect("Removing file temp");
         assert_eq!(siv_user.elo, 1514.2851406137202);
@@ -1545,7 +1700,7 @@ mod test
         create_user(&s, "Bernt");
 
         let users = s.get_users().unwrap();
-        assert_eq!(users.len(),  3);
+        assert_eq!(users.len(), 3);
 
         s.make_user_inactive(mark.clone()).unwrap();
         s.make_user_soft_inactive(sv).unwrap();
@@ -1553,7 +1708,7 @@ mod test
         let users = s.get_users().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempG");
 
-        assert_eq!(users.len(),  1);
+        assert_eq!(users.len(), 1);
     }
 
     #[test]
@@ -1568,13 +1723,13 @@ mod test
         s.make_user_soft_inactive(mark.clone()).unwrap();
 
         let users = s.get_users().unwrap();
-        assert_eq!(users.len(),  0);
+        assert_eq!(users.len(), 0);
 
         s.login(mark, "password".to_string()).unwrap();
         let users = s.get_users().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempG");
 
-        assert_eq!(users.len(),  1);
+        assert_eq!(users.len(), 1);
     }
 
     #[test]
@@ -1585,7 +1740,8 @@ mod test
 
         let markus = "Markus".to_string();
         create_user(&s, &markus);
-        let res = s.change_password(markus.clone(), "Wrong".to_string(), ":woman_shrug:".to_string());
+        let res =
+            s.change_password(markus.clone(), "Wrong".to_string(), ":woman_shrug:".to_string());
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(res.is_err());
@@ -1609,11 +1765,11 @@ mod test
 
 
         let info = NewEditMatchInfo {
-            token: uuid,
+            token:  uuid,
             winner: loser.clone(),
-            loser: winner.clone(),
-            epoch: 15,
-            id: 1
+            loser:  winner.clone(),
+            epoch:  15,
+            id:     1,
         };
 
         s.edit_match(info).expect("Editing match");
@@ -1643,8 +1799,7 @@ mod test
 
 
         let info = DeleteMatchInfo {
-            token: uuid,
-            id: 1
+            token: uuid, id: 1
         };
 
         s.delete_match(info).expect("delete match");
@@ -1678,14 +1833,10 @@ mod test
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        users1
-            .into_iter()
-            .zip(users2.into_iter())
-            .enumerate()
-            .for_each(|(i, (u1, u2))|
-        {
+        users1.into_iter().zip(users2.into_iter()).enumerate().for_each(|(i, (u1, u2))| {
             assert_eq!(u1.badges[0].name, BADGES[i]);
-            assert_eq!(u2.badges[0].season, 1); assert_eq!(u2.badges[1].season, 2);
+            assert_eq!(u2.badges[0].season, 1);
+            assert_eq!(u2.badges[1].season, 2);
         });
     }
 
@@ -1718,39 +1869,49 @@ mod test
         s.register_match(mark.clone(), siv.clone(), uuid_m).unwrap();
         respond_to_match(&s, siv.as_str(), 1);
 
-        let (s_elo_old, m_elo_old) = (s.get_user(&siv).unwrap().elo, 
-                                      s.get_user(&mark).unwrap().elo);
+        let (s_elo_old, m_elo_old) =
+            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
 
         s.start_new_season(true).unwrap();
 
-        let (s_elo_new, m_elo_new) = (s.get_user(&siv).unwrap().elo, 
-                                      s.get_user(&mark).unwrap().elo);
+        let (s_elo_new, m_elo_new) =
+            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
 
         let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
-        let count = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: i64 = row.get(0)?;
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let count = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
         let mut stmt = s.conn.prepare("select count(*) from matches").unwrap();
-        let match_history_count = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: i64 = row.get(0)?;
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let match_history_count = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
 
         let users = s.get_users().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 1);
         assert_eq!(match_history_count, 0);
         assert_eq!(users.len(), 0);
-        assert!(s_elo_old < 1500.0); assert!(m_elo_old > 1500.0);
-        assert!(s_elo_new == 1500.0); assert!(m_elo_new == 1500.0);
+        assert!(s_elo_old < 1500.0);
+        assert!(m_elo_old > 1500.0);
+        assert!(s_elo_new == 1500.0);
+        assert!(m_elo_new == 1500.0);
     }
 
     #[test]
-    fn  test_creating_multiple_seasons()
+    fn test_creating_multiple_seasons()
     {
         let db_file = "tempMM.db";
         let s = DataBase::new(db_file);
@@ -1763,11 +1924,15 @@ mod test
         s.start_new_season(false).unwrap();
 
         let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
-        let count = stmt.query_map(NO_PARAMS, |row|
-        {
-            let c: i64 = row.get(0)?;
-            Ok(c)
-        }).unwrap().next().unwrap().unwrap();
+        let count = stmt
+            .query_map(NO_PARAMS, |row| {
+                let c: i64 = row.get(0)?;
+                Ok(c)
+            })
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 3);
     }
