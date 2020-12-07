@@ -47,8 +47,6 @@ class Leaderboard extends Component {
         color={color}
         style={{
           fontSize: '16px',
-          position: 'absolute',
-          left: `${i * 5}px`,
           stroke: 'black',
           strokeWidth: '24',
         }}
@@ -57,23 +55,12 @@ class Leaderboard extends Component {
   }
 
   getUserBadges(user) {
+    // TODO: Stack badges when too wide
     return (
-      <div style={{ position: 'relative' }}>
-        <div style={{ position: 'absolute' }}>
-          {Array.from(Array(3).keys()).map((i) =>
-            this._userBadge('trophy', 'yellow', i),
-          )}
-        </div>
-        <div style={{ position: 'absolute', left: `${3 * 5 + 20}px` }}>
-          {Array.from(Array(2).keys()).map((i) =>
-            this._userBadge('medal', 'silver', i),
-          )}
-        </div>
-        <div style={{ position: 'absolute', left: `${5 * 5 + 40}px` }}>
-          {Array.from(Array(4).keys()).map((i) =>
-            this._userBadge('award', 'turquoise', i),
-          )}
-        </div>
+      <div>
+        {user.badges.map((badge, i) =>
+          this._userBadge(badge.name, badge.color, i),
+        )}
       </div>
     )
   }
