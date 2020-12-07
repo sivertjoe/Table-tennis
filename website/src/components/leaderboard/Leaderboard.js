@@ -2,6 +2,7 @@ import { React, Component } from 'react'
 import * as UserApi from '../../api/UserApi'
 import './Leaderboard.css'
 import '../../index.css'
+import Badges from '../badges/Badges'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
 class Leaderboard extends Component {
@@ -38,33 +39,6 @@ class Leaderboard extends Component {
     )
   }
 
-  _userBadge(icon, color, i) {
-    return (
-      <FontAwesomeIcon
-        key={i}
-        fixedWidth
-        icon={icon}
-        color={color}
-        style={{
-          fontSize: '16px',
-          stroke: 'black',
-          strokeWidth: '24',
-        }}
-      />
-    )
-  }
-
-  getUserBadges(user) {
-    // TODO: Stack badges when too wide
-    return (
-      <div>
-        {user.badges.map((badge, i) =>
-          this._userBadge(badge.name, badge.color, i),
-        )}
-      </div>
-    )
-  }
-
   render() {
     let ranking = 0
     const name = localStorage.getItem('username')
@@ -95,7 +69,7 @@ class Leaderboard extends Component {
                       <a href={'/profiles/' + user.name}>{user.name}</a>
                     </td>
                     <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
-                      {this.getUserBadges(user)}
+                      <Badges user={user} />
                     </td>
                     <td>{Math.trunc(user.elo)}</td>
                   </tr>
