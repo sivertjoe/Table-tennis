@@ -38,6 +38,46 @@ class Leaderboard extends Component {
     )
   }
 
+  _userBadge(icon, color, i) {
+    return (
+      <FontAwesomeIcon
+        key={i}
+        fixedWidth
+        icon={icon}
+        color={color}
+        style={{
+          fontSize: '16px',
+          position: 'absolute',
+          left: `${i * 5}px`,
+          stroke: 'black',
+          strokeWidth: '24',
+        }}
+      />
+    )
+  }
+
+  getUserBadges(user) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute' }}>
+          {Array.from(Array(3).keys()).map((i) =>
+            this._userBadge('trophy', 'yellow', i),
+          )}
+        </div>
+        <div style={{ position: 'absolute', left: `${3 * 5 + 20}px` }}>
+          {Array.from(Array(2).keys()).map((i) =>
+            this._userBadge('medal', 'silver', i),
+          )}
+        </div>
+        <div style={{ position: 'absolute', left: `${5 * 5 + 40}px` }}>
+          {Array.from(Array(4).keys()).map((i) =>
+            this._userBadge('award', 'turquoise', i),
+          )}
+        </div>
+      </div>
+    )
+  }
+
   render() {
     let ranking = 0
     const name = localStorage.getItem('username')
@@ -50,6 +90,7 @@ class Leaderboard extends Component {
               <tr key={ranking}>
                 <th>Rank</th>
                 <th>Name</th>
+                <th style={{ textAlign: 'left' }}>Badges</th>
                 <th>Elo</th>
               </tr>
               {this.users.map((user) => {
@@ -65,6 +106,9 @@ class Leaderboard extends Component {
                     </td>
                     <td>
                       <a href={'/profiles/' + user.name}>{user.name}</a>
+                    </td>
+                    <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                      {this.getUserBadges(user)}
                     </td>
                     <td>{Math.trunc(user.elo)}</td>
                   </tr>
