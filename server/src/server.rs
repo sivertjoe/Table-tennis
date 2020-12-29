@@ -231,12 +231,18 @@ impl DataBase
 
     pub fn get_all_users(&self, token: String) -> ServerResult<Vec<User>>
     {
-        Ok(self._get_all_users(token)?)
+        self._get_all_users(token)
+    }
+
+    pub fn get_non_inactive_users(&self)
+    -> ServerResult<Vec<User>>
+    {
+        self.get_all_non_inactive_users()
     }
 
     pub fn get_users(&self) -> ServerResult<Vec<User>>
     {
-        Ok(self.get_active_users()?)
+        self.get_active_users()
     }
 
     pub fn register_match(
@@ -399,10 +405,13 @@ impl DataBase
             Err(e) => return Err(e),
         };
 
-        let role = user.user_role & !USER_ROLE_INACTIVE & !USER_ROLE_SOFT_INACTIVE;
-        let mut stmt =
-            self.conn.prepare("update users set user_role = :role where name = :name")?;
-        stmt.execute_named(named_params! {":role": role, ":name": name})?;
+        if user.user_role & (USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE) > 0
+        {
+            let role = user.user_role & !USER_ROLE_INACTIVE & !USER_ROLE_SOFT_INACTIVE;
+            let mut stmt =
+                self.conn.prepare("update users set user_role = :role where name = :name")?;
+            stmt.execute_named(named_params! {":role": role, ":name": name})?;
+        }
         Ok(0)
     }
 
@@ -755,6 +764,8 @@ impl DataBase
 
         self.update_elo(winner.id, new_winner_elo)?;
         self.update_elo(loser.id, new_loser_elo)?;
+        self.make_user_active(winner.name.clone())?;
+        self.make_user_active(loser.name.clone())?;
         Ok(())
     }
 
@@ -868,15 +879,14 @@ impl DataBase
     fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
         let mut stmt = self.conn.prepare(
-            "select password_hash, uuid, user_role, name from users where name = :name;",
+            "select password_hash, uuid, user_role from users where name = :name;",
         )?;
         let info = stmt
             .query_map_named(named_params! {":name" : name}, |row| {
                 let passwd: String = row.get(0)?;
                 let uuid: String = row.get(1)?;
                 let role: u8 = row.get(2)?;
-                let name: String = row.get(3)?;
-                Ok((passwd, uuid, role, name))
+                Ok((passwd, uuid, role))
             })?
             .next();
 
@@ -904,16 +914,11 @@ impl DataBase
 
         match info.unwrap()
         {
-            Ok((p, u, r, name)) =>
+            Ok((p, u, r)) =>
             {
                 if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
                 {
                     return Err(ServerError::InactiveUser);
-                }
-
-                if r & USER_ROLE_SOFT_INACTIVE == USER_ROLE_SOFT_INACTIVE
-                {
-                    self.make_user_active(name)?;
                 }
 
                 if self.hash(&password) == p
@@ -1093,14 +1098,14 @@ impl DataBase
         return Ok(vec);
     }
 
-    fn get_active_users(&self) -> ServerResult<Vec<User>>
+    fn get_users_with_user_role(&self, user_role: u8, val: u8) -> ServerResult<Vec<User>>
     {
         let mut stmt = self.conn.prepare(
             "select id, name, elo, user_role from users
-             where user_role & :inactive = 0;",
+             where user_role & :user_role = :val;",
         )?;
         let users = stmt.query_map_named(
-            named_params! {":inactive": USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE},
+            named_params! {":user_role": user_role, ":val": val},
             |row| {
                 Ok(User {
                     id:            row.get(0)?,
@@ -1124,6 +1129,16 @@ impl DataBase
         }
         vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
         Ok(vec)
+    }
+
+    fn get_all_non_inactive_users(&self) -> ServerResult<Vec<User>>
+    {
+        self.get_users_with_user_role(USER_ROLE_INACTIVE, 0)
+    }
+
+    fn get_active_users(&self) -> ServerResult<Vec<User>>
+    {
+        self.get_users_with_user_role(USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE, 0)
     }
 
     fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
@@ -1705,27 +1720,6 @@ mod test
         s.make_user_inactive(mark.clone()).unwrap();
         s.make_user_soft_inactive(sv).unwrap();
 
-        let users = s.get_users().unwrap();
-        std::fs::remove_file(db_file).expect("Removing file tempG");
-
-        assert_eq!(users.len(), 1);
-    }
-
-    #[test]
-    fn test_soft_inactive_user_gets_active_when_logging_in()
-    {
-        let db_file = "tempGGG.db";
-        let s = DataBase::new(db_file);
-
-        let mark = "markus".to_string();
-        create_user(&s, mark.as_str());
-
-        s.make_user_soft_inactive(mark.clone()).unwrap();
-
-        let users = s.get_users().unwrap();
-        assert_eq!(users.len(), 0);
-
-        s.login(mark, "password".to_string()).unwrap();
         let users = s.get_users().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempG");
 
