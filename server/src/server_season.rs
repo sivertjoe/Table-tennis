@@ -67,10 +67,14 @@ impl DataBase
 
     fn set_users_soft_inactive(&self) -> ServerResult<()>
     {
-        self.conn.execute(
-            &format!("update users set user_role = {}", USER_ROLE_SOFT_INACTIVE),
-            NO_PARAMS,
-        )?;
+        for user in self.get_non_inactive_users()?
+        {
+            self.conn.execute(
+                &format!("update users set user_role = {} where id = {}",
+                         user.user_role | USER_ROLE_SOFT_INACTIVE, user.id),
+                NO_PARAMS,
+            )?;
+        }
 
         Ok(())
     }
