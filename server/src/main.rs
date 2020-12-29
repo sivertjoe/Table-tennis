@@ -166,6 +166,21 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
     }
 }
 
+
+#[get("/active-users")]
+async fn get_active_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_non_inactive_users()
+    {
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(s) => HttpResponse::InternalServerError().body(format!("{}", s)),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
 #[get("/users")]
 async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
@@ -179,6 +194,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
         },
     }
 }
+
 
 #[get("/all-users/{token}")]
 async fn get_all_users(
@@ -410,6 +426,7 @@ async fn main() -> std::io::Result<()>
             .service(login)
             .service(change_password)
             .service(roll_back)
+            .service(get_active_users)
     });
 
     if cfg!(debug_assertions)
