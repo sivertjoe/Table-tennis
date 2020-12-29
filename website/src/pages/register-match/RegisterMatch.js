@@ -12,7 +12,7 @@ class RegisterMatch extends Component {
 
   constructor() {
     super()
-    UserApi.getUsers()
+    UserApi.getMatchUsers()
       .then((users) => {
         this.users = users.map((u) => ({
           value: u.name,
