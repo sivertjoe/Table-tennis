@@ -15,3 +15,10 @@ table {
   margin: auto auto;
   text-align: center;
 }
+
+.rank-badge {
+  width: 16px;
+  /* height: 16px; */
+  margin-left: -18px;
+  margin-right: 2px;
+}
