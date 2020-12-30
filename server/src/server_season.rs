@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use rusqlite::{params, NO_PARAMS};
 
 use crate::{
+    badge::NUM_SEASON_PRIZES,
     season::Season,
     server::{DataBase, ServerResult},
     user::USER_ROLE_SOFT_INACTIVE,
@@ -30,7 +31,7 @@ impl DataBase
         // Only award badges if there were a season
         if let Some(season) = self.get_latest_season()?
         {
-            for (i, user) in self.get_users()?.into_iter().take(4).enumerate()
+            for (i, user) in self.get_users()?.into_iter().take(NUM_SEASON_PRIZES).enumerate()
             {
                 self.award_badge(i as i64, season.id, user.id)?;
             }
