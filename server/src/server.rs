@@ -1859,6 +1859,7 @@ mod test
         let siv = "Sivert".to_string();
         let uuid_m = create_user(&s, mark.as_str());
         create_user(&s, siv.as_str());
+        s.make_user_admin(siv.clone()).expect("Making user admin");
 
         s.register_match(mark.clone(), siv.clone(), uuid_m).unwrap();
         respond_to_match(&s, siv.as_str(), 1);
@@ -1894,6 +1895,7 @@ mod test
             .unwrap();
 
         let users = s.get_users().unwrap();
+        let siv = s.get_user(&siv).expect("Getting user Sivert");
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 1);
         assert_eq!(match_history_count, 0);
@@ -1902,6 +1904,7 @@ mod test
         assert!(m_elo_old > 1500.0);
         assert!(s_elo_new == 1500.0);
         assert!(m_elo_new == 1500.0);
+        assert_eq!(siv.user_role, USER_ROLE_SOFT_INACTIVE | USER_ROLE_SUPERUSER);
     }
 
     #[test]
