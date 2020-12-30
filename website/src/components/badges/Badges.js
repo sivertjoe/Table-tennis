@@ -1,7 +1,7 @@
 import { React, Component } from 'react'
 import './Badges.css'
 import '../../index.css'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import images from '../../assets/images'
 
 class Leaderboard extends Component {
   constructor(args) {
@@ -13,14 +13,11 @@ class Leaderboard extends Component {
   userBadge(badge, i) {
     return (
       <div key={i} className="box">
-        <FontAwesomeIcon
-          fixedWidth
-          icon={badge.name}
-          color={badge.color}
+        <img
+          alt="Badge"
+          src={images[badge.name]}
           style={{
-            fontSize: this.size,
-            stroke: 'black',
-            strokeWidth: '24',
+            width: this.size,
           }}
         />
         <div className="badge-info">Season: {badge.season}</div>

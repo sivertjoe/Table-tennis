@@ -3,7 +3,7 @@ import * as UserApi from '../../api/UserApi'
 import './Leaderboard.css'
 import '../../index.css'
 import Badges from '../badges/Badges'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import images from '../../assets/images'
 
 class Leaderboard extends Component {
   users = []
@@ -18,25 +18,13 @@ class Leaderboard extends Component {
   }
 
   getRankBadge(rank) {
-    let icon, color
-    if (rank === 1) [icon, color] = ['crown', 'yellow']
-    else if (rank === 2) [icon, color] = ['medal', 'silver']
-    else if (rank === 3) [icon, color] = ['medal', 'orange']
-    else if (rank === 4) [icon, color] = ['award', 'turquoise']
+    let badge
+    if (rank === 1) badge = images['first_place.png']
+    else if (rank === 2) badge = images['second_place.png']
+    else if (rank === 3) badge = images['third_place.png']
     else return
 
-    return (
-      <FontAwesomeIcon
-        fixedWidth
-        icon={icon}
-        color={color}
-        style={{
-          marginLeft: '-22px',
-          marginRight: '2px',
-          fontSize: '16px',
-        }}
-      />
-    )
+    return <img alt="Badge" src={badge} className="rank-badge" />
   }
 
   render() {
