@@ -1083,7 +1083,6 @@ impl DataBase
                 id:     row.get(0)?,
                 season: row.get(1)?,
                 name:   BADGES[index].to_string(),
-                color:  BADGE_COLORS[index].to_string(),
             })
         })?;
 
@@ -1811,7 +1810,6 @@ mod test
 
         create_user(&s, "Sivert");
         create_user(&s, "Lars");
-        create_user(&s, "Bernt");
         create_user(&s, "Ella");
 
         s.start_new_season(false).expect("Staring first season");
