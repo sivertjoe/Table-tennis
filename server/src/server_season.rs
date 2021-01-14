@@ -101,14 +101,13 @@ impl DataBase
     {
         let old_season = self.get_latest_season()?.unwrap_or_else(|| {
             // First ever season!!
-            let now = Utc::now();
             Season {
-                id: 0, start_epoch: now.timestamp_millis()
+                id: 0, start_epoch: -1
             }
         });
 
         self.conn.execute("insert into seasons (start_epoch) values (?1)", params![
-            old_season.start_epoch
+            Utc::now().timestamp_millis()
         ])?;
 
         Ok(old_season.id)
