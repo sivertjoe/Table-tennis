@@ -4,7 +4,7 @@ export const getUsers = () => BaseApi.get('users')
 
 export const getUser = (username) => BaseApi.get('user/' + username)
 
-export const getMatchUsers = () => BaseApi.get('active-users')
+export const getActiveUsers = () => BaseApi.get('active-users')
 
 export const register = (username, password) =>
   BaseApi.post('create-user', {

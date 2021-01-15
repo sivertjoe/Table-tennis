@@ -91,7 +91,7 @@ class Profiles extends Component {
 
   constructor() {
     super()
-    UserApi.getUsers()
+    UserApi.getActiveUsers()
       .then((users) => {
         this.users = users
         this.filtered = users
