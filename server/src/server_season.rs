@@ -90,7 +90,17 @@ impl DataBase
         )?;
 
         self.conn.execute(
-            &format!("create table matches as select * from matches{} where 0", season_number),
+            "create table if not exists matches (
+                id              integer primary key autoincrement,
+                epoch           bigint not null,
+                elo_diff        integer,
+                winner_elo      float,
+                loser_elo       float,
+                winner          integer,
+                loser           integer,
+                foreign key(winner) references users(id),
+                foreign key(loser) references users(id)
+                )",
             NO_PARAMS,
         )?;
 
