@@ -8,7 +8,7 @@ mod server_rollback;
 mod server_season;
 mod user;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc::{channel, Receiver, Sender}};
 
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
@@ -19,6 +19,7 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde_json::json;
 use serde_derive::Deserialize;
 use server::{DataBase, ServerError};
+use season::Season;
 use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo};
 
 const PORT: u32 = 58642;
@@ -390,13 +391,25 @@ struct EditSeasonLength
     new_val: i32,
 }
 
+
+static mut SENDER: Option<Sender<i32>> = None;
+
 #[post("/season_length")]
 async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: EditSeasonLength = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).set_season_length(info.token, info.new_val)
     {
-        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Ok(_) => {
+            unsafe {
+                SENDER
+                    .as_ref()
+                    .unwrap()
+                    .send(info.new_val)
+                    .expect("Sending new season length");
+            }
+            HttpResponse::Ok().json(response_ok())
+        }
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -415,22 +428,43 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
     builder
 }
 
-fn spawn_season_checker(data: Arc<Mutex<DataBase>>)
+
+//@TODO: This function should propably - somehow - be tested
+fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i32>)
 {
+    let s = data.lock().expect("Getting mutex");
+    let mut season_length = s.get_season_length().unwrap();
+
+    // There always has to be a season I guess?
+    let season = s.get_latest_season().unwrap().unwrap_or_else(|| {
+        s.end_season().expect("Endig season");
+        s.start_new_season(true).expect("starting new season");
+        Season {
+            id: 0, start_epoch: Utc::now().timestamp_millis()
+        }
+    });
+    drop(s);
+
+
     actix_rt::spawn(async move {
         loop
         {
-            let mut _month = Utc::now().month();
-            while Utc::now().month() == _month
+            let mut _start_month = Utc.timestamp_millis(season.start_epoch).month();
+            // @TODO: Take end of the year into consideration
+            while Utc::now().month() != _start_month + season_length as u32
             {
-                continue;
+                match receiver.try_recv()
+                {
+                    Ok(n) => season_length = n,
+                    _  => {}
+                };
             }
 
 
             let s = data.lock().expect("Getting mutex");
             s.end_season().expect("Endig season");
             s.start_new_season(true).expect("starting new season");
-            _month = Utc::now().month();
+            _start_month = Utc::now().month();
             drop(s);
         }
     });
@@ -458,8 +492,13 @@ fn handle_args(data: &Arc<Mutex<DataBase>>)
 async fn main() -> std::io::Result<()>
 {
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
-    spawn_season_checker(data.clone());
     handle_args(&data);
+
+    let (sender, receiver) = channel();
+    spawn_season_checker(data.clone(), receiver);
+    unsafe { // :pepeworry:
+        SENDER = Some(sender);
+    }
 
     let server = HttpServer::new(move || {
         App::new()
