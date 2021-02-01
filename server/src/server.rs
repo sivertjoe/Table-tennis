@@ -27,6 +27,9 @@ const ACCEPT_MATCH: u8 = 1;
 #[allow(dead_code)]
 const DECLINE_MATCH: u8 = 2;
 
+pub const N_SEASON_ID: u32 = 1;
+
+
 pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
 
 #[derive(Debug)]
@@ -154,6 +157,14 @@ impl DataBase
         )
         .expect("Creating season table");
 
+        conn.execute(
+            "create table if not exists variables (
+                id              integer primary key,
+                value           integer not null
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
 
         DataBase {
             conn: conn
@@ -1219,7 +1230,6 @@ impl DataBase
 mod test
 {
     use rusqlite::NO_PARAMS;
-
     use super::*;
 
 
@@ -1945,5 +1955,30 @@ mod test
             .unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_season_length_functionality()
+    {
+        let db_file = "tempMO.db";
+        let s = DataBase::new(db_file);
+
+        let get_season_length = |s: &Connection| -> Option<rusqlite::Result<i32>>
+        {
+            s
+             .prepare(&format!("select value from variables where id = {}", N_SEASON_ID)).unwrap()
+             .query_map(NO_PARAMS, |row| {
+            let c: i32 = row.get(0)?;
+            Ok(c)
+        }).unwrap().next()
+        };
+       
+        let first = get_season_length(&s.conn);
+        let val = s.get_season_length();
+        let second = get_season_length(&s.conn);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert!(first.is_none());
+        assert_eq!(val.unwrap(), 1);
+        assert!(second.is_some());
     }
 }
