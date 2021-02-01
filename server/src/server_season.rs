@@ -146,7 +146,7 @@ impl DataBase
 // ~ Common functions :thinking:
 impl DataBase
 {
-    fn get_latest_season(&self) -> ServerResult<Option<Season>>
+    pub fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
         let mut stmt = self.conn.prepare("select id, start_epoch from seasons order by id desc")?;
         let mut seasons = stmt.query_map(NO_PARAMS, |row| {
