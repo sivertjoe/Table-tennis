@@ -1,12 +1,37 @@
 use chrono::prelude::*;
-use rusqlite::{params, NO_PARAMS};
+use rusqlite::{named_params, params, NO_PARAMS};
 
 use crate::{
     badge::NUM_SEASON_PRIZES,
     season::Season,
-    server::{DataBase, ServerResult},
+    server::{DataBase, ServerResult, N_SEASON_ID},
     user::USER_ROLE_SOFT_INACTIVE,
 };
+
+// Kneel before my one-liner
+macro_rules! GET_OR_CREATE_DB_VAR {
+    ($conn: expr, $id: expr, $default_value: expr) => {
+        $conn
+            .prepare("select value from variables where id = :id")?
+            .query_map_named(named_params! {":id": $id}, |row| {
+                let c: i32 = row.get(0)?;
+                Ok(c)
+            })?
+            .next()
+            .map_or_else(
+                || {
+                    $conn
+                        .execute("insert into variables (id, value) values (?1, ?2)", params![
+                            $id,
+                            $default_value
+                        ])
+                        .expect(&format!("Inserting into variables <{}, {}>", $id, $default_value));
+                    Ok($default_value)
+                },
+                |val| Ok(val.unwrap()),
+            )
+    };
+}
 
 
 impl DataBase
@@ -19,6 +44,11 @@ impl DataBase
     pub fn start_new_season(&self, inactive: bool) -> ServerResult<()>
     {
         self._start_new_season(inactive)
+    }
+
+    pub fn get_season_length(&self) -> ServerResult<i32>
+    {
+        GET_OR_CREATE_DB_VAR!(&self.conn, N_SEASON_ID, 1)
     }
 }
 

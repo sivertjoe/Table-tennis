@@ -367,6 +367,19 @@ async fn roll_back(
     }
 }
 
+#[get("/season_length")]
+async fn get_season_length(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_season_length()
+    {
+        Ok(n_months) => HttpResponse::Ok().json(json!({"status": 0, "result": n_months})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -446,6 +459,7 @@ async fn main() -> std::io::Result<()>
             .service(change_password)
             .service(roll_back)
             .service(get_active_users)
+            .service(get_season_length)
     });
 
     if cfg!(debug_assertions)
