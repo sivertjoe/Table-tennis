@@ -2,37 +2,12 @@ use chrono::prelude::*;
 use rusqlite::{named_params, params, NO_PARAMS};
 
 use crate::{
+    GET_OR_CREATE_DB_VAR,
     badge::NUM_SEASON_PRIZES,
     season::Season,
     server::{DataBase, ServerError, ServerResult, N_SEASON_ID},
     user::USER_ROLE_SOFT_INACTIVE,
 };
-
-// Kneel before my one-liner
-macro_rules! GET_OR_CREATE_DB_VAR {
-    ($conn: expr, $id: expr, $default_value: expr) => {
-        $conn
-            .prepare("select value from variables where id = :id")?
-            .query_map_named(named_params! {":id": $id}, |row| {
-                let c: i32 = row.get(0)?;
-                Ok(c)
-            })?
-            .next()
-            .map_or_else(
-                || {
-                    $conn
-                        .execute("insert into variables (id, value) values (?1, ?2)", params![
-                            $id,
-                            $default_value
-                        ])
-                        .expect(&format!("Inserting into variables <{}, {}>", $id, $default_value));
-                    Ok($default_value)
-                },
-                |val| Ok(val.unwrap()),
-            )
-    };
-}
-
 
 impl DataBase
 {

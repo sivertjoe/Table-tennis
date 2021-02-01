@@ -2,6 +2,7 @@ mod badge;
 mod r#match;
 mod notification;
 mod season;
+#[macro_use]
 mod server;
 mod server_rollback;
 mod server_season;
