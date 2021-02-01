@@ -16,6 +16,7 @@ use r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
 use notification::NewUserNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde_json::json;
+use serde_derive::Deserialize;
 use server::{DataBase, ServerError};
 use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo};
 
@@ -380,6 +381,29 @@ async fn get_season_length(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpRespons
         },
     }
 }
+
+#[derive(Deserialize)]
+struct EditSeasonLength
+{
+    token:  String,
+    new_val: i32,
+}
+
+#[post("/season_length")]
+async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: EditSeasonLength = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).set_season_length(info.token, info.new_val)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -460,6 +484,7 @@ async fn main() -> std::io::Result<()>
             .service(roll_back)
             .service(get_active_users)
             .service(get_season_length)
+            .service(set_season_length)
     });
 
     if cfg!(debug_assertions)
