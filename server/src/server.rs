@@ -1963,6 +1963,9 @@ mod test
         let db_file = "tempMO.db";
         let s = DataBase::new(db_file);
 
+        let token = create_user(&s, "Sivert");
+        s.make_user_admin("Sivert".to_string()).expect("Making user admin");
+
         let get_season_length = |s: &Connection| -> Option<rusqlite::Result<i32>>
         {
             s
@@ -1976,9 +1979,12 @@ mod test
         let first = get_season_length(&s.conn);
         let val = s.get_season_length();
         let second = get_season_length(&s.conn);
+        s.set_season_length(token, 2).unwrap();
+        let new_val = s.get_season_length();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(first.is_none());
-        assert_eq!(val.unwrap(), 1);
         assert!(second.is_some());
+        assert_eq!(val.unwrap(), 1);
+        assert_eq!(new_val.unwrap(), 2);
     }
 }

@@ -4,7 +4,7 @@ use rusqlite::{named_params, params, NO_PARAMS};
 use crate::{
     badge::NUM_SEASON_PRIZES,
     season::Season,
-    server::{DataBase, ServerResult, N_SEASON_ID},
+    server::{DataBase, ServerError, ServerResult, N_SEASON_ID},
     user::USER_ROLE_SOFT_INACTIVE,
 };
 
@@ -49,6 +49,20 @@ impl DataBase
     pub fn get_season_length(&self) -> ServerResult<i32>
     {
         GET_OR_CREATE_DB_VAR!(&self.conn, N_SEASON_ID, 1)
+    }
+
+    pub fn set_season_length(&self, token: String, new_val: i32) -> ServerResult<()>
+    {
+        if !self.get_is_admin(token)?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+        // update variables set value = {} where id = {} !!!
+        self.conn.execute("update variables set value = (?1) where id = (?2)", params![
+            new_val,
+            N_SEASON_ID
+        ])?;
+        Ok(())
     }
 }
 
