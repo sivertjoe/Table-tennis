@@ -63,3 +63,7 @@ table {
 .success {
   color: green;
 }
+
+.adminButton {
+  margin-left: 10px;
+}
