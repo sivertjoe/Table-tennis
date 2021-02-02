@@ -29,3 +29,9 @@ export const deleteMatch = (id) =>
     id: id,
     token: localStorage.getItem('token'),
   })
+
+export const setSeasonLength = (num) =>
+  BaseApi.post('season_length', {
+    new_val: num,
+    token: localStorage.getItem('token'),
+  })
