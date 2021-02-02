@@ -17,3 +17,5 @@ export const registerMatch = (winner, loser, token) =>
     loser: loser,
     token: token,
   })
+
+export const getSeasonLength = () => BaseApi.get('season_length')
