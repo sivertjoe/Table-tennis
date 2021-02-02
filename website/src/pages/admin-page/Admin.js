@@ -158,6 +158,9 @@ class Admin extends Component {
             <a href="/admin/edit-match">
               <Button placeholder="Edit Match" />
             </a>
+            <a className="adminButton" href="/admin/edit-season">
+              <Button placeholder="Edit Season" />
+            </a>
           </div>
         </div>
       )
