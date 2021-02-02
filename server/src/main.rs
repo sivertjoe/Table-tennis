@@ -18,7 +18,7 @@ use notification::NewUserNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde_json::json;
 use serde_derive::Deserialize;
-use server::{DataBase, ServerError};
+use server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
 use season::Season;
 use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo};
 
@@ -428,44 +428,75 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
     builder
 }
 
+fn check_for_admin_input(running: &mut bool, season_len: &mut i32, recv: &Receiver<i32>)
+{
+    match recv.try_recv()
+    {
+        Ok(n) => 
+        {
+            match n
+            {
+                STOP_SEASON => *running = false,
+                START_SEASON => *running = true,
+                _ => *season_len = n,
+            }
+        }
 
-//@TODO: This function should propably - somehow - be tested
-fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i32>)
+        _ => {}
+    }
+}
+
+
+pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i32>)
 {
     let s = data.lock().expect("Getting mutex");
     let mut season_length = s.get_season_length().unwrap();
 
-    // There always has to be a season I guess?
+    // Assume this means that this is the first season
     let season = s.get_latest_season().unwrap().unwrap_or_else(|| {
-        s.end_season().expect("Endig season");
-        s.start_new_season(true).expect("starting new season");
         Season {
             id: 0, start_epoch: Utc::now().timestamp_millis()
         }
     });
+    let mut running = s.get_is_season().expect("Getting running season");
     drop(s);
 
+    let mut _start_month = Utc.timestamp_millis(season.start_epoch).month0();
 
-    actix_rt::spawn(async move {
+    std::thread::spawn(move || {
         loop
         {
-            let mut _start_month = Utc.timestamp_millis(season.start_epoch).month();
-            // @TODO: Take end of the year into consideration
-            while Utc::now().month() != _start_month + season_length as u32
+            while !running
+            {
+                check_for_admin_input(&mut running, &mut season_length, &receiver);
+                continue;
+            }
+                                                                        // if next season
+                                                                        // is next year
+            while Utc::now().month0() != (_start_month + season_length as u32) % 12
             {
                 match receiver.try_recv()
                 {
-                    Ok(n) => season_length = n,
+                    Ok(n) =>
+                    {
+                        match n
+                        {
+                            STOP_SEASON => { running = false; break }
+                            START_SEASON => running = true,
+                            _ => season_length = n,
+                        }
+                    }
                     _  => {}
                 };
             }
-
+            if !running { continue; }
 
             let s = data.lock().expect("Getting mutex");
             s.end_season().expect("Endig season");
             s.start_new_season(true).expect("starting new season");
-            _start_month = Utc::now().month();
+            _start_month = Utc::now().month0();
             drop(s);
+            if cfg!(test) { break; }
         }
     });
 }

@@ -32,7 +32,7 @@ impl DataBase
         {
             return Err(ServerError::Unauthorized);
         }
-        // update variables set value = {} where id = {} !!!
+
         self.conn.execute("update variables set value = (?1) where id = (?2)", params![
             new_val,
             N_SEASON_ID
