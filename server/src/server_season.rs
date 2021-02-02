@@ -21,12 +21,12 @@ impl DataBase
         self._start_new_season(inactive)
     }
 
-    pub fn get_season_length(&self) -> ServerResult<i32>
+    pub fn get_season_length(&self) -> ServerResult<i64>
     {
         GET_OR_CREATE_DB_VAR!(&self.conn, N_SEASON_ID, 1)
     }
 
-    pub fn set_season_length(&self, token: String, new_val: i32) -> ServerResult<()>
+    pub fn set_season_length(&self, token: String, new_val: i64) -> ServerResult<()>
     {
         if !self.get_is_admin(token)?
         {
