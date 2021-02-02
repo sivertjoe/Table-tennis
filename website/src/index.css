@@ -54,3 +54,7 @@ code {
   border-radius: 0.5rem;
   border-spacing: 1rem;
 }
+
+.center {
+  text-align: center;
+}
