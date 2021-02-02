@@ -54,6 +54,10 @@ const ACCEPT_MATCH: u8 = 1;
 const DECLINE_MATCH: u8 = 2;
 
 pub const N_SEASON_ID: u32 = 1;
+pub const IS_SEASON_ID: u32 = 2;
+
+pub const STOP_SEASON: i32 = -1;
+pub const START_SEASON: i32 = -2;
 
 
 pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
@@ -195,6 +199,21 @@ impl DataBase
         DataBase {
             conn: conn
         }
+    }
+    pub fn get_is_season(&self) -> ServerResult<bool>
+    {
+        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1)
+            .map(|num| num == 1)
+    }
+
+    pub fn set_is_season(&self, val: bool) -> ServerResult<()>
+    {
+        let val = if val == true { 1 } else { 0 };
+        self.conn.execute("update variables set value = (?1) where id = (?2)", params![
+            val,
+            IS_SEASON_ID
+        ])?;
+        Ok(())
     }
 
     pub fn create_superuser(&self, name: String) -> ServerResult<()>
@@ -2012,5 +2031,86 @@ mod test
         assert!(second.is_some());
         assert_eq!(val.unwrap(), 1);
         assert_eq!(new_val.unwrap(), 2);
+    }
+
+
+    // Test the spawn_season_checker:
+    // * set season length to 0 and is_season to false
+    // If is_season was 1 it should (among other) creta a new season (struct)
+    // If this if still 0, then is_season 0 works.
+    //
+    // * set is_season to true, sleep for maybe millis.
+    // If is_season was 1 there should now be a new season struct.
+    #[test]
+    fn test_spawner()
+    {
+        use crate::spawn_season_checker;
+        use std::sync::{Arc, Mutex, mpsc::channel};
+
+        let db_file = "tempMP.db";
+        let data = Arc::new(Mutex::new(DataBase::new(db_file)));
+
+        let (sender, receiver) = channel();
+        spawn_season_checker(data.clone(), receiver);
+        let s = data.lock().expect("Getting mutex");
+        drop(s);
+
+        // First stop season and verify that no season started
+        sender.send(STOP_SEASON).expect("Sending stop season");
+        sender.send(0).expect("Sending new season length");
+        let five_millis = std::time::Duration::from_millis(5);
+        std::thread::sleep(five_millis);
+        let stopped_season = data.lock()
+                                 .expect("Getting mutex")
+                                 .get_latest_season()
+                                 .unwrap()
+                                 .is_none();
+
+        // Then start season and check that it was ended
+        sender.send(START_SEASON).expect("Sending start season");
+        std::thread::sleep(five_millis);
+        let started_season = data.lock()
+                                 .expect("Getting mutex")
+                                 .get_latest_season()
+                                 .unwrap()
+                                 .is_some();
+
+
+        // Now the thread should have stopped, let's check if the startup works
+        // Start a fresh DB
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        let data = Arc::new(Mutex::new(DataBase::new(db_file)));
+        let s = data.lock().expect("Getting mutex");
+        let token = create_user(&s, "Sivert");
+        s.make_user_admin("Sivert".to_string()).expect("Making user admin");
+        s.set_season_length(token, 0).unwrap();
+        s.set_is_season(false).unwrap();
+        drop(s);
+        let (sender, receiver) = channel();
+        spawn_season_checker(data.clone(), receiver);
+        std::thread::sleep(five_millis);
+        let stopped_season2 = data.lock()
+                                 .expect("Getting mutex")
+                                 .get_latest_season()
+                                 .unwrap()
+                                 .is_none();
+
+        // Let's simulate a new season
+        sender.send(1).unwrap();
+        sender.send(START_SEASON).unwrap();
+        // ^ Now the thread should be running the while Utc::now() loop
+        sender.send(0).unwrap(); // Simulate new month
+        std::thread::sleep(five_millis);
+        let started_season2 = data.lock()
+                                 .expect("Getting mutex")
+                                 .get_latest_season()
+                                 .unwrap()
+                                 .is_some();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert!(stopped_season);
+        assert!(started_season);
+        assert!(stopped_season2);
+        assert!(started_season2);
     }
 }
