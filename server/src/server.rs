@@ -24,7 +24,7 @@ macro_rules! GET_OR_CREATE_DB_VAR {
         $conn
             .prepare("select value from variables where id = :id")?
             .query_map_named(named_params! {":id": $id}, |row| {
-                let c: i32 = row.get(0)?;
+                let c: i64 = row.get(0)?;
                 Ok(c)
             })?
             .next()
@@ -56,8 +56,8 @@ const DECLINE_MATCH: u8 = 2;
 pub const N_SEASON_ID: u32 = 1;
 pub const IS_SEASON_ID: u32 = 2;
 
-pub const STOP_SEASON: i32 = -1;
-pub const START_SEASON: i32 = -2;
+pub const STOP_SEASON: i64 = -1;
+pub const START_SEASON: i64 = -2;
 
 
 pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
@@ -209,6 +209,11 @@ impl DataBase
 
     pub fn set_is_season(&self, val: bool) -> ServerResult<()>
     {
+        if val == true
+        {
+            self.start_new_season(true)?; // CAREFUL
+        }
+
         let val = if val == true { 1 } else { 0 };
         self.conn.execute("update variables set value = (?1) where id = (?2)", params![
             val,
@@ -2067,14 +2072,23 @@ mod test
                                  .unwrap()
                                  .is_none();
 
-        // Then start season and check that it was ended
+        // Check that a new season is started
+        sender.send(1).expect("Sending new season length");
         sender.send(START_SEASON).expect("Sending start season");
         std::thread::sleep(five_millis);
         let started_season = data.lock()
                                  .expect("Getting mutex")
                                  .get_latest_season()
-                                 .unwrap()
-                                 .is_some();
+                                 .unwrap();
+
+
+        // Simulate a new month
+        sender.send(0).expect("sending new season length");
+        std::thread::sleep(five_millis);
+        let started_season2 = data.lock()
+                                 .expect("Getting mutex")
+                                 .get_latest_season()
+                                 .unwrap();
 
 
         // Now the thread should have stopped, let's check if the startup works
@@ -2087,7 +2101,7 @@ mod test
         s.set_season_length(token, 0).unwrap();
         s.set_is_season(false).unwrap();
         drop(s);
-        let (sender, receiver) = channel();
+        let (_, receiver) = channel();
         spawn_season_checker(data.clone(), receiver);
         std::thread::sleep(five_millis);
         let stopped_season2 = data.lock()
@@ -2096,22 +2110,12 @@ mod test
                                  .unwrap()
                                  .is_none();
 
-        // Let's simulate a new season
-        sender.send(1).unwrap();
-        sender.send(START_SEASON).unwrap();
-        // ^ Now the thread should be running the while Utc::now() loop
-        sender.send(0).unwrap(); // Simulate new month
-        std::thread::sleep(five_millis);
-        let started_season2 = data.lock()
-                                 .expect("Getting mutex")
-                                 .get_latest_season()
-                                 .unwrap()
-                                 .is_some();
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(stopped_season);
-        assert!(started_season);
+        assert!(started_season.is_some());
+        assert!(started_season2.is_some());
+        assert_ne!(started_season.unwrap().start_epoch, started_season2.unwrap().start_epoch);
         assert!(stopped_season2);
-        assert!(started_season2);
     }
 }
