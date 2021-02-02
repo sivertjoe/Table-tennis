@@ -200,6 +200,7 @@ impl DataBase
             conn: conn
         }
     }
+
     pub fn get_is_season(&self) -> ServerResult<bool>
     {
         GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1)

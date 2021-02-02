@@ -418,6 +418,51 @@ async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     }
 }
 
+#[derive(Deserialize)]
+struct Token
+{
+    token: String
+}
+
+fn change_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String, val: i32) -> HttpResponse
+{
+    let info: Token = serde_json::from_str(&info).unwrap();
+    let res = DATABASE!(data).get_is_admin(info.token);
+    match res
+    {
+        Ok(true) => {
+            unsafe {
+                SENDER
+                    .as_ref()
+                    .unwrap()
+                    .send(val)
+                    .expect("Sending change season");
+            }
+            DATABASE!(data).set_is_season(val == START_SEASON).expect("saving change season");
+            HttpResponse::Ok().json(response_ok())
+        }
+        Ok(false) => HttpResponse::Ok().json(response_error(ServerError::Unauthorized)),
+
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[post("/start_season")]
+async fn start_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    change_season(data, info, START_SEASON)
+}
+
+#[post("/stop_season")]
+async fn stop_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    change_season(data, info, STOP_SEASON)
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
