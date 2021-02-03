@@ -32,6 +32,8 @@ class EditSeason extends Component {
     this.incNumber = this.incNumber.bind(this)
     this.decNumber = this.decNumber.bind(this)
     this.submit = this.submit.bind(this)
+    this.stop = this.stop.bind(this)
+    this.start = this.start.bind(this)
   }
 
   incNumber() {
@@ -46,13 +48,26 @@ class EditSeason extends Component {
     }
   }
 
+  stop() {
+    AdminApi.stopSeason()
+      .then(() => (this.successLabel = 'Stopped the season'))
+      .catch((error) => console.warn(error))
+      .finally(this.setState({}))
+  }
+
+  start() {
+    AdminApi.startSeason()
+      .then(() => (this.successLabel = 'Start'))
+      .catch((error) => console.warn(error))
+      .finally(this.setState({}))
+  }
+
   submit() {
     AdminApi.setSeasonLength(this.seasonLength)
       .then(() => (this.successLabel = 'Succesfully changed season length'))
       .catch((error) => console.warn(error))
       .finally(this.setState({}))
-        this.successLabel = 'Succesfully changed season length'
-      this.setState({})
+    this.setState({})
   }
 
   render() {
@@ -72,6 +87,10 @@ class EditSeason extends Component {
             <div className="button">
               <Button placeholder="Submit" callback={() => this.submit()} />
             </div>
+            <br />
+            <Button placeholder="Stop Season" callback={() => this.stop()} />
+            <Button placeholder="Start Season" callback={() => this.start()} />
+            <br />
             <label className="success">{this.successLabel}</label>
           </div>
         </div>

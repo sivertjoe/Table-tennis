@@ -35,3 +35,13 @@ export const setSeasonLength = (num) =>
     new_val: num,
     token: localStorage.getItem('token'),
   })
+
+export const stopSeason = () =>
+  BaseApi.post('stop_season', {
+    token: localStorage.getItem('token'),
+  })
+
+export const startSeason = () =>
+  BaseApi.post('start_season', {
+    token: localStorage.getItem('token'),
+  })
