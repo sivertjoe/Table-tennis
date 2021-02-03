@@ -50,23 +50,31 @@ class EditSeason extends Component {
 
   stop() {
     AdminApi.stopSeason()
-      .then(() => (this.successLabel = 'Stopped the season'))
+      .then(() => {
+        this.successLabel = 'Stopped the season'
+        this.setState({})
+      })
       .catch((error) => console.warn(error))
-      .finally(this.setState({}))
+    this.setState({})
   }
 
   start() {
     AdminApi.startSeason()
-      .then(() => (this.successLabel = 'Start'))
+      .then(() => {
+        this.successLabel = 'Started the season'
+        this.setState({})
+      })
       .catch((error) => console.warn(error))
-      .finally(this.setState({}))
+    this.setState({})
   }
 
   submit() {
     AdminApi.setSeasonLength(this.seasonLength)
-      .then(() => (this.successLabel = 'Succesfully changed season length'))
+      .then(() => {
+        this.successLabel = 'Succesfully changed season length'
+        this.setState({})
+      })
       .catch((error) => console.warn(error))
-      .finally(this.setState({}))
     this.setState({})
   }
 
@@ -90,6 +98,7 @@ class EditSeason extends Component {
             <br />
             <Button placeholder="Stop Season" callback={() => this.stop()} />
             <Button placeholder="Start Season" callback={() => this.start()} />
+            <br />
             <br />
             <label className="success">{this.successLabel}</label>
           </div>
