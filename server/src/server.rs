@@ -83,7 +83,7 @@ impl DataBase
                 uuid            varchar(36) not null,
                 user_role       smallint default {}
                 )",
-                USER_ROLE_REGULAR
+                USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE
             ),
             NO_PARAMS,
         )
@@ -158,6 +158,14 @@ impl DataBase
         DataBase {
             conn: conn
         }
+    }
+
+    pub fn create_superuser(&self, name: String) -> ServerResult<()>
+    {
+        let password = self.hash(&"password".to_string());
+        self.create_user_with_password_hash(name.clone(), password)?;
+        self.make_user_admin(name)?;
+        Ok(())
     }
 
     pub fn get_is_admin(&self, token: String) -> ServerResult<bool>
@@ -1673,9 +1681,9 @@ mod test
         let user_regular = s.get_user_without_matches(&mark).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file tempE");
-        assert_eq!(user_init.user_role, USER_ROLE_REGULAR);
-        assert_eq!(user_admin.user_role, USER_ROLE_SUPERUSER);
-        assert_eq!(user_regular.user_role, USER_ROLE_REGULAR);
+        assert_eq!(user_init.user_role, USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE);
+        assert_eq!(user_admin.user_role, USER_ROLE_SUPERUSER | USER_ROLE_SOFT_INACTIVE);
+        assert_eq!(user_regular.user_role, USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE);
     }
 
     #[test]
@@ -1696,8 +1704,8 @@ mod test
         let user_active = s.get_user_without_matches(&mark).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file tempG");
-        assert_eq!(user_init.user_role, USER_ROLE_REGULAR);
-        assert_eq!(user_inactive.user_role, USER_ROLE_INACTIVE);
+        assert_eq!(user_init.user_role, USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE);
+        assert_eq!(user_inactive.user_role, USER_ROLE_REGULAR | USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE);
         assert_eq!(user_active.user_role, USER_ROLE_REGULAR);
     }
 
@@ -1713,16 +1721,23 @@ mod test
         create_user(&s, sv.as_str());
         create_user(&s, "Bernt");
 
-        let users = s.get_users().unwrap();
-        assert_eq!(users.len(), 3);
+        let users1 = s.get_users().expect("Getting users");
 
-        s.make_user_inactive(mark.clone()).unwrap();
-        s.make_user_soft_inactive(sv).unwrap();
+        s.make_user_active(mark.clone()).unwrap();
+        s.make_user_active(sv.clone()).unwrap();
+        s.make_user_active("Bernt".to_string()).unwrap();
 
-        let users = s.get_users().unwrap();
+        let users2 = s.get_users().expect("Getting users");
+
+        s.make_user_inactive(mark.clone()).expect("Making user inactive");
+        s.make_user_soft_inactive(sv).expect("Making user soft inactive");
+
+        let users3 = s.get_users().expect("Getting users2");
         std::fs::remove_file(db_file).expect("Removing file tempG");
 
-        assert_eq!(users.len(), 1);
+        assert_eq!(users1.len(), 0);
+        assert_eq!(users2.len(), 3);
+        assert_eq!(users3.len(), 1);
     }
 
     #[test]

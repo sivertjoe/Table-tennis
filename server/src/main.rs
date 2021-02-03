@@ -398,11 +398,30 @@ fn spawn_season_checker(data: Arc<Mutex<DataBase>>)
     });
 }
 
+
+fn handle_args(data: &Arc<Mutex<DataBase>>)
+{
+    let vec = std::env::args().collect::<Vec<String>>();
+    match vec.as_slice()
+    {
+        [_, flag, name] =>
+        {
+            // Make user admin
+            if flag.as_str() == "-a"
+            {
+                data.lock().unwrap().create_superuser(name.clone()).unwrap();
+            }
+        }
+        _ => {}
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()>
 {
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
     spawn_season_checker(data.clone());
+    handle_args(&data);
 
     let server = HttpServer::new(move || {
         App::new()
