@@ -484,13 +484,21 @@ fn check_for_admin_input(
     {
         Ok(n) => match n
         {
-            STOP_SEASON => *running = false,
+            STOP_SEASON =>
+            {
+                *running = false;
+                data.lock()
+                    .expect("Getting mutex")
+                    .set_is_season(false)
+                    .expect("Stopping season");
+            },
+
             START_SEASON =>
             {
                 *running = true;
                 data.lock()
                     .expect("Getting mutex")
-                    .start_new_season(true)
+                    .set_is_season(true)
                     .expect("Staring new season");
                 *start_month = Utc::now().month0(); // This should be fine
             },
@@ -530,7 +538,6 @@ pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
             );
             if running
             {
-                println!("Checking");
                 if Utc::now().month0() != (_start_month + season_length as u32) % 12
                 {
                     continue;
@@ -544,10 +551,6 @@ pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
                 {
                     break;
                 } // Practical when unit testing this
-            }
-            else
-            {
-                println!("Stopped");
             }
         }
     });
