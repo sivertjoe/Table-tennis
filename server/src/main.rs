@@ -472,23 +472,28 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
     builder
 }
 
-fn check_for_admin_input(data: &Arc<Mutex<DataBase>>, running: &mut bool, season_len: &mut i64, start_month: &mut u32, recv: &Receiver<i64>)
+fn check_for_admin_input(
+    data: &Arc<Mutex<DataBase>>,
+    running: &mut bool,
+    season_len: &mut i64,
+    start_month: &mut u32,
+    recv: &Receiver<i64>,
+)
 {
     match recv.try_recv()
     {
         Ok(n) => match n
         {
             STOP_SEASON => *running = false,
-            START_SEASON => {
+            START_SEASON =>
+            {
                 *running = true;
                 data.lock()
                     .expect("Getting mutex")
                     .start_new_season(true)
                     .expect("Staring new season");
-                *start_month = Utc::now().month0();// This should be fine
-
-
-            }
+                *start_month = Utc::now().month0(); // This should be fine
+            },
             _ => *season_len = n,
         },
 
@@ -509,15 +514,20 @@ pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
             id:          0,
             start_epoch: Utc::now().timestamp_millis(),
         });
+    let mut _start_month = Utc.timestamp_millis(season.start_epoch).month0();
     let mut running = s.get_is_season().expect("Getting running season");
     drop(s);
-
-    let mut _start_month = Utc.timestamp_millis(season.start_epoch).month0();
 
     std::thread::spawn(move || {
         loop
         {
-            check_for_admin_input(&data, &mut running, &mut season_length, &mut _start_month, &receiver);
+            check_for_admin_input(
+                &data,
+                &mut running,
+                &mut season_length,
+                &mut _start_month,
+                &receiver,
+            );
             if running
             {
                 println!("Checking");
@@ -530,7 +540,10 @@ pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
                 s.end_season().expect("Endig season");
                 s.start_new_season(true).expect("starting new season");
                 _start_month = Utc::now().month0();
-                if cfg!(test) { break; } // Practical when unit testing this
+                if cfg!(test)
+                {
+                    break;
+                } // Practical when unit testing this
             }
             else
             {
