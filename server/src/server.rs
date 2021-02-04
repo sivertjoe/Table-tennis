@@ -1,4 +1,5 @@
 use std::{convert::From, str::FromStr};
+use std::collections::HashMap;
 
 use chrono::prelude::*;
 use elo::EloRank;
@@ -12,7 +13,7 @@ use crate::{
         MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
     },
     user::{
-        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
+        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER, StatsUsers,
     },
 };
 
@@ -214,6 +215,11 @@ impl DataBase
     pub fn get_history(&self) -> ServerResult<Vec<Match>>
     {
         self.get_all_matches()
+    }
+
+    pub fn get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    {
+        self._get_stats(info)
     }
 
     pub fn get_edit_match_history(&self) -> ServerResult<Vec<EditMatchInfo>>
@@ -949,6 +955,53 @@ impl DataBase
         }
         vec.reverse();
         Ok(vec)
+    }
+
+    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    {
+        let user1_id = self.get_user(&info.user1)?.id;
+        let user2_id = self.get_user(&info.user2)?.id;
+
+        let mut stmt = self.conn.prepare(
+            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch from matches
+             where winner = :user1 and loser = :user2
+             or winner = :user2 and loser = :user1
+             order by epoch;",
+        )?;
+        let matches = stmt.query_map_named(named_params! {":user1": user1_id, ":user2": user2_id}, |row| {
+            let res: i64 = row.get(0)?;
+            let (winner, loser) = if res == user1_id
+            {
+                (info.user1.clone(), info.user2.clone())
+            }
+            else
+            {
+                (info.user2.clone(), info.user1.clone())
+            };
+            Ok(Match {
+                winner:     winner,
+                loser:      loser,
+                elo_diff:   row.get(2)?,
+                winner_elo: row.get(3)?,
+                loser_elo:  row.get(4)?,
+                epoch:      row.get(5)?,
+            })
+        })?;
+
+        let mut current = Vec::new();
+        for _match in matches
+        {
+            if let Ok(m) = _match
+            {
+                current.push(m);
+            };
+        }
+
+        let mut map = HashMap::new();
+        map.insert("current".to_string(), current);
+        // TODO: Get matches of previous seasons
+        // map.insert("rest".to_string(), rest);
+        Ok(map)
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
