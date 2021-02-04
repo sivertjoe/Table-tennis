@@ -25,7 +25,7 @@ use season::Season;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
-use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo};
+use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo, StatsUsers};
 
 const PORT: u32 = 58642;
 const DATABASE_FILE: &'static str = "db.db";
@@ -270,6 +270,21 @@ async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String
 async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_history()
+    {
+        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[post("/stats")]
+async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: StatsUsers = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).get_stats(info)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
@@ -629,6 +644,7 @@ async fn main() -> std::io::Result<()>
             .service(stop_season)
             .service(start_season)
             .service(get_leaderboard_info)
+            .service(get_stats)
     });
 
     if cfg!(debug_assertions)
