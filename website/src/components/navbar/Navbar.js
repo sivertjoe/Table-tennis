@@ -40,6 +40,9 @@ class Navbar extends Component {
               <a href="/history">History</a>
             </h2>
             <h2>
+              <a href="/stats">Stats</a>
+            </h2>
+            <h2>
               <a href="/profiles">Profiles</a>
             </h2>
             {username ? (

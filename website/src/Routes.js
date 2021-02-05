@@ -7,10 +7,17 @@ const ProfilePage = lazy(() => import('./pages/profile-page/ProfilePage'))
 const RegisterMatch = lazy(() => import('./pages/register-match/RegisterMatch'))
 const History = lazy(() => import('./pages/history/History'))
 const LoginPage = lazy(() => import('./pages/login-page/LoginPage'))
-const ChangePasswordPage = lazy(() => import('./pages/change-password-page/ChangePasswordPage'))
+const ChangePasswordPage = lazy(() =>
+  import('./pages/change-password-page/ChangePasswordPage'),
+)
 const Admin = lazy(() => import('./pages/admin-page/Admin'))
-const EditMatches = lazy(() => import('./pages/admin-page/edit-matches/EditMatches.js'))
-const EditSeason = lazy(() => import('./pages/admin-page/edit-season/EditSeason.js'))
+const EditMatches = lazy(() =>
+  import('./pages/admin-page/edit-matches/EditMatches.js'),
+)
+const EditSeason = lazy(() =>
+  import('./pages/admin-page/edit-season/EditSeason.js'),
+)
+const StatsPage = lazy(() => import('./pages/stats-page/StatsPage.js'))
 
 const Routes = () => (
   <Switch>
@@ -25,6 +32,7 @@ const Routes = () => (
     <Route exact path="/admin" component={Admin} />
     <Route exact path="/admin/edit-match" component={EditMatches} />
     <Route exact path="/admin/edit-season" component={EditSeason} />
+    <Route exact path="/stats" component={StatsPage} />
     <Redirect to="/" />
   </Switch>
 )

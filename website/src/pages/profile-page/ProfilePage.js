@@ -42,7 +42,8 @@ class Profile extends Component {
   render() {
     const numberOfMatches = this.user.match_history?.length
     const numberOfNotifications = this.notifications?.length
-    const loggedIn = localStorage.getItem('username') === this.user.name
+    const loggedInUser = localStorage.getItem('username')
+    const myProfile = loggedInUser === this.user.name
 
     return (
       <div className="container">
@@ -53,7 +54,7 @@ class Profile extends Component {
             <Badges user={this.user} size="40px" />
           )}
         </div>
-        {loggedIn && numberOfNotifications > 0 && (
+        {myProfile && numberOfNotifications > 0 && (
           <div>
             <h2>
               Notifications (
@@ -69,9 +70,14 @@ class Profile extends Component {
           </div>
         )}
         {Object.keys(this.user).length !== 0 && <EloGraph user={this.user} />}
-        <h2 style={{ marginTop: '4rem' }}>Match history ({numberOfMatches})</h2>
+        <div className="history-header">
+          <h2>Match history ({numberOfMatches})</h2>
+          <a href={'/stats?user1=' + loggedInUser + '&user2=' + this.user.name}>
+            <h2 style={{ textDecoration: 'underline' }}>Stats</h2>
+          </a>
+        </div>
         <MatchHistory user={this.user} />
-        {loggedIn && (
+        {myProfile && (
           <div className="row">
             <Button
               placeholder="Change password"
