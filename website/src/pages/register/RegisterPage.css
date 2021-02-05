@@ -14,10 +14,10 @@ p {
 input {
   width: 100%;
   height: 3rem;
-  background-color: #232730;
-  border: solid 1px #ebf0f2;
+  background-color: var(--background-color);
+  border: solid 1px var(--primary-color);
   border-radius: 0.5rem;
-  color: #ebf0f2;
+  color: var(--primary-color);
   text-indent: 1rem;
 }
 

@@ -1,6 +1,6 @@
 .tooltip {
-  color: #1c1b1b;
-  background-color: #ebf0f2;
+  color: var(--black);
+  background-color: var(--primary-color);
   padding: 6px;
   border-radius: 4px;
 }
