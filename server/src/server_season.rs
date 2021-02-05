@@ -5,9 +5,12 @@ use crate::{
     GET_OR_CREATE_DB_VAR,
     badge::NUM_SEASON_PRIZES,
     season::Season,
-    server::{DataBase, ServerError, ServerResult, N_SEASON_ID},
+    server::{DataBase, ServerError, ServerResult},
     user::USER_ROLE_SOFT_INACTIVE,
 };
+
+pub const N_SEASON_ID: u32 = 1;
+pub const IS_SEASON_ID: u32 = 2;
 
 impl DataBase
 {
@@ -36,6 +39,27 @@ impl DataBase
         self.conn.execute("update variables set value = (?1) where id = (?2)", params![
             new_val,
             N_SEASON_ID
+        ])?;
+        Ok(())
+    }
+
+    pub fn get_is_season(&self) -> ServerResult<bool>
+    {
+        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1)
+            .map(|num| num == 1)
+    }
+
+    pub fn set_is_season(&self, val: bool) -> ServerResult<()>
+    {
+        if val == true
+        {
+            self.start_new_season(true)?; // CAREFUL
+        }
+
+        let val = if val == true { 1 } else { 0 };
+        self.conn.execute("update variables set value = (?1) where id = (?2)", params![
+            val,
+            IS_SEASON_ID
         ])?;
         Ok(())
     }
