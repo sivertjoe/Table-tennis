@@ -15,10 +15,22 @@ th {
   width: 50%;
 }
 
+.stats {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  text-align: center;
+  margin-top: 4rem;
+}
+
 @media only screen and (max-width: 800px) {
   th {
     display: grid;
     width: 100%;
+  }
+
+  .stats {
+    flex-direction: column;
   }
 }
 
@@ -29,8 +41,4 @@ th {
 .error {
   color: red;
   text-align: center;
-}
-
-.stats {
-  margin-top: 4rem;
 }
