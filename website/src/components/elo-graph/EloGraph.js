@@ -213,26 +213,26 @@ class EloGraph extends Component {
             enableGridX={false}
             enableGridY={false}
             theme={{
-              textColor: '#ebf0f2',
-              background: '#1c1b1b',
+              textColor: 'var(--primary-color)',
+              background: 'var(--black)',
               fontSize: 14,
               axis: {
                 domain: {
                   line: {
-                    stroke: '#ebf0f2',
+                    stroke: 'var(--primary-color)',
                     strokeWidth: 1,
                   },
                 },
                 ticks: {
                   line: {
-                    stroke: '#ebf0f2',
+                    stroke: 'var(--primary-color)',
                     strokeWidth: 1,
                   },
                 },
               },
               crosshair: {
                 line: {
-                  stroke: '#ebf0f2',
+                  stroke: 'var(--primary-color)',
                   strokeWidth: 1,
                   strokeOpacity: 0.5,
                 },

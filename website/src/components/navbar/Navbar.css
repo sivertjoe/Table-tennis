@@ -2,7 +2,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  background-color: #232730;
+  background-color: var(--background-color);
   width: 100%;
   z-index: 10;
 
@@ -66,7 +66,7 @@ a {
   .slice {
     width: 30px;
     height: 5px;
-    background-color: #ebf0f2;
+    background-color: var(--primary-color);
     border-radius: 5px;
     margin: 6px 6px;
   }
@@ -76,7 +76,7 @@ a {
     z-index: 5;
     top: 0;
     bottom: 0;
-    background-color: #232730;
+    background-color: var(--background-color);
     width: 280px;
     left: -280px;
     transition: transform 300ms ease-in-out;

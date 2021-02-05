@@ -47,7 +47,7 @@ class Navbar extends Component {
             </h2>
             {username ? (
               <h2>
-                <a style={{ color: '#F8A532' }} href={'/profiles/' + username}>
+                <a style={{ color: 'var(--orange)' }} href={'/profiles/' + username}>
                   {username}
                 </a>
               </h2>
