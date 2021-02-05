@@ -75,9 +75,7 @@ class StatsPage extends Component {
           this.stats = stats
           this.kd = [0, 0]
           this.netEloDiff = 0
-          this.totalEloDiff = 0
           stats.current.forEach((stat) => {
-            this.totalEloDiff += stat.elo_diff
             if (stat.winner === this.user1) {
               this.kd[0] += 1
               this.netEloDiff += stat.elo_diff
@@ -125,10 +123,15 @@ class StatsPage extends Component {
         {this.stats && (
           <div className="stats">
             <h1>
-              K/D: {this.kd[0]}/{this.kd[1]}
+              K/D: <span style={{ color: 'var(--green)' }}>{this.kd[0]}</span>/
+              <span style={{ color: 'var(--red)' }}>{this.kd[1]}</span>
             </h1>
-            <h1>Total elo diff: {Math.trunc(this.totalEloDiff)}</h1>
-            <h1>Net elo diff: {Math.trunc(this.netEloDiff)}</h1>
+            <h1>
+              Net elo diff:{' '}
+              <span style={{ color: this.netEloDiff < 0 ? 'var(--red)' : 'var(--green)' }}>
+                {Math.trunc(this.netEloDiff)}
+              </span>
+            </h1>
           </div>
         )}
       </div>
