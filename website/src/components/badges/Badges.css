@@ -6,8 +6,8 @@
 .badge-info {
   visibility: hidden;
   position: absolute;
-  color: #1c1b1b;
-  background-color: #ebf0f2;
+  color: var(--black);
+  background-color: var(--primary-color);
   padding: 6px;
   border-radius: 4px;
   width: 8rem;
@@ -30,5 +30,5 @@
   margin-left: -10px;
   border-width: 5px;
   border-style: solid;
-  border-color: #ebf0f2 transparent transparent transparent;
+  border-color: var(--primary-color) transparent transparent transparent;
 }
