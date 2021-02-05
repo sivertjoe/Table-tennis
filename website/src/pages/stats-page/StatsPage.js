@@ -71,22 +71,43 @@ class StatsPage extends Component {
   getStats() {
     if (this.user1 && this.user2)
       MatchApi.getStats(this.user1, this.user2)
-        .then((stats) => {
-          this.stats = stats
-          this.kd = [0, 0]
-          this.netEloDiff = 0
-          stats.current.forEach((stat) => {
-            if (stat.winner === this.user1) {
-              this.kd[0] += 1
-              this.netEloDiff += stat.elo_diff
-            } else {
-              this.kd[1] += 1
-              this.netEloDiff -= stat.elo_diff
-            }
-          })
-        })
+        .then((stats) => (this.stats = stats))
         .catch((error) => (this.error = error.message))
         .finally(() => this.mounted && this.setState({}))
+  }
+
+  renderStats(title, stats) {
+    let kd = [0, 0]
+    let netEloDiff = 0
+    stats.forEach((stat) => {
+      if (stat.winner === this.user1) {
+        kd[0] += 1
+        netEloDiff += stat.elo_diff
+      } else {
+        kd[1] += 1
+        netEloDiff -= stat.elo_diff
+      }
+    })
+
+    return (
+      <div>
+        <h1>{title}</h1>
+        <h3>
+          K/D: <span style={{ color: 'var(--green)' }}>{kd[0]}</span>/
+          <span style={{ color: 'var(--red)' }}>{kd[1]}</span>
+        </h3>
+        <h3>
+          Net elo diff:{' '}
+          <span
+            style={{
+              color: netEloDiff < 0 ? 'var(--red)' : 'var(--green)',
+            }}
+          >
+            {Math.trunc(netEloDiff)}
+          </span>
+        </h3>
+      </div>
+    )
   }
 
   render() {
@@ -122,16 +143,8 @@ class StatsPage extends Component {
         {this.error && <h2 className="error"> {this.error} </h2>}
         {this.stats && (
           <div className="stats">
-            <h1>
-              K/D: <span style={{ color: 'var(--green)' }}>{this.kd[0]}</span>/
-              <span style={{ color: 'var(--red)' }}>{this.kd[1]}</span>
-            </h1>
-            <h1>
-              Net elo diff:{' '}
-              <span style={{ color: this.netEloDiff < 0 ? 'var(--red)' : 'var(--green)' }}>
-                {Math.trunc(this.netEloDiff)}
-              </span>
-            </h1>
+            {this.renderStats('This season', this.stats.current)}
+            {this.renderStats('Previous seasons', this.stats.rest)}
           </div>
         )}
       </div>
