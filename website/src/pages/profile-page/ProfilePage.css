@@ -28,3 +28,10 @@ ul {
 .row button {
   margin: auto 1rem;
 }
+
+.history-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-top: 4rem;
+}
