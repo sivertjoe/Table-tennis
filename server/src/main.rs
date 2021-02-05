@@ -6,6 +6,7 @@ mod season;
 mod server;
 mod server_rollback;
 mod server_season;
+mod server_init;
 mod user;
 
 use std::sync::{
