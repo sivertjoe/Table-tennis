@@ -60,7 +60,7 @@ class Leaderboard extends Component {
                 return (
                   <tr
                     key={ranking}
-                    style={user.name === name ? { color: '#F8A532' } : {}}
+                    style={user.name === name ? { color: 'var(--orange)' } : {}}
                   >
                     <td>
                       {this.getRankBadge(ranking)}

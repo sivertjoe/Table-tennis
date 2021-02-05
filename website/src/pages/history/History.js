@@ -34,7 +34,9 @@ class History extends Component {
                 return (
                   <tr key={ranking}>
                     <td
-                      style={match.winner === name ? { color: '#F8A532' } : {}}
+                      style={
+                        match.winner === name ? { color: 'var(--orange)' } : {}
+                      }
                     >
                       <a href={'/profiles/' + match.winner}>{match.winner}</a>
                     </td>
@@ -44,7 +46,9 @@ class History extends Component {
                       )
                     </td>
                     <td
-                      style={match.loser === name ? { color: '#F8A532' } : {}}
+                      style={
+                        match.loser === name ? { color: 'var(--orange)' } : {}
+                      }
                     >
                       <a href={'/profiles/' + match.loser}>{match.loser}</a>
                     </td>

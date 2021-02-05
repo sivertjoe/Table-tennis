@@ -1,4 +1,4 @@
-.big-button{
+.big-button {
   height: fit-content;
   min-height: 3rem;
   width: fit-content;
@@ -6,13 +6,17 @@
   border-radius: 1rem;
   font-size: 1.5rem;
   background-size: 100% 200%;
-  background-image: linear-gradient(to top, #232730 50%, #ebf0f2 0);
+  background-image: linear-gradient(
+    to top,
+    var(--background-color) 50%,
+    var(--primary-color) 0
+  );
   transition: background-position 200ms, color 200ms;
 }
 
 button:hover {
   background-position: bottom;
-  border: solid 2px #ebf0f2;
-  color: #ebf0f2;
+  border: solid 2px var(--primary-color);
+  color: var(--primary-color);
   cursor: pointer;
 }
