@@ -46,7 +46,7 @@ pub struct DataBase
 }
 #[allow(dead_code)]
 const MATCH_NO_ANS: u8 = 0;
-const ACCEPT_MATCH: u8 = 1;
+pub const ACCEPT_MATCH: u8 = 1;
 #[allow(dead_code)]
 const DECLINE_MATCH: u8 = 2;
 
@@ -1158,25 +1158,9 @@ mod test
     use rusqlite::NO_PARAMS;
     use super::*;
     use crate::user::{USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
-    use crate::server_season::N_SEASON_ID;
+    use crate::test_util::*;
 
 
-    fn respond_to_match(s: &DataBase, name: &str, id: i64)
-    {
-        let mut stmt =
-            s.conn.prepare("select uuid from users where name = :name").expect("Creating query");
-        let token: String = stmt
-            .query_map_named(named_params! {":name": name}, |row| {
-                let token: String = row.get(0).expect("Getting first row");
-                Ok(token)
-            })
-            .expect("Executing stmt")
-            .next()
-            .unwrap()
-            .unwrap();
-
-        s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
-    }
 
     #[test]
     fn test_register_user_creates_notification()
@@ -1227,18 +1211,6 @@ mod test
         assert!(s.get_user_without_matches(&markus).is_ok());
     }
 
-    fn create_user(s: &DataBase, name: &str) -> String
-    {
-        let uuid = format!("{}", Uuid::new_v4());
-        s.conn
-            .execute("insert into users (name, password_hash, uuid) values (?1, ?2, ?3)", params![
-                name,
-                s.hash(&"password".to_string()),
-                uuid
-            ])
-            .unwrap();
-        uuid
-    }
 
     #[test]
     fn test_match_notification_both_accepted()
@@ -1749,174 +1721,11 @@ mod test
     }
 
     #[test]
-    fn test_ending_season_yields_awards()
-    {
-        let db_file = "tempK.db";
-        let s = DataBase::new(db_file);
-
-        create_user(&s, "Sivert");
-        create_user(&s, "Lars");
-        create_user(&s, "Ella");
-
-        s.start_new_season().expect("Staring first season");
-        s.end_season().expect("ending first season");
-
-        let users1 = s.get_users().expect("Getting users");
-        // Do this scheme to check that a new season gave _new_ awards
-        s.start_new_season().expect("Starting season");
-        s.end_season().expect("Ending season");
-
-        let users2 = s.get_users().expect("Getting users");
-
-
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-
-        users1.into_iter().zip(users2.into_iter()).enumerate().for_each(|(i, (u1, u2))| {
-            assert_eq!(u1.badges[0].name, BADGES[i]);
-            assert_eq!(u2.badges[0].season, 1);
-            assert_eq!(u2.badges[1].season, 2);
-        });
-    }
-
-    #[test]
-    fn test_ending_season_when_no_exist_yields_no_awards()
-    {
-        let db_file = "tempL.db";
-        let s = DataBase::new(db_file);
-        create_user(&s, "Sivert");
-
-        s.end_season().expect("ending season");
-
-        let users = s.get_users().expect("Getting users");
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        users.into_iter().for_each(|u| assert!(u.badges.len() == 0));
-    }
-
-    #[test]
-    // OOF
-    fn test_start_new_season_creates_season_table_and_resets_users_and_history()
-    {
-        let db_file = "tempM.db";
-        let s = DataBase::new(db_file);
-
-        let mark = "Markus".to_string();
-        let siv = "Sivert".to_string();
-        let uuid_m = create_user(&s, mark.as_str());
-        create_user(&s, siv.as_str());
-        s.make_user_admin(siv.clone()).expect("Making user admin");
-
-        s.register_match(mark.clone(), siv.clone(), uuid_m).unwrap();
-        respond_to_match(&s, siv.as_str(), 1);
-
-        let (s_elo_old, m_elo_old) =
-            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
-
-        s.start_new_season().unwrap();
-        s.end_season().unwrap();
-
-        let (s_elo_new, m_elo_new) =
-            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
-
-        let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
-        let count = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
-        let mut stmt = s.conn.prepare("select count(*) from matches").unwrap();
-        let match_history_count = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
-        let users = s.get_users().unwrap();
-        let siv = s.get_user(&siv).expect("Getting user Sivert");
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(count, 1);
-        assert_eq!(match_history_count, 0);
-        assert_eq!(users.len(), 0);
-        assert!(s_elo_old < 1500.0);
-        assert!(m_elo_old > 1500.0);
-        assert!(s_elo_new == 1500.0);
-        assert!(m_elo_new == 1500.0);
-        assert_eq!(siv.user_role, USER_ROLE_SOFT_INACTIVE | USER_ROLE_SUPERUSER);
-    }
-
-    #[test]
-    fn test_creating_multiple_seasons()
-    {
-        let db_file = "tempMM.db";
-        let s = DataBase::new(db_file);
-
-        s.start_new_season().unwrap();
-        s.end_season().unwrap();
-
-        s.start_new_season().unwrap();
-        s.end_season().unwrap();
-
-        s.start_new_season().unwrap();
-        s.end_season().unwrap();
-
-        let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
-        let count = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(count, 3);
-    }
-
-    #[test]
-    fn test_season_length_functionality()
-    {
-        let db_file = "tempMO.db";
-        let s = DataBase::new(db_file);
-
-        let token = create_user(&s, "Sivert");
-        s.make_user_admin("Sivert".to_string()).expect("Making user admin");
-
-        let get_season_length = |s: &Connection| -> Option<rusqlite::Result<i32>>
-        {
-            s
-             .prepare(&format!("select value from variables where id = {}", N_SEASON_ID)).unwrap()
-             .query_map(NO_PARAMS, |row| {
-            let c: i32 = row.get(0)?;
-            Ok(c)
-        }).unwrap().next()
-        };
-       
-        let first = get_season_length(&s.conn);
-        let val = s.get_season_length();
-        let second = get_season_length(&s.conn);
-        s.set_season_length(token, 2).unwrap();
-        let new_val = s.get_season_length();
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert!(first.is_none());
-        assert!(second.is_some());
-        assert_eq!(val.unwrap(), 1);
-        assert_eq!(new_val.unwrap(), 2);
-    }
-    #[test]
     fn test_spawner()
     {
         use crate::spawn_season_checker;
         use std::sync::{Arc, Mutex, mpsc::channel};
-        let five_millis = std::time::Duration::from_millis(5);
+        let time = std::time::Duration::from_millis(15);
 
         let db_file = "tempMP.db";
         let data = Arc::new(Mutex::new(DataBase::new(db_file)));
@@ -1929,7 +1738,7 @@ mod test
         // First stop season and verify that no season started
         sender.send(STOP_SEASON).expect("Sending stop season");
         sender.send(0).expect("Sending new season length");
-        std::thread::sleep(five_millis);
+        std::thread::sleep(time);
         let stopped_season = data.lock()
                                  .expect("Getting mutex")
                                  .get_latest_season()
@@ -1939,7 +1748,7 @@ mod test
         // Check that a new season is started
         sender.send(1).expect("Sending new season length");
         sender.send(START_SEASON).expect("Sending start season");
-        std::thread::sleep(five_millis);
+        std::thread::sleep(time);
         let started_season = data.lock()
                                  .expect("Getting mutex")
                                  .get_latest_season()
@@ -1961,7 +1770,7 @@ mod test
         drop(s);
         let (sender, receiver) = channel();
         spawn_season_checker(data.clone(), receiver);
-        std::thread::sleep(five_millis);
+        std::thread::sleep(time);
         let stopped_season2 = data.lock()
                                  .expect("Getting mutex")
                                  .get_latest_season()
@@ -1970,7 +1779,7 @@ mod test
 
         // Simulate a new month
         sender.send(START_SEASON).expect("starting season");
-        std::thread::sleep(five_millis);
+        std::thread::sleep(time);
         let started_season2 = data.lock()
                                  .expect("Getting mutex")
                                  .get_latest_season()
@@ -1983,111 +1792,5 @@ mod test
         assert!(stopped_season2);
         assert!(started_season2.is_some());
         assert_ne!(started_season.unwrap().start_epoch, started_season2.unwrap().start_epoch);
-    }
-
-    #[test]
-    fn test_offseason_games()
-    {
-        let db_file = "tempCCC.db";
-        let s = DataBase::new(db_file);
-
-        let siv = "Sivert".to_string();
-        let lars = "Lars".to_string();
-        let bernt = "Bernt".to_string();
-
-        let token_siv = create_user(&s, siv.as_str());
-        create_user(&s, lars.as_str());
-        create_user(&s, bernt.as_str());
-
-        //
-        //s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        //s.register_match(bernt.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
-
-
-        //
-        //respond_to_match(&s, lars.as_str(), 4);
-        //
-
-        let get_archive_len = |table: &str| s.conn
-                                             .prepare(&format!("select count(*) from {}", table))
-                                             .unwrap()
-                                             .query_map(NO_PARAMS, |row| row.get::<_, i64>(0))
-                                             .unwrap()
-                                             .next()
-                                             .unwrap()
-                                             .unwrap();
-                            
-        s.start_new_season().unwrap();
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
-        respond_to_match(&s, lars.as_str(), 1);
-        s.end_season().unwrap();
-
-        let badge_len = s.get_user(&lars.clone()).unwrap().badges.len();
-        let old_matches_len = get_archive_len("old_matches");
-        let matches_len = get_archive_len("matches");
-        let offseason_matches = get_archive_len("offseason_matches");
-
-        // We are now in offseason
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        respond_to_match(&s, lars.as_str(), 2);
-
-        s.start_new_season().unwrap();
-
-        // Check that they were archived correctly
-        let old_matches_len2 = get_archive_len("old_matches");
-        let matches_len2 = get_archive_len("matches");
-        let offseason_matches2 = get_archive_len("offseason_matches");
-        let badge_len2 = s.get_user(&lars.clone()).unwrap().badges.len();
-
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(badge_len, 1);
-        assert_eq!(old_matches_len, 1);
-        assert_eq!(matches_len, 0);
-        assert_eq!(offseason_matches, 0);
-        assert_eq!(old_matches_len2, 1);
-        assert_eq!(matches_len2, 0);
-        assert_eq!(offseason_matches2, 1);
-        assert_eq!(badge_len2, 1);
-    }
-
-    #[test]
-    fn test_match_notification_cleared_after_season_start_and_end()
-    {
-        let db_file = "tempDCCC.db";
-        let s = DataBase::new(db_file);
-
-        let siv = "Sivert".to_string();
-        let lars = "Lars".to_string();
-
-        let token_siv = create_user(&s, siv.as_str());
-        create_user(&s, lars.as_str());
-
-        let get_archive_len = |table: &str| s.conn
-                                             .prepare(&format!("select count(*) from {}", table))
-                                             .unwrap()
-                                             .query_map(NO_PARAMS, |row| row.get::<_, i64>(0))
-                                             .unwrap()
-                                             .next()
-                                             .unwrap()
-                                             .unwrap();
-                            
-        s.start_new_season().unwrap();
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
-        let notification_count_before = get_archive_len("match_notification");
-        s.end_season().unwrap();
-        let notification_count_after = get_archive_len("match_notification");
-
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
-        let notification_count_before2 = get_archive_len("match_notification");
-        s.start_new_season().unwrap();
-        let notification_count_after2 = get_archive_len("match_notification");
-
-
-
-        std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert!(notification_count_before == 1);
-        assert!(notification_count_after == 0);
-        assert!(notification_count_before2 == 1);
-        assert!(notification_count_after2 == 0);
     }
 }
