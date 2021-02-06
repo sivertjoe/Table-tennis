@@ -488,19 +488,15 @@ fn check_for_admin_input(
             STOP_SEASON =>
             {
                 *running = false;
-                data.lock()
-                    .expect("Getting mutex")
-                    .set_is_season(false)
-                    .expect("Stopping season");
+                let s  = data.lock().expect("Getting mutex");
+                s.end_season().expect("Ending season");
             },
 
             START_SEASON =>
             {
                 *running = true;
-                data.lock()
-                    .expect("Getting mutex")
-                    .set_is_season(true)
-                    .expect("Staring new season");
+                let s  = data.lock().expect("Getting mutex");
+                s.start_new_season().expect("Starting new season");
                 *start_month = Utc::now().month0(); // This should be fine
             },
             _ => *season_len = n,
@@ -546,7 +542,7 @@ pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
 
                 let s = data.lock().expect("Getting mutex");
                 s.end_season().expect("Endig season");
-                s.start_new_season(true).expect("starting new season");
+                s.start_new_season().expect("starting new season");
                 _start_month = Utc::now().month0();
                 if cfg!(test)
                 {
