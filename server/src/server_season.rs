@@ -52,6 +52,15 @@ impl DataBase
         self.conn.execute("update variables set value = (?1) where id = (?2)", params![new_val, IS_SEASON_ID])?;
         Ok(())
     }
+
+    pub fn get_latest_season_number(&self) -> ServerResult<i64>
+    {
+        match self.get_latest_season()?
+        { 
+            Some(s) => Ok(s.id),  
+            _  => Ok(-1 )
+        }
+    }
 }
 
 
