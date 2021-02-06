@@ -917,6 +917,7 @@ impl DataBase
 
     fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
+        let current_season = self.get_latest_season_number()?;
         let mut stmt = self.conn.prepare(
             "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
              inner join users as a on a.id = winner
@@ -931,6 +932,7 @@ impl DataBase
                 winner_elo: row.get(3)?,
                 loser_elo:  row.get(4)?,
                 epoch:      row.get(5)?,
+                season:     current_season // -1 if off-season
             })
         })?;
 
@@ -955,6 +957,7 @@ impl DataBase
 
     fn get_matches(&self, id: i64) -> ServerResult<Vec<Match>>
     {
+        let current_season = self.get_latest_season_number()?;
         let s = "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch
                 from matches
                 inner join users as a on a.id = winner
@@ -969,6 +972,7 @@ impl DataBase
                 winner_elo: row.get(3)?,
                 loser_elo:  row.get(4)?,
                 epoch:      row.get(5)?,
+                season:     current_season,
             })
         })?;
 
