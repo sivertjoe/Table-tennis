@@ -10,8 +10,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-        with: 
-          clean: false
       - name: Build the stack
         run: docker-compose build --parallel
       - name: Bring up
