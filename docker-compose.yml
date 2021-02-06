@@ -14,13 +14,13 @@ services:
       - '58642:58642'
     volumes:
       - type: bind
-        source: ./server/src/db.db
+        source: ~/db/db.db
         target: /db.db
       - type: bind
-        source: ./server/src/cert.pem
+        source: ~/db/cert.pem
         target: /cert.pem
       - type: bind
-        source: ./server/src/privkey.pem
+        source: ~/db/privkey.pem
         target: /privkey.pem
 
 networks:
