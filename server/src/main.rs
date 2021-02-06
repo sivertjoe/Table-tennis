@@ -464,6 +464,18 @@ async fn stop_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     change_season(data, info, STOP_SEASON)
 }
 
+#[get("/leaderboard_info")]
+async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    let s = DATABASE!(data);
+    match (s.get_users(), s.get_is_season(), s.get_latest_season_number())
+    {
+        (Ok(users), Ok(is_season), Ok(len)) => 
+            HttpResponse::Ok().json(json!({"status": 0, "result": json!({"users": users, "is_season": is_season, "season_number": len})})),
+        _ => HttpResponse::InternalServerError().finish(),
+    }
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -613,6 +625,7 @@ async fn main() -> std::io::Result<()>
             .service(set_season_length)
             .service(stop_season)
             .service(start_season)
+            .service(get_leaderboard_info)
     });
 
     if cfg!(debug_assertions)
