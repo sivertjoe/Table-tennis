@@ -8,6 +8,7 @@ mod server_rollback;
 mod server_season;
 mod server_init;
 mod user;
+mod test_util;
 
 use std::sync::{
     mpsc::{channel, Receiver, Sender},
