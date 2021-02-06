@@ -172,6 +172,7 @@ fn get_all_matches_before(s: &Connection, time: i64) -> ServerResult<Vec<(Match,
                 winner_elo: row.get(4)?,
                 loser_elo:  row.get(5)?,
                 epoch:      row.get(6)?,
+                season:     -1, // Only used internally, does not need the correct season
             },
             id,
         ))
