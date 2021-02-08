@@ -1,5 +1,4 @@
-use std::{convert::From, str::FromStr};
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::From, str::FromStr};
 
 use chrono::prelude::*;
 use elo::EloRank;
@@ -13,7 +12,8 @@ use crate::{
         MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
     },
     user::{
-        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER, StatsUsers,
+        EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE,
+        USER_ROLE_SUPERUSER,
     },
 };
 
@@ -957,33 +957,41 @@ impl DataBase
         Ok(vec)
     }
 
-    fn get_stats_from_table(&self, table: String, info: &StatsUsers, user1_id: i64, user2_id: i64) -> ServerResult<Vec<Match>>
+    fn get_stats_from_table(
+        &self,
+        table: String,
+        info: &StatsUsers,
+        user1_id: i64,
+        user2_id: i64,
+    ) -> ServerResult<Vec<Match>>
     {
         let mut stmt = self.conn.prepare(&format!(
             "select winner, loser, elo_diff, winner_elo, loser_elo, epoch, {}
              where winner = :user1 and loser = :user2
              or winner = :user2 and loser = :user1;",
-        table))?;
-        let matches = stmt.query_map_named(named_params!{":user1": user1_id, ":user2": user2_id}, |row| {
-            let res: i64 = row.get(0)?;
-            let (winner, loser) = if res == user1_id
-            {
-                (info.user1.clone(), info.user2.clone())
-            }
-            else
-            {
-                (info.user2.clone(), info.user1.clone())
-            };
-            Ok(Match {
-                winner:     winner,
-                loser:      loser,
-                elo_diff:   row.get(2)?,
-                winner_elo: row.get(3)?,
-                loser_elo:  row.get(4)?,
-                epoch:      row.get(5)?,
-                season:     row.get(6)?,
-            })
-        })?;
+            table
+        ))?;
+        let matches =
+            stmt.query_map_named(named_params! {":user1": user1_id, ":user2": user2_id}, |row| {
+                let res: i64 = row.get(0)?;
+                let (winner, loser) = if res == user1_id
+                {
+                    (info.user1.clone(), info.user2.clone())
+                }
+                else
+                {
+                    (info.user2.clone(), info.user1.clone())
+                };
+                Ok(Match {
+                    winner:     winner,
+                    loser:      loser,
+                    elo_diff:   row.get(2)?,
+                    winner_elo: row.get(3)?,
+                    loser_elo:  row.get(4)?,
+                    epoch:      row.get(5)?,
+                    season:     row.get(6)?,
+                })
+            })?;
 
         let mut vec = Vec::new();
         for _match in matches
@@ -1002,8 +1010,18 @@ impl DataBase
         let user2_id = self.get_user(&info.user2)?.id;
 
         let current_season = self.get_latest_season_number()?;
-        let current = self.get_stats_from_table(format!("{} from matches", current_season), &info, user1_id, user2_id)?;
-        let rest = self.get_stats_from_table("season from old_matches".to_string(), &info, user1_id, user2_id)?;
+        let current = self.get_stats_from_table(
+            format!("{} from matches", current_season),
+            &info,
+            user1_id,
+            user2_id,
+        )?;
+        let rest = self.get_stats_from_table(
+            "season from old_matches".to_string(),
+            &info,
+            user1_id,
+            user2_id,
+        )?;
 
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
