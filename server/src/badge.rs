@@ -9,5 +9,5 @@ pub struct Badge
 }
 
 pub const NUM_SEASON_PRIZES: usize = 3;
-pub static BADGES: &'static [&'static str] 
-    = &["first_place.png", "second_place.png", "third_place.png", "default_tournament_win.png"];
+pub static BADGES: &'static [&'static str] =
+    &["first_place.png", "second_place.png", "third_place.png", "default_tournament_win.png"];

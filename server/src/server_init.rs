@@ -1,9 +1,9 @@
 use rusqlite::{Connection, NO_PARAMS};
+
 use crate::{
     server::DataBase,
-    user::{
-        USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE,
-    }};
+    user::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE},
+};
 
 impl DataBase
 {
@@ -144,5 +144,3 @@ impl DataBase
         }
     }
 }
-
-
