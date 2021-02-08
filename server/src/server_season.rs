@@ -2,11 +2,11 @@ use chrono::prelude::*;
 use rusqlite::{named_params, params, NO_PARAMS};
 
 use crate::{
-    GET_OR_CREATE_DB_VAR,
     badge::NUM_SEASON_PRIZES,
     season::Season,
     server::{DataBase, ServerError, ServerResult},
     user::USER_ROLE_SOFT_INACTIVE,
+    GET_OR_CREATE_DB_VAR,
 };
 
 pub const N_SEASON_ID: u32 = 1;
@@ -42,23 +42,25 @@ impl DataBase
 
     pub fn get_is_season(&self) -> ServerResult<bool>
     {
-        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1)
-            .map(|num| num == 1)
+        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1).map(|num| num == 1)
     }
 
     pub fn set_is_season(&self, val: bool) -> ServerResult<()>
     {
         let new_val = if val { 1 } else { 0 };
-        self.conn.execute("update variables set value = (?1) where id = (?2)", params![new_val, IS_SEASON_ID])?;
+        self.conn.execute("update variables set value = (?1) where id = (?2)", params![
+            new_val,
+            IS_SEASON_ID
+        ])?;
         Ok(())
     }
 
     pub fn get_latest_season_number(&self) -> ServerResult<i64>
     {
         match self.get_latest_season()?
-        { 
-            Some(s) => Ok(s.id),  
-            _  => Ok(-1 )
+        {
+            Some(s) => Ok(s.id),
+            _ => Ok(-1),
         }
     }
 }
@@ -102,13 +104,14 @@ impl DataBase
     fn archive_match_history(&self, season_number: i64) -> ServerResult<()>
     {
         self.conn.execute(
-            "insert into old_matches (epoch, elo_diff, winner_elo, loser_elo, winner, loser, season)
+            "insert into old_matches (epoch, elo_diff, winner_elo, loser_elo, winner, loser, \
+             season)
              select epoch, elo_diff, winner_elo, loser_elo, winner, loser, seasons.id
              from matches, seasons where seasons.id = (?1)",
-             params![season_number])?;
+            params![season_number],
+        )?;
         Ok(())
     }
-
 }
 
 
@@ -159,16 +162,14 @@ impl DataBase
         self.conn.execute(
             "insert into offseason_matches (epoch, elo_diff, winner_elo, loser_elo, winner, loser)
              select epoch, elo_diff, winner_elo, loser_elo, winner, loser from matches",
-             NO_PARAMS,)?;
+            NO_PARAMS,
+        )?;
         Ok(())
     }
 
     pub fn clear_matches(&self) -> ServerResult<()>
     {
-        self.conn.execute(
-            "delete from matches",
-            NO_PARAMS,
-        )?;
+        self.conn.execute("delete from matches", NO_PARAMS)?;
         Ok(())
     }
 
@@ -196,7 +197,10 @@ impl DataBase
 
     pub fn _set_season_length(&self, new_val: i64) -> ServerResult<()>
     {
-        self.conn.execute("update variables set value = (?1) where id = (?2)", params![new_val, N_SEASON_ID])?; 
+        self.conn.execute("update variables set value = (?1) where id = (?2)", params![
+            new_val,
+            N_SEASON_ID
+        ])?;
         Ok(())
     }
 }
@@ -206,12 +210,11 @@ impl DataBase
 mod test
 {
     use super::*;
-    use crate::test_util::*;
-    use crate::user::{
-        USER_ROLE_SOFT_INACTIVE,
-        USER_ROLE_SUPERUSER,
+    use crate::{
+        badge::*,
+        test_util::*,
+        user::{USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER},
     };
-    use crate::badge::*;
 
     #[test]
     fn test_get_set_is_season()
@@ -256,12 +259,14 @@ mod test
         create_user(&s, lars.as_str());
 
         s.start_new_season().unwrap();
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+        s.register_match(lars.clone(), siv.clone(), token_siv.clone())
+            .expect("Creating match");
         let notification_count_before = get_table_size(&s, "match_notification");
         s.end_season().unwrap();
         let notification_count_after = get_table_size(&s, "match_notification");
 
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+        s.register_match(lars.clone(), siv.clone(), token_siv.clone())
+            .expect("Creating match");
         let notification_count_before2 = get_table_size(&s, "match_notification");
         s.start_new_season().unwrap();
         let notification_count_after2 = get_table_size(&s, "match_notification");
@@ -288,7 +293,8 @@ mod test
         create_user(&s, bernt.as_str());
 
         s.start_new_season().unwrap();
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+        s.register_match(lars.clone(), siv.clone(), token_siv.clone())
+            .expect("Creating match");
         respond_to_match(&s, lars.as_str(), 1);
         s.end_season().unwrap();
 
@@ -298,7 +304,8 @@ mod test
         let offseason_matches = get_table_size(&s, "offseason_matches");
 
         // We are now in offseason
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone())
+            .expect("Creating match");
         respond_to_match(&s, lars.as_str(), 2);
 
         s.start_new_season().unwrap();
@@ -431,11 +438,15 @@ mod test
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        users1.into_iter().zip(users2.into_iter()).enumerate().for_each(|(i, (u1, u2))| {
-            assert_eq!(u1.badges[0].name, BADGES[i]);
-            assert_eq!(u2.badges[0].season, 1);
-            assert_eq!(u2.badges[1].season, 2);
-        });
+        users1
+            .into_iter()
+            .zip(users2.into_iter())
+            .enumerate()
+            .for_each(|(i, (u1, u2))| {
+                assert_eq!(u1.badges[0].name, BADGES[i]);
+                assert_eq!(u2.badges[0].season, 1);
+                assert_eq!(u2.badges[1].season, 2);
+            });
     }
 
     #[test]
