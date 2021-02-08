@@ -10,7 +10,7 @@ pub struct Match
     pub elo_diff:   f64,
     pub winner_elo: f64,
     pub loser_elo:  f64,
-    pub season: i64,
+    pub season:     i64,
 }
 
 #[derive(Debug, Serialize)]

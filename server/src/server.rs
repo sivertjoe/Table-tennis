@@ -12,8 +12,7 @@ use crate::{
         MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
     },
     user::{
-        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE,
-        USER_ROLE_SUPERUSER,
+        EditUserAction, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
     },
 };
 
@@ -31,7 +30,10 @@ macro_rules! GET_OR_CREATE_DB_VAR {
             .map_or_else(
                 || {
                     $conn
-                        .execute("insert into variables (id, value) values (?1, ?2)", params![$id, $default_value],)
+                        .execute("insert into variables (id, value) values (?1, ?2)", params![
+                            $id,
+                            $default_value
+                        ])
                         .expect(&format!("Inserting into variables <{}, {}>", $id, $default_value));
                     Ok($default_value)
                 },
@@ -179,8 +181,7 @@ impl DataBase
         self._get_all_users(token)
     }
 
-    pub fn get_non_inactive_users(&self)
-    -> ServerResult<Vec<User>>
+    pub fn get_non_inactive_users(&self) -> ServerResult<Vec<User>>
     {
         self.get_all_non_inactive_users()
     }
@@ -266,7 +267,8 @@ impl DataBase
 {
     fn try_delete_match(&self, info: DeleteMatchInfo) -> ServerResult<()>
     {
-        self.conn.execute(&format!("delete from matches where id = {}", info.id), NO_PARAMS)?;
+        self.conn
+            .execute(&format!("delete from matches where id = {}", info.id), NO_PARAMS)?;
         Ok(())
     }
 
@@ -768,8 +770,9 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let mut stmt =
-            self.conn.prepare("select count(*) from users where id = :id and uuid = :token")?;
+        let mut stmt = self
+            .conn
+            .prepare("select count(*) from users where id = :id and uuid = :token")?;
         let mut c =
             stmt.query_map_named(named_params! {":id": user_id, ":token": token}, |row| {
                 let c: i64 = row.get(0)?;
@@ -823,9 +826,9 @@ impl DataBase
 
     fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
-        let mut stmt = self.conn.prepare(
-            "select password_hash, uuid, user_role from users where name = :name;",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("select password_hash, uuid, user_role from users where name = :name;")?;
         let info = stmt
             .query_map_named(named_params! {":name" : name}, |row| {
                 let passwd: String = row.get(0)?;
@@ -932,7 +935,7 @@ impl DataBase
                 winner_elo: row.get(3)?,
                 loser_elo:  row.get(4)?,
                 epoch:      row.get(5)?,
-                season:     current_season // -1 if off-season
+                season:     current_season, // -1 if off-season
             })
         })?;
 
@@ -1052,9 +1055,8 @@ impl DataBase
             "select id, name, elo, user_role from users
              where user_role & :user_role = :val;",
         )?;
-        let users = stmt.query_map_named(
-            named_params! {":user_role": user_role, ":val": val},
-            |row| {
+        let users =
+            stmt.query_map_named(named_params! {":user_role": user_role, ":val": val}, |row| {
                 Ok(User {
                     id:            row.get(0)?,
                     name:          row.get(1)?,
@@ -1063,8 +1065,7 @@ impl DataBase
                     match_history: Vec::new(),
                     badges:        Vec::new(),
                 })
-            },
-        )?;
+            })?;
 
         let mut vec = Vec::new();
         for user in users
@@ -1122,8 +1123,8 @@ impl DataBase
         match users.next()
         {
             Some(Ok(user)) => Ok(user),
-            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even
-                                                                        * mean 🤷‍♀️ */
+            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even */
+            // mean 🤷‍♀️
             None => Err(ServerError::UserNotExist),
         }
     }
@@ -1160,10 +1161,14 @@ impl DataBase
 mod test
 {
     use rusqlite::NO_PARAMS;
-    use super::*;
-    use crate::user::{USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
-    use crate::test_util::*;
 
+    use super::*;
+    use crate::{
+        test_util::*,
+        user::{
+            USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
+        },
+    };
 
 
     #[test]
@@ -1273,12 +1278,15 @@ mod test
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), uuid.clone())
+            .expect("Creating match");
         s.register_match(winner.clone(), loser.clone(), uuid).expect("Creating match");
 
 
-        let mut stmt =
-            s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let mut stmt = s
+            .conn
+            .prepare("select winner_accept from match_notification where id = 1")
+            .unwrap();
         let winner_accept = stmt
             .query_map(NO_PARAMS, |row| {
                 let c: u8 = row.get(0).expect("Getting first (and only) row");
@@ -1291,8 +1299,10 @@ mod test
 
 
 
-        let mut stmt =
-            s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let mut stmt = s
+            .conn
+            .prepare("select loser_accept from match_notification where id = 2")
+            .unwrap();
         let loser_accept = stmt
             .query_map(NO_PARAMS, |row| {
                 let c: u8 = row.get(0).expect("Getting first (and only) row");
@@ -1320,12 +1330,16 @@ mod test
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-        s.register_match(winner.clone(), loser.clone(), winner_uuid).expect("Creating match");
-        s.register_match(winner.clone(), loser.clone(), loser_uuid).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), winner_uuid)
+            .expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), loser_uuid)
+            .expect("Creating match");
 
 
-        let mut stmt =
-            s.conn.prepare("select winner_accept from match_notification where id = 1").unwrap();
+        let mut stmt = s
+            .conn
+            .prepare("select winner_accept from match_notification where id = 1")
+            .unwrap();
         let winner_accept = stmt
             .query_map(NO_PARAMS, |row| {
                 let c: u8 = row.get(0).expect("Getting first (and only) row");
@@ -1338,8 +1352,10 @@ mod test
 
 
 
-        let mut stmt =
-            s.conn.prepare("select loser_accept from match_notification where id = 2").unwrap();
+        let mut stmt = s
+            .conn
+            .prepare("select loser_accept from match_notification where id = 2")
+            .unwrap();
         let loser_accept = stmt
             .query_map(NO_PARAMS, |row| {
                 let c: u8 = row.get(0).expect("Getting first (and only) row");
@@ -1397,8 +1413,10 @@ mod test
 
         s.register_match(winner, loser, uuid).expect("Creating match");
 
-        let mut stmn =
-            s.conn.prepare("select COUNT(*) from match_notification").expect("creating statement");
+        let mut stmn = s
+            .conn
+            .prepare("select COUNT(*) from match_notification")
+            .expect("creating statement");
 
         let find = stmn.query_map(NO_PARAMS, |row| {
             let c: i64 = row.get(0).expect("getting first row");
@@ -1468,7 +1486,8 @@ mod test
         let (name, password, new) =
             ("Sivert".to_string(), "password".to_string(), "new".to_string());
         create_user(&s, &name);
-        s.change_password(name.clone(), password.clone(), new.clone()).expect("Changing password");
+        s.change_password(name.clone(), password.clone(), new.clone())
+            .expect("Changing password");
 
         let err = s.login(name.clone(), password);
         let uuid = s.login(name, new);
@@ -1501,11 +1520,16 @@ mod test
         create_user(&s, lars.as_str());
         create_user(&s, bernt.as_str());
 
-        s.register_match(lars.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        s.register_match(siv.clone(), lars.clone(), token_siv.clone()).expect("Creating match");
-        s.register_match(bernt.clone(), siv.clone(), token_siv.clone()).expect("Creating match");
+        s.register_match(lars.clone(), siv.clone(), token_siv.clone())
+            .expect("Creating match");
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone())
+            .expect("Creating match");
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone())
+            .expect("Creating match");
+        s.register_match(siv.clone(), lars.clone(), token_siv.clone())
+            .expect("Creating match");
+        s.register_match(bernt.clone(), siv.clone(), token_siv.clone())
+            .expect("Creating match");
 
 
         respond_to_match(&s, lars.as_str(), 2);
@@ -1612,7 +1636,10 @@ mod test
 
         std::fs::remove_file(db_file).expect("Removing file tempG");
         assert_eq!(user_init.user_role, USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE);
-        assert_eq!(user_inactive.user_role, USER_ROLE_REGULAR | USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE);
+        assert_eq!(
+            user_inactive.user_role,
+            USER_ROLE_REGULAR | USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE
+        );
         assert_eq!(user_active.user_role, USER_ROLE_REGULAR);
     }
 
@@ -1675,7 +1702,8 @@ mod test
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), uuid.clone())
+            .expect("Creating match");
         respond_to_match(&s, "Lars", 1);
 
 
@@ -1709,7 +1737,8 @@ mod test
         let loser = "Lars".to_string();
 
 
-        s.register_match(winner.clone(), loser.clone(), uuid.clone()).expect("Creating match");
+        s.register_match(winner.clone(), loser.clone(), uuid.clone())
+            .expect("Creating match");
         respond_to_match(&s, "Lars", 1);
 
 
@@ -1727,8 +1756,9 @@ mod test
     #[test]
     fn test_spawner()
     {
+        use std::sync::{mpsc::channel, Arc, Mutex};
+
         use crate::spawn_season_checker;
-        use std::sync::{Arc, Mutex, mpsc::channel};
         let time = std::time::Duration::from_millis(15);
 
         let db_file = "tempMP.db";
@@ -1743,20 +1773,14 @@ mod test
         sender.send(STOP_SEASON).expect("Sending stop season");
         sender.send(0).expect("Sending new season length");
         std::thread::sleep(time);
-        let stopped_season = data.lock()
-                                 .expect("Getting mutex")
-                                 .get_latest_season()
-                                 .unwrap()
-                                 .is_none();
+        let stopped_season =
+            data.lock().expect("Getting mutex").get_latest_season().unwrap().is_none();
 
         // Check that a new season is started
         sender.send(1).expect("Sending new season length");
         sender.send(START_SEASON).expect("Sending start season");
         std::thread::sleep(time);
-        let started_season = data.lock()
-                                 .expect("Getting mutex")
-                                 .get_latest_season()
-                                 .unwrap();
+        let started_season = data.lock().expect("Getting mutex").get_latest_season().unwrap();
 
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
@@ -1775,19 +1799,13 @@ mod test
         let (sender, receiver) = channel();
         spawn_season_checker(data.clone(), receiver);
         std::thread::sleep(time);
-        let stopped_season2 = data.lock()
-                                 .expect("Getting mutex")
-                                 .get_latest_season()
-                                 .unwrap()
-                                 .is_none();
+        let stopped_season2 =
+            data.lock().expect("Getting mutex").get_latest_season().unwrap().is_none();
 
         // Simulate a new month
         sender.send(START_SEASON).expect("starting season");
         std::thread::sleep(time);
-        let started_season2 = data.lock()
-                                 .expect("Getting mutex")
-                                 .get_latest_season()
-                                 .unwrap();
+        let started_season2 = data.lock().expect("Getting mutex").get_latest_season().unwrap();
 
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
