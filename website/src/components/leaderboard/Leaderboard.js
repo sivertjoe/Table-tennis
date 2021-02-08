@@ -1,5 +1,4 @@
 import { React, Component } from 'react'
-import * as UserApi from '../../api/UserApi'
 import * as MatchApi from '../../api/MatchApi'
 import './Leaderboard.css'
 import '../../index.css'
