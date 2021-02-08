@@ -57,8 +57,8 @@ pub struct EditUsersInfo
 #[derive(Deserialize)]
 pub struct StatsUsers
 {
-    pub user1:  String,
-    pub user2:  String,
+    pub user1: String,
+    pub user2: String,
 }
 
 impl FromStr for EditUserAction
