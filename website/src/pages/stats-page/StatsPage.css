@@ -23,6 +23,12 @@ th {
   margin-top: 4rem;
 }
 
+.season-select {
+  color: black;
+  width: 12rem;
+  margin: auto;
+}
+
 @media only screen and (max-width: 800px) {
   th {
     display: grid;

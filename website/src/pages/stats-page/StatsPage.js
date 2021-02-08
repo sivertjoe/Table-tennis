@@ -33,7 +33,7 @@ class StatsPage extends Component {
     this.setUser1 = this.setUser1.bind(this)
     this.setUser2 = this.setUser2.bind(this)
     this.updateUrl = this.updateUrl.bind(this)
-    this.getStats = this.getStats.bind(this)
+    this.onSelectSeason = this.onSelectSeason.bind(this)
     this.getStats()
   }
 
@@ -68,42 +68,76 @@ class StatsPage extends Component {
     this.updateUrl()
   }
 
+  onSelectSeason(e) {
+    this.selectedSeason = e
+    this.current = { kd: [0, 0], netEloDiff: 0 }
+    this.stats.forEach((stat) => {
+      if (stat.season === this.selectedSeason.value)
+        this.addStat(stat, 'current')
+    })
+    this.setState({})
+  }
+
+  initStats() {
+    this.current = { kd: [0, 0], netEloDiff: 0 }
+    this.rest = { kd: [0, 0], netEloDiff: 0 }
+    this.stats.forEach((stat) => {
+      this.addStat(stat, 'rest')
+      if (stat.season === this.selectedSeason.value)
+        this.addStat(stat, 'current')
+    })
+  }
+
+  addStat(stat, prop) {
+    if (stat.winner === this.user1) {
+      this[prop].kd[0] += 1
+      this[prop].netEloDiff += stat.elo_diff
+    } else {
+      this[prop].kd[1] += 1
+      this[prop].netEloDiff -= stat.elo_diff
+    }
+  }
+
+  initSeasons(stats) {
+    this.seasons = stats.rest.reduce((tot, cur) => {
+      if (!tot.some((x) => x.value === cur.season))
+        tot.push({ label: `Season ${cur.season}`, value: cur.season })
+      return tot
+    }, [])
+    this.seasons.unshift({
+      label: 'Current season',
+      value: stats.current[0]?.season,
+    })
+    this.selectedSeason = this.seasons[0]
+  }
+
   getStats() {
     if (this.user1 && this.user2)
       MatchApi.getStats(this.user1, this.user2)
-        .then((stats) => (this.stats = stats))
+        .then((stats) => {
+          this.stats = [...stats.current, ...stats.rest]
+          this.initSeasons(stats)
+          this.initStats()
+        })
         .catch((error) => (this.error = error.message))
         .finally(() => this.mounted && this.setState({}))
   }
 
-  renderStats(title, stats) {
-    let kd = [0, 0]
-    let netEloDiff = 0
-    stats.forEach((stat) => {
-      if (stat.winner === this.user1) {
-        kd[0] += 1
-        netEloDiff += stat.elo_diff
-      } else {
-        kd[1] += 1
-        netEloDiff -= stat.elo_diff
-      }
-    })
-
+  renderStats(stats) {
     return (
       <div>
-        <h1>{title}</h1>
         <h3>
-          K/D: <span style={{ color: 'var(--green)' }}>{kd[0]}</span>/
-          <span style={{ color: 'var(--red)' }}>{kd[1]}</span>
+          K/D: <span style={{ color: 'var(--green)' }}>{stats.kd[0]}</span>/
+          <span style={{ color: 'var(--red)' }}>{stats.kd[1]}</span>
         </h3>
         <h3>
           Net elo diff:{' '}
           <span
             style={{
-              color: netEloDiff < 0 ? 'var(--red)' : 'var(--green)',
+              color: stats.netEloDiff < 0 ? 'var(--red)' : 'var(--green)',
             }}
           >
-            {Math.trunc(netEloDiff)}
+            {Math.trunc(stats.netEloDiff)}
           </span>
         </h3>
       </div>
@@ -143,8 +177,19 @@ class StatsPage extends Component {
         {this.error && <h2 className="error"> {this.error} </h2>}
         {this.stats && (
           <div className="stats">
-            {this.renderStats('This season', this.stats.current)}
-            {this.renderStats('Previous seasons', this.stats.rest)}
+            <div>
+              <Select
+                className="season-select"
+                onChange={this.onSelectSeason}
+                options={this.seasons}
+                value={this.selectedSeason}
+              />
+              {this.renderStats(this.current)}
+            </div>
+            <div>
+              <h1 style={{ margin: '0 auto' }}>All time</h1>
+              {this.renderStats(this.rest)}
+            </div>
           </div>
         )}
       </div>
