@@ -1,26 +1,23 @@
 // These tags are kind of ungly, but idk how else to do it
 
-#[cfg(test)]
-use crate::server::{ServerResult, DataBase, ACCEPT_MATCH};
-#[cfg(test)]
-use rusqlite::{NO_PARAMS, params, named_params};
-#[cfg(test)]
-use uuid::Uuid;
-#[cfg(test)]
-use crate::user::USER_ROLE_SUPERUSER;
+#[cfg(test)] use rusqlite::{named_params, params, NO_PARAMS};
+#[cfg(test)] use uuid::Uuid;
+
+#[cfg(test)] use crate::server::{DataBase, ServerResult, ACCEPT_MATCH};
+#[cfg(test)] use crate::user::USER_ROLE_SUPERUSER;
 
 
 #[cfg(test)]
-pub fn get_table_size(s: &DataBase,  table: &str) -> i64
+pub fn get_table_size(s: &DataBase, table: &str) -> i64
 {
     s.conn
-     .prepare(&format!("select count(*) from {}", table))
-     .unwrap()
-     .query_map(NO_PARAMS, |row| row.get::<_, i64>(0))
-     .unwrap()
-     .next()
-     .unwrap()
-     .unwrap()
+        .prepare(&format!("select count(*) from {}", table))
+        .unwrap()
+        .query_map(NO_PARAMS, |row| row.get::<_, i64>(0))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -50,8 +47,10 @@ pub fn hash(word: &String) -> String
 #[cfg(test)]
 pub fn respond_to_match(s: &DataBase, name: &str, id: i64)
 {
-    let mut stmt =
-        s.conn.prepare("select uuid from users where name = :name").expect("Creating query");
+    let mut stmt = s
+        .conn
+        .prepare("select uuid from users where name = :name")
+        .expect("Creating query");
     let token: String = stmt
         .query_map_named(named_params! {":name": name}, |row| {
             let token: String = row.get(0).expect("Getting first row");

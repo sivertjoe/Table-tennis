@@ -4,11 +4,11 @@ mod notification;
 mod season;
 #[macro_use]
 mod server;
+mod server_init;
 mod server_rollback;
 mod server_season;
-mod server_init;
-mod user;
 mod test_util;
+mod user;
 
 use std::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -470,7 +470,7 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
     let s = DATABASE!(data);
     match (s.get_users(), s.get_is_season(), s.get_latest_season_number())
     {
-        (Ok(users), Ok(is_season), Ok(len)) => 
+        (Ok(users), Ok(is_season), Ok(len)) =>
             HttpResponse::Ok().json(json!({"status": 0, "result": json!({"users": users, "is_season": is_season, "season_number": len})})),
         _ => HttpResponse::InternalServerError().finish(),
     }
@@ -482,7 +482,9 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
     builder
         .set_private_key_file("privkey.pem", SslFiletype::PEM)
         .expect("failed to open/read key.pem");
-    builder.set_certificate_chain_file("cert.pem").expect("failed to open/read cert.pem");
+    builder
+        .set_certificate_chain_file("cert.pem")
+        .expect("failed to open/read cert.pem");
     builder
 }
 
@@ -501,14 +503,14 @@ fn check_for_admin_input(
             STOP_SEASON =>
             {
                 *running = false;
-                let s  = data.lock().expect("Getting mutex");
+                let s = data.lock().expect("Getting mutex");
                 s.end_season().expect("Ending season");
             },
 
             START_SEASON =>
             {
                 *running = true;
-                let s  = data.lock().expect("Getting mutex");
+                let s = data.lock().expect("Getting mutex");
                 s.start_new_season().expect("Starting new season");
                 *start_month = Utc::now().month0(); // This should be fine
             },
@@ -579,8 +581,9 @@ fn handle_args(data: &Arc<Mutex<DataBase>>)
             {
                 data.lock().unwrap().create_superuser(name.clone()).unwrap();
             }
-        }
-        _ => {}
+        },
+        _ =>
+        {},
     }
 }
 
