@@ -1006,8 +1006,8 @@ impl DataBase
 
     fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
     {
-        let user1_id = self.get_user(&info.user1)?.id;
-        let user2_id = self.get_user(&info.user2)?.id;
+        let user1_id = self.get_user_without_matches(&info.user1)?.id;
+        let user2_id = self.get_user_without_matches(&info.user2)?.id;
 
         let current_season = self.get_latest_season_number()?;
         let current = self.get_stats_from_table(
