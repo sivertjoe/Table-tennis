@@ -957,10 +957,10 @@ impl DataBase
         Ok(vec)
     }
 
-    fn get_stats_from_table(&self, table: String, info: StatsUsers, user1_id: i64, user2_id: i64) -> ServerResult<Vec<Match>>
+    fn get_stats_from_table(&self, table: String, info: &StatsUsers, user1_id: i64, user2_id: i64) -> ServerResult<Vec<Match>>
     {
         let mut stmt = self.conn.prepare(&format!(
-            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch from {}
+            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch, {}
              where winner = :user1 and loser = :user2
              or winner = :user2 and loser = :user1;",
         table))?;
@@ -981,6 +981,7 @@ impl DataBase
                 winner_elo: row.get(3)?,
                 loser_elo:  row.get(4)?,
                 epoch:      row.get(5)?,
+                season:     row.get(6)?,
             })
         })?;
 
@@ -1000,10 +1001,9 @@ impl DataBase
         let user1_id = self.get_user(&info.user1)?.id;
         let user2_id = self.get_user(&info.user2)?.id;
 
-        let current = self.get_stats_from_table("matches".to_string(), info, user1_id, user2_id)?;
-        // TODO: Wait for db changes
-        let rest = Vec::new();
-        // let rest = self.get_stats_from_table("old_matches".to_string(), info, user1_id, user2_id)?;
+        let current_season = self.get_latest_season_number()?;
+        let current = self.get_stats_from_table(format!("{} from matches", current_season), &info, user1_id, user2_id)?;
+        let rest = self.get_stats_from_table("season from old_matches".to_string(), &info, user1_id, user2_id)?;
 
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
