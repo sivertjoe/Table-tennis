@@ -289,7 +289,7 @@ async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpR
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
         {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            ServerError::Rusqlite(err) => HttpResponse::InternalServerError().json(json!({"status": 8, "result": err.to_string()})),
             _ => HttpResponse::Ok().json(response_error(e)),
         },
     }

@@ -957,18 +957,14 @@ impl DataBase
         Ok(vec)
     }
 
-    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    fn get_stats_from_table(&self, table: String, info: StatsUsers, user1_id: i64, user2_id: i64) -> ServerResult<Vec<Match>>
     {
-        let user1_id = self.get_user(&info.user1)?.id;
-        let user2_id = self.get_user(&info.user2)?.id;
-
-        let mut stmt = self.conn.prepare(
-            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch from matches
+        let mut stmt = self.conn.prepare(&format!(
+            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch from {}
              where winner = :user1 and loser = :user2
-             or winner = :user2 and loser = :user1
-             order by epoch;",
-        )?;
-        let matches = stmt.query_map_named(named_params! {":user1": user1_id, ":user2": user2_id}, |row| {
+             or winner = :user2 and loser = :user1;",
+        table))?;
+        let matches = stmt.query_map_named(named_params!{":user1": user1_id, ":user2": user2_id}, |row| {
             let res: i64 = row.get(0)?;
             let (winner, loser) = if res == user1_id
             {
@@ -988,19 +984,30 @@ impl DataBase
             })
         })?;
 
-        let mut current = Vec::new();
+        let mut vec = Vec::new();
         for _match in matches
         {
             if let Ok(m) = _match
             {
-                current.push(m);
+                vec.push(m);
             };
         }
+        Ok(vec)
+    }
+
+    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    {
+        let user1_id = self.get_user(&info.user1)?.id;
+        let user2_id = self.get_user(&info.user2)?.id;
+
+        let current = self.get_stats_from_table("matches".to_string(), info, user1_id, user2_id)?;
+        // TODO: Wait for db changes
+        let rest = Vec::new();
+        // let rest = self.get_stats_from_table("old_matches".to_string(), info, user1_id, user2_id)?;
 
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
-        // TODO: Get matches of previous seasons
-        // map.insert("rest".to_string(), rest);
+        map.insert("rest".to_string(), rest);
         Ok(map)
     }
 
