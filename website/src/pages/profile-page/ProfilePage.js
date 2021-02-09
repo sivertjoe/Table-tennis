@@ -72,9 +72,13 @@ class Profile extends Component {
         {Object.keys(this.user).length !== 0 && <EloGraph user={this.user} />}
         <div className="history-header">
           <h2>Match history ({numberOfMatches})</h2>
-          <a href={'/stats?user1=' + loggedInUser + '&user2=' + this.user.name}>
-            <h2 style={{ textDecoration: 'underline' }}>Stats</h2>
-          </a>
+          {loggedInUser && !myProfile && (
+            <a
+              href={'/stats?user1=' + loggedInUser + '&user2=' + this.user.name}
+            >
+              <h2 style={{ textDecoration: 'underline' }}>Stats</h2>
+            </a>
+          )}
         </div>
         <MatchHistory user={this.user} />
         {myProfile && (
