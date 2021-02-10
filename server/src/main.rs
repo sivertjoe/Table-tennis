@@ -4,31 +4,28 @@ mod notification;
 mod season;
 #[macro_use]
 mod server;
+mod process;
 mod server_init;
 mod server_rollback;
 mod server_season;
 mod test_util;
 mod user;
 
-use std::sync::{
-    mpsc::{channel, Receiver, Sender},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use chrono::prelude::*;
 use r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
 use notification::NewUserNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use season::Season;
+use process::spawn_season_checker;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
 use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo, StatsUsers};
 
 const PORT: u32 = 58642;
-const DATABASE_FILE: &'static str = "db.db";
+pub const DATABASE_FILE: &'static str = "db.db";
 
 
 macro_rules! DATABASE {
@@ -413,22 +410,13 @@ struct EditSeasonLength
 }
 
 
-static mut SENDER: Option<Sender<i64>> = None;
-
 #[post("/season_length")]
 async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: EditSeasonLength = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).set_season_length(info.token, info.new_val)
     {
-        Ok(_) =>
-        {
-            unsafe
-            {
-                SENDER.as_ref().unwrap().send(info.new_val).expect("Sending new season length");
-            }
-            HttpResponse::Ok().json(response_ok())
-        },
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -446,16 +434,26 @@ struct Token
 fn change_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String, val: i64) -> HttpResponse
 {
     let info: Token = serde_json::from_str(&info).unwrap();
-    let res = DATABASE!(data).get_is_admin(info.token);
 
+    let res = DATABASE!(data).get_is_admin(info.token);
     match res
     {
         Ok(true) =>
         {
-            unsafe
+            match val
             {
-                SENDER.as_ref().unwrap().send(val).expect("Sending change season");
-            }
+                START_SEASON =>
+                {
+                    DATABASE!(data).start_new_season().expect("Starting new season");
+                },
+                STOP_SEASON =>
+                {
+                    DATABASE!(data).end_season().expect("Ending season");
+                },
+                _ =>
+                {},
+            };
+
             HttpResponse::Ok().json(response_ok())
         },
         Ok(false) => HttpResponse::Ok().json(response_error(ServerError::Unauthorized)),
@@ -496,92 +494,12 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
-        .set_private_key_file("privkey.pem", SslFiletype::PEM)
+        .set_private_key_file("db/privkey.pem", SslFiletype::PEM)
         .expect("failed to open/read key.pem");
     builder
-        .set_certificate_chain_file("cert.pem")
+        .set_certificate_chain_file("db/cert.pem")
         .expect("failed to open/read cert.pem");
     builder
-}
-
-fn check_for_admin_input(
-    data: &Arc<Mutex<DataBase>>,
-    running: &mut bool,
-    season_len: &mut i64,
-    start_month: &mut u32,
-    recv: &Receiver<i64>,
-)
-{
-    match recv.try_recv()
-    {
-        Ok(n) => match n
-        {
-            STOP_SEASON =>
-            {
-                *running = false;
-                let s = data.lock().expect("Getting mutex");
-                s.end_season().expect("Ending season");
-            },
-
-            START_SEASON =>
-            {
-                *running = true;
-                let s = data.lock().expect("Getting mutex");
-                s.start_new_season().expect("Starting new season");
-                *start_month = Utc::now().month0(); // This should be fine
-            },
-            _ => *season_len = n,
-        },
-
-        _ =>
-        {},
-    }
-}
-
-
-pub fn spawn_season_checker(data: Arc<Mutex<DataBase>>, receiver: Receiver<i64>)
-{
-    let s = data.lock().expect("Getting mutex");
-    let mut season_length = s.get_season_length().unwrap();
-
-    // Assume this means that this is the first season
-    let season =
-        s.get_latest_season().unwrap().unwrap_or_else(|| Season {
-            id:          0,
-            start_epoch: Utc::now().timestamp_millis(),
-        });
-    let mut _start_month = Utc.timestamp_millis(season.start_epoch).month0();
-    let mut running = s.get_is_season().expect("Getting running season");
-    drop(s);
-
-    std::thread::spawn(move || {
-        loop
-        {
-            check_for_admin_input(
-                &data,
-                &mut running,
-                &mut season_length,
-                &mut _start_month,
-                &receiver,
-            );
-            if running
-            {
-                if Utc::now().month0() != (_start_month + season_length as u32) % 12
-                {
-                    continue;
-                }
-
-                let s = data.lock().expect("Getting mutex");
-                s.end_season().expect("Endig season");
-                s.start_new_season().expect("starting new season");
-                _start_month = Utc::now().month0();
-                if cfg!(test)
-                {
-                    break;
-                } // Practical when unit testing this
-            }
-        }
-    });
 }
 
 
@@ -609,13 +527,7 @@ async fn main() -> std::io::Result<()>
     let data = Arc::new(Mutex::new(DataBase::new(DATABASE_FILE)));
     handle_args(&data);
 
-    let (sender, receiver) = channel();
-    spawn_season_checker(data.clone(), receiver);
-    unsafe
-    {
-        // :pepeworry:
-        SENDER = Some(sender);
-    }
+    spawn_season_checker(data.clone());
 
     let server = HttpServer::new(move || {
         App::new()

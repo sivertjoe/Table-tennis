@@ -17,12 +17,8 @@ services:
         source: ~/db/db.db
         target: /db.db
       - type: bind
-        source: ~/db/cert.pem
-        target: /cert.pem
-      - type: bind
-        source: ~/db/privkey.pem
-        target: /privkey.pem
-
+        source: ~/db
+        target: /db
 networks:
   default:
     name: table_tennis_network
