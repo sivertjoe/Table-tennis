@@ -4,7 +4,8 @@
 #[cfg(test)] use uuid::Uuid;
 
 #[cfg(test)] use crate::server::{DataBase, ServerResult, ACCEPT_MATCH};
-#[cfg(test)] use crate::user::USER_ROLE_SUPERUSER;
+#[cfg(test)]
+use crate::user::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
 
 
 #[cfg(test)]
@@ -25,11 +26,15 @@ pub fn create_user(s: &DataBase, name: &str) -> String
 {
     let uuid = format!("{}", Uuid::new_v4());
     s.conn
-        .execute("insert into users (name, password_hash, uuid) values (?1, ?2, ?3)", params![
-            name,
-            hash(&"password".to_string()),
-            uuid
-        ])
+        .execute(
+            "insert into users (name, password_hash, uuid, user_role) values (?1, ?2, ?3, ?4)",
+            params![
+                name,
+                hash(&"password".to_string()),
+                uuid,
+                USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE,
+            ],
+        )
         .unwrap();
     uuid
 }
