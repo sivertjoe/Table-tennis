@@ -12,8 +12,8 @@ use crate::{
         MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
     },
     user::{
-        EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_SOFT_INACTIVE,
-        USER_ROLE_SUPERUSER,
+        EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR,
+        USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
     },
 };
 
@@ -511,8 +511,8 @@ impl DataBase
     {
         let uuid = format!("{}", Uuid::new_v4());
         self.conn.execute(
-            "insert into users (name, password_hash, uuid) values (?1, ?2, ?3)",
-            params![new_user, password_hash, uuid],
+            "insert into users (name, password_hash, uuid, user_role) values (?1, ?2, ?3, ?4)",
+            params![new_user, password_hash, uuid, USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR],
         )?;
         Ok(uuid)
     }
