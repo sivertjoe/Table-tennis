@@ -1,9 +1,6 @@
 use rusqlite::{Connection, NO_PARAMS};
 
-use crate::{
-    server::DataBase,
-    user::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE},
-};
+use crate::server::DataBase;
 
 impl DataBase
 {
@@ -16,17 +13,14 @@ impl DataBase
         };
 
         conn.execute(
-            &format!(
-                "create table if not exists users (
+            "create table if not exists users (
                 id              integer primary key autoincrement,
                 name            VARCHAR(20) not null unique,
                 elo             float  default 1500.0,
                 password_hash   varchar(64) not null,
                 uuid            varchar(36) not null,
-                user_role       smallint default {}
+                user_role       smallint
                 )",
-                USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE
-            ),
             NO_PARAMS,
         )
         .expect("Creating user table");
