@@ -58,7 +58,6 @@ class EloGraph extends Component {
     let x = 0
     return this.user.match_history?.reduceRight((res, match, i) => {
       if (match.epoch > this.selectedPeriod.date.getTime()) {
-        console.log(match)
         res.push({
           y: Math.round(matchElo(match, name)),
           x: x,
