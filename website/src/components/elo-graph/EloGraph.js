@@ -258,9 +258,11 @@ class EloGraph extends Component {
                 </div>
                 <div>
                   {input.point.data.y}{' '}
-                  {input.point.data.elo_diff
+                  {input.point.data.elo_diff === undefined
+                    ? ''
+                    : input.point.data.info[0] === this.user.name
                     ? '(+' + input.point.data.elo_diff + ')'
-                    : ''}
+                    : '(-' + input.point.data.elo_diff + ')'}
                 </div>
                 <div>{getShortDate(input.point.data.time)}</div>
               </div>
