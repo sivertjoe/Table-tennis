@@ -10,6 +10,7 @@ mod server_rollback;
 mod server_season;
 mod test_util;
 mod user;
+mod macros;
 
 use std::sync::{Arc, Mutex};
 
