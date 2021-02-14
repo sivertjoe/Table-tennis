@@ -15,33 +15,10 @@ use crate::{
         EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR,
         USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
     },
+    SQL, TYPE
 };
 
-// Kneel before my one-liner
-#[macro_export]
-macro_rules! GET_OR_CREATE_DB_VAR {
-    ($conn: expr, $id: expr, $default_value: expr) => {
-        $conn
-            .prepare("select value from variables where id = :id")?
-            .query_map_named(named_params! {":id": $id}, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?
-            .next()
-            .map_or_else(
-                || {
-                    $conn
-                        .execute("insert into variables (id, value) values (?1, ?2)", params![
-                            $id,
-                            $default_value
-                        ])
-                        .expect(&format!("Inserting into variables <{}, {}>", $id, $default_value));
-                    Ok($default_value)
-                },
-                |val| Ok(val.unwrap()),
-            )
-    };
-}
+
 
 pub struct DataBase
 {
@@ -1039,34 +1016,18 @@ impl DataBase
     fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
         let current_season = self.get_latest_season_number()?;
-        let mut stmt = self.conn.prepare(
+        let sql =
             "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;",
-        )?;
-        let matches = stmt.query_map(NO_PARAMS, |row| {
-            Ok(Match {
-                winner:     row.get(0)?,
-                loser:      row.get(1)?,
-                elo_diff:   row.get(2)?,
-                winner_elo: row.get(3)?,
-                loser_elo:  row.get(4)?,
-                epoch:      row.get(5)?,
-                season:     current_season, // -1 if off-season
-            })
-        })?;
-
-        let mut vec = Vec::new();
-        for m in matches
-        {
-            if let Ok(u) = m
-            {
-                vec.push(u);
-            };
-        }
-        vec.reverse();
-        Ok(vec)
+             order by epoch;";
+        
+        Ok(SQL!(self, sql, TYPE!(MATCH))?
+           .into_iter()
+           .rev()
+           .map(|mut m| {m.season = current_season; m})
+           .collect()
+        )
     }
 
     fn get_stats_from_table(
@@ -1188,28 +1149,9 @@ impl DataBase
             return Err(ServerError::Unauthorized);
         }
 
-        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users;")?;
-        let users = stmt.query_map(NO_PARAMS, |row| {
-            Ok(User {
-                id:            row.get(0)?,
-                name:          row.get(1)?,
-                elo:           row.get(2)?,
-                user_role:     row.get(3)?,
-                match_history: Vec::new(),
-                badges:        Vec::new(),
-            })
-        })?;
-
-        let mut vec = Vec::new();
-        for user in users
-        {
-            if let Ok(u) = user
-            {
-                vec.push(u);
-            };
-        }
-        vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
-        Ok(vec)
+        let mut users = SQL!(self, "select id, name, elo, user_role from users", TYPE!(USER))?;
+        users.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
+        Ok(users)
     }
 
     fn get_badges(&self, pid: i64) -> ServerResult<Vec<Badge>>

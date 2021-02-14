@@ -11,6 +11,7 @@ mod server_season;
 mod test_util;
 mod user;
 mod sql_executor;
+mod macros;
 
 use std::sync::{Arc, Mutex};
 

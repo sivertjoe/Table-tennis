@@ -30,7 +30,6 @@ pub struct User
     pub badges:        Vec<Badge>,
 }
 
-
 #[derive(Deserialize)]
 pub struct LoginInfo
 {
