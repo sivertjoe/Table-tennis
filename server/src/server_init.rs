@@ -100,6 +100,15 @@ impl DataBase
         )
         .expect("Creating new_user_notification");
 
+        conn.execute(
+            "create table if not exists reset_password_notification (
+                id                integer primary key autoincrement,
+                user              integer not null unique,
+                foreign key(user) references users(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Creating reset_password_notification");
 
         conn.execute(
             "create table if not exists badges (
