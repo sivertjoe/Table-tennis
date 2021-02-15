@@ -6,13 +6,14 @@ export class ApiError extends Error {
 }
 
 export const errorMap = {
-  1: 'User does not exist.',
-  2: 'Username is already taken.',
-  3: 'Incorrect username or password',
-  4: 'Wrong password',
-  5: 'Admin privileges required.',
-  6: 'Waiting for approval by an admin.',
-  7: 'User is inactive.',
+  1: 'Critical error',
+  2: 'User does not exist.',
+  3: 'Username is already taken.',
+  4: 'Incorrect username or password',
+  5: 'Wrong password',
+  6: 'Admin privileges required.',
+  7: 'Waiting for approval by an admin.',
+  8: 'User is inactive.',
+  9: 'Password reset has already been requested.',
   // TODO: Get the error message from response
-  8: 'Critical error',
 }

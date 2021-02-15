@@ -18,11 +18,25 @@ input {
 }
 
 .error {
-  color: red;
+  color: var(--red);
+  text-align: center;
+}
+
+.message {
+  color: var(--green);
   text-align: center;
 }
 
 .button {
   width: fit-content;
   margin: 2rem auto;
+}
+
+.reset-password {
+  text-align: center;
+  cursor: pointer;
+}
+
+.reset-password:hover {
+  text-decoration: underline;
 }

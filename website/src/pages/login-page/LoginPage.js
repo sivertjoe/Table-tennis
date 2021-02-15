@@ -6,12 +6,14 @@ import Button from '../../components/button/Button'
 
 class LoginPage extends Component {
   error = ''
+  resetPasswordMessage = false
 
   constructor() {
     super()
     this.onClick = this.onClick.bind(this)
     this.saveUsername = this.saveUsername.bind(this)
     this.savePassword = this.savePassword.bind(this)
+    this.onResetPassword = this.onResetPassword.bind(this)
   }
 
   onClick() {
@@ -25,7 +27,10 @@ class LoginPage extends Component {
         window.location.href = '/profiles/' + this.username
       })
       .catch((error) => (this.error = error.message))
-      .finally(() => this.setState({}))
+      .finally(() => {
+        this.resetPasswordMessage = false
+        this.setState({})
+      })
   }
 
   setError(val) {
@@ -39,6 +44,22 @@ class LoginPage extends Component {
 
   savePassword(event) {
     this.password = event.target.value
+  }
+
+  onResetPassword() {
+    if (!this.username)
+      return this.setError('Fill in your username to reset password')
+
+    UserApi.requestResetPassword(this.username)
+      .then(() => {
+        this.resetPasswordMessage = true
+        this.error = ''
+      })
+      .catch((error) => {
+        this.resetPasswordMessage = false
+        this.error = error.message
+      })
+      .finally(() => this.setState({}))
   }
 
   render() {
@@ -60,8 +81,19 @@ class LoginPage extends Component {
           />
         </div>
         {this.error && <h2 className="error"> {this.error} </h2>}
+        {this.resetPasswordMessage && (
+          <>
+            <h2 className="message">Your request has been submitted</h2>
+            <h2 className="message">
+              If an admin approves, your password will be reset to '@uit'
+            </h2>
+          </>
+        )}
         <div className="button">
           <Button placeholder="Login" callback={this.onClick} />
+          <p className="reset-password" onClick={this.onResetPassword}>
+            Reset Password
+          </p>
         </div>
         <p style={{ textAlign: 'center' }}>
           (For already registered users, default password is '@uit', change it
