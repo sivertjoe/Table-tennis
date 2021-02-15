@@ -15,6 +15,7 @@ class Admin extends Component {
   editOptions = [
     { value: 'MAKE_USER_ACTIVE', label: 'Make active' },
     { value: 'MAKE_USER_INACTIVE', label: 'Make inactive' },
+    { value: 'MAKE_USER_SOFT_INACTIVE', label: 'Make soft inactive' },
     { value: 'MAKE_USER_REGULAR', label: 'Make regular' },
     { value: 'MAKE_USER_SUPERUSER', label: 'Make superuser' },
   ]
