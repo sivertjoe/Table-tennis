@@ -9,7 +9,7 @@ use crate::{
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
-        MatchNotification, MatchNotificationTable, NewUserNotification, NewUserNotificationAns,
+        AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
     user::{
         EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR,
@@ -49,9 +49,9 @@ pub struct DataBase
 }
 #[allow(dead_code)]
 const MATCH_NO_ANS: u8 = 0;
-pub const ACCEPT_MATCH: u8 = 1;
+pub const ACCEPT_REQUEST: u8 = 1;
 #[allow(dead_code)]
-const DECLINE_MATCH: u8 = 2;
+const DECLINE_REQUEST: u8 = 2;
 
 pub const STOP_SEASON: i64 = -1;
 pub const START_SEASON: i64 = -2;
@@ -62,6 +62,8 @@ pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
 #[derive(Debug)]
 pub enum ServerError
 {
+    Rusqlite(rusqlite::Error),
+    Critical(String),
     UserNotExist,
     UsernameTaken,
     WrongUsernameOrPassword,
@@ -69,8 +71,7 @@ pub enum ServerError
     Unauthorized,
     WaitingForAdmin,
     InactiveUser,
-    Critical(String),
-    Rusqlite(rusqlite::Error),
+    ResetPasswordDuplicate,
 }
 
 impl From<rusqlite::Error> for ServerError
@@ -237,20 +238,25 @@ impl DataBase
         self.try_change_password(name, password, new_password)
     }
 
+    pub fn request_reset_password(&self, name: String) -> ServerResult<()>
+    {
+        self._request_reset_password(name)
+    }
+
     pub fn get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         self.try_get_notifications(token)
     }
 
-    pub fn get_new_user_notifications(
+    pub fn get_admin_notifications(
         &self,
         token: String,
-    ) -> ServerResult<Vec<NewUserNotification>>
+    ) -> ServerResult<HashMap<String, Vec<AdminNotification>>>
     {
-        self.try_get_new_user_notifications(token)
+        self._get_admin_notifications(token)
     }
 
-    pub fn respond_to_new_user(&self, not: NewUserNotificationAns) -> ServerResult<()>
+    pub fn respond_to_new_user(&self, not: AdminNotificationAns) -> ServerResult<()>
     {
         if !self.get_is_admin(not.token.clone())?
         {
@@ -258,11 +264,26 @@ impl DataBase
         }
 
         // No match is being accepted, but the ans values are the same Xdd
-        if not.ans == ACCEPT_MATCH
+        if not.ans == ACCEPT_REQUEST
         {
             self.create_user_from_notification(not.id)?;
         }
         self.delete_new_user_notification(not.id)?;
+        Ok(())
+    }
+
+    pub fn respond_to_reset_password(&self, info: AdminNotificationAns) -> ServerResult<()>
+    {
+        if !self.get_is_admin(info.token.clone())?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        if info.ans == ACCEPT_REQUEST
+        {
+            self.reset_password(info.id)?;
+        }
+        self.delete_reset_password_notification(info.id)?;
         Ok(())
     }
 }
@@ -481,6 +502,14 @@ impl DataBase
         Ok(0)
     }
 
+    fn delete_reset_password_notification(&self, id: i64) -> ServerResult<usize>
+    {
+        let mut stmt =
+            self.conn.prepare("delete from reset_password_notification where id = :id")?;
+        stmt.execute_named(named_params! {":id": id})?;
+        Ok(0)
+    }
+
     fn create_user_from_notification(&self, id: i64) -> ServerResult<String>
     {
         let mut stmt = self
@@ -559,25 +588,58 @@ impl DataBase
         Ok(vec)
     }
 
-    fn try_get_new_user_notifications(
+    fn _get_admin_notifications(
         &self,
         token: String,
-    ) -> ServerResult<Vec<NewUserNotification>>
+    ) -> ServerResult<HashMap<String, Vec<AdminNotification>>>
     {
         if !self.get_is_admin(token)?
         {
             return Err(ServerError::Unauthorized);
         }
 
-        let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
+        let new_user = self.try_get_new_user_notifications()?;
+        let reset_password = self.try_get_reset_password_notifications()?;
 
+        let mut map = HashMap::new();
+        map.insert("new_users".to_string(), new_user);
+        map.insert("reset_password".to_string(), reset_password);
+        Ok(map)
+    }
+
+    fn try_get_new_user_notifications(&self) -> ServerResult<Vec<AdminNotification>>
+    {
+        let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
         let notifications = stmt.query_map(NO_PARAMS, |row| {
-            Ok(NewUserNotification {
+            Ok(AdminNotification {
                 id: row.get(0)?, name: row.get(1)?
             })
         })?;
 
-        let mut vec: Vec<NewUserNotification> = Vec::new();
+        let mut vec: Vec<AdminNotification> = Vec::new();
+        for n in notifications
+        {
+            if let Ok(mn) = n
+            {
+                vec.push(mn);
+            };
+        }
+        Ok(vec)
+    }
+
+    fn try_get_reset_password_notifications(&self) -> ServerResult<Vec<AdminNotification>>
+    {
+        let mut stmt = self.conn.prepare(
+            "select n.id, name from reset_password_notification as n
+             join users as a on a.id = n.user",
+        )?;
+        let notifications = stmt.query_map(NO_PARAMS, |row| {
+            Ok(AdminNotification {
+                id: row.get(0)?, name: row.get(1)?
+            })
+        })?;
+
+        let mut vec: Vec<AdminNotification> = Vec::new();
         for n in notifications
         {
             if let Ok(mn) = n
@@ -633,8 +695,8 @@ impl DataBase
         match_notification: &MatchNotificationTable,
     ) -> ServerResult<()>
     {
-        if match_notification.loser_accept == ACCEPT_MATCH
-            && match_notification.winner_accept == ACCEPT_MATCH
+        if match_notification.loser_accept == ACCEPT_REQUEST
+            && match_notification.winner_accept == ACCEPT_REQUEST
         {
             if user.id == match_notification.winner
             {
@@ -753,7 +815,7 @@ impl DataBase
             self.conn.execute(
                 "insert into match_notification (epoch, winner, loser, winner_accept) values (?1, \
                  ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],
+                params![self.epoch(), winner.id, loser.id, ACCEPT_REQUEST],
             )?;
         }
         else if self.user_have_token(loser.id, &token)?
@@ -761,7 +823,7 @@ impl DataBase
             self.conn.execute(
                 "insert into match_notification (epoch, winner, loser,  loser_accept) values (?1, \
                  ?2, ?3, ?4)",
-                params![self.epoch(), winner.id, loser.id, ACCEPT_MATCH],
+                params![self.epoch(), winner.id, loser.id, ACCEPT_REQUEST],
             )?;
         }
         else
@@ -827,6 +889,53 @@ impl DataBase
         let mut stmt =
             self.conn.prepare("update users  set password_hash = :hash WHERE id = :id")?;
         stmt.execute_named(named_params! {":hash": hash, ":id": id})?;
+        Ok(())
+    }
+
+    fn reset_password(&self, id: i64) -> ServerResult<()>
+    {
+        let mut stmt = self
+            .conn
+            .prepare("select user from reset_password_notification where id = :id;")?;
+        let user_id = stmt
+            .query_map_named(named_params! {":id" : id}, |row| {
+                let id: i64 = row.get(0)?;
+                Ok(id)
+            })?
+            .next();
+        if user_id.is_none()
+        {
+            return Err(ServerError::Critical("Something went wrong".into())); // Should not be possible to reach this
+        }
+
+        let user_id = user_id.unwrap().unwrap();
+        let hash = self.hash(&"@uit".to_string());
+        stmt = self.conn.prepare("update users set password_hash = :hash where id = :id")?;
+        stmt.execute_named(named_params! {":hash": hash, ":id": user_id})?;
+        Ok(())
+    }
+
+    fn _request_reset_password(&self, user: String) -> ServerResult<()>
+    {
+        let user_id = self.get_user_without_matches(&user)?.id;
+        let mut stmt = self
+            .conn
+            .prepare("select user from reset_password_notification where user = :id;")?;
+        let notification = stmt
+            .query_map_named(named_params! {":id" : user_id}, |row| {
+                let id: i64 = row.get(0)?;
+                Ok(id)
+            })?
+            .next();
+        if !notification.is_none()
+        {
+            return Err(ServerError::ResetPasswordDuplicate);
+        }
+
+        stmt = self
+            .conn
+            .prepare("insert into reset_password_notification (user) values (:id)")?;
+        stmt.execute_named(named_params! {":id": user_id})?;
         Ok(())
     }
 
@@ -1031,7 +1140,7 @@ impl DataBase
 
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
     {
-        let mut stmt = self.conn.prepare("update users  set elo = :elo WHERE id = :id")?;
+        let mut stmt = self.conn.prepare("update users set elo = :elo WHERE id = :id")?;
         stmt.execute_named(named_params! {":elo": elo, ":id": id})?;
         Ok(())
     }
@@ -1288,8 +1397,8 @@ mod test
 
         let id = s.get_new_user_notifications(admin_token.clone()).unwrap()[0].id;
         let answer =
-            NewUserNotificationAns {
-                id: id, token: admin_token.clone(), ans: ACCEPT_MATCH
+            AdminNotificationAns {
+                id: id, token: admin_token.clone(), ans: ACCEPT_REQUEST
             };
         s.respond_to_new_user(answer).unwrap();
 
@@ -1446,8 +1555,8 @@ mod test
 
 
         std::fs::remove_file(db_file).expect("Removing file tempA");
-        assert!(winner_accept == ACCEPT_MATCH);
-        assert!(loser_accept == ACCEPT_MATCH);
+        assert!(winner_accept == ACCEPT_REQUEST);
+        assert!(loser_accept == ACCEPT_REQUEST);
     }
 
     #[test]
