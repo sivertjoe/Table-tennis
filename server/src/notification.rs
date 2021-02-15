@@ -1,5 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
 
+
 #[derive(Serialize)]
 pub struct MatchNotification
 {
@@ -8,7 +9,6 @@ pub struct MatchNotification
     pub loser:  String,
     pub epoch:  i64,
 }
-
 
 pub struct MatchNotificationTable
 {
@@ -21,14 +21,14 @@ pub struct MatchNotificationTable
 }
 
 #[derive(Serialize)]
-pub struct NewUserNotification
+pub struct AdminNotification
 {
     pub id:   i64,
     pub name: String,
 }
 
 #[derive(Deserialize)]
-pub struct NewUserNotificationAns
+pub struct AdminNotificationAns
 {
     pub id:    i64,
     pub token: String,

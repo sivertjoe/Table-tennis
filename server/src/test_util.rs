@@ -3,7 +3,7 @@
 #[cfg(test)] use rusqlite::{named_params, params, NO_PARAMS};
 #[cfg(test)] use uuid::Uuid;
 
-#[cfg(test)] use crate::server::{DataBase, ServerResult, ACCEPT_MATCH};
+#[cfg(test)] use crate::server::{DataBase, ServerResult, ACCEPT_REQUEST};
 #[cfg(test)]
 use crate::user::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
 
@@ -66,7 +66,7 @@ pub fn respond_to_match(s: &DataBase, name: &str, id: i64)
         .unwrap()
         .unwrap();
 
-    s.respond_to_match(id, ACCEPT_MATCH, token).expect("Responding true");
+    s.respond_to_match(id, ACCEPT_REQUEST, token).expect("Responding true");
 }
 
 #[cfg(test)]

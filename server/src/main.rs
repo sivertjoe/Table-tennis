@@ -16,13 +16,15 @@ use std::sync::{Arc, Mutex};
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
-use notification::NewUserNotificationAns;
+use notification::AdminNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use process::spawn_season_checker;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
-use user::{ChangePasswordInfo, EditUsersInfo, LoginInfo, StatsUsers};
+use user::{
+    AdminToken, ChangePasswordInfo, EditUsersInfo, LoginInfo, RequestResetPassword, StatsUsers,
+};
 
 const PORT: u32 = 58642;
 pub const DATABASE_FILE: &'static str = "db.db";
@@ -38,14 +40,15 @@ fn response_code(e: ServerError) -> u8
 {
     match e
     {
-        ServerError::UserNotExist => 1,
-        ServerError::UsernameTaken => 2,
-        ServerError::WrongUsernameOrPassword => 3,
-        ServerError::PasswordNotMatch => 4,
-        ServerError::Unauthorized => 5,
-        ServerError::WaitingForAdmin => 6,
-        ServerError::InactiveUser => 7,
-        ServerError::Critical(_) => 8,
+        ServerError::Critical(_) => 1,
+        ServerError::UserNotExist => 2,
+        ServerError::UsernameTaken => 3,
+        ServerError::WrongUsernameOrPassword => 4,
+        ServerError::PasswordNotMatch => 5,
+        ServerError::Unauthorized => 6,
+        ServerError::WaitingForAdmin => 7,
+        ServerError::InactiveUser => 8,
+        ServerError::ResetPasswordDuplicate => 9,
         _ => 69,
     }
 }
@@ -88,6 +91,23 @@ async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
     let info: EditUsersInfo = serde_json::from_str(&info).unwrap();
 
     match DATABASE!(data).edit_users(info.users, info.action, info.token)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+
+#[post("/request-reset-password")]
+async fn request_reset_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
+    -> HttpResponse
+{
+    let info: RequestResetPassword = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).request_reset_password(info.name)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => match e
@@ -231,13 +251,14 @@ async fn get_notifications(
     }
 }
 
-#[get("/user-notification/{token}")]
-async fn get_new_user_notifications(
+#[post("/admin-notifications")]
+async fn get_admin_notifications(
     data: web::Data<Arc<Mutex<DataBase>>>,
-    web::Path(token): web::Path<String>,
+    info: String,
 ) -> HttpResponse
 {
-    match DATABASE!(data).get_new_user_notifications(token)
+    let info: AdminToken = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).get_admin_notifications(info.token)
     {
         Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
         Err(e) => match e
@@ -251,8 +272,26 @@ async fn get_new_user_notifications(
 #[post("/respond-to-user-notification")]
 async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: NewUserNotificationAns = serde_json::from_str(&info).unwrap();
+    let info: AdminNotificationAns = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).respond_to_new_user(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[post("/respond-to-reset-password-notification")]
+async fn respond_to_reset_password(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    info: String,
+) -> HttpResponse
+{
+    let info: AdminNotificationAns = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).respond_to_reset_password(info)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => match e
@@ -543,13 +582,15 @@ async fn main() -> std::io::Result<()>
             .service(register_match)
             .service(respond_to_match)
             .service(respond_to_new_user)
+            .service(respond_to_reset_password)
             .service(get_history)
             .service(get_edit_history)
             .service(get_notifications)
-            .service(get_new_user_notifications)
+            .service(get_admin_notifications)
             .service(get_is_admin)
             .service(login)
             .service(change_password)
+            .service(request_reset_password)
             .service(roll_back)
             .service(get_active_users)
             .service(get_season_length)

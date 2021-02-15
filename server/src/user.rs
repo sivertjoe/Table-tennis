@@ -47,6 +47,12 @@ pub struct ChangePasswordInfo
 }
 
 #[derive(Deserialize)]
+pub struct RequestResetPassword
+{
+    pub name: String,
+}
+
+#[derive(Deserialize)]
 pub struct EditUsersInfo
 {
     pub users:  Vec<String>,
@@ -60,6 +66,13 @@ pub struct StatsUsers
     pub user1: String,
     pub user2: String,
 }
+
+#[derive(Deserialize)]
+pub struct AdminToken
+{
+    pub token: String,
+}
+
 
 impl FromStr for EditUserAction
 {
