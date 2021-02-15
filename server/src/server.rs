@@ -1398,7 +1398,12 @@ mod test
         let markus = "markus".to_string();
         s.create_user(markus.clone(), "password".to_string()).unwrap();
 
-        let id = s.get_new_user_notifications(admin_token.clone()).unwrap()[0].id;
+        let id = s
+            .get_admin_notifications(admin_token.clone())
+            .unwrap()
+            .get("new_users")
+            .unwrap()[0]
+            .id;
         let answer =
             AdminNotificationAns {
                 id: id, token: admin_token.clone(), ans: ACCEPT_REQUEST
@@ -1406,7 +1411,14 @@ mod test
         s.respond_to_new_user(answer).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp01");
-        assert_eq!(s.get_new_user_notifications(admin_token.clone()).unwrap().len(), 0);
+        assert_eq!(
+            s.get_admin_notifications(admin_token.clone())
+                .unwrap()
+                .get("new_users")
+                .unwrap()
+                .len(),
+            0
+        );
         assert!(s.get_user_without_matches(&markus).is_ok());
     }
 
