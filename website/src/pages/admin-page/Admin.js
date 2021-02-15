@@ -8,7 +8,8 @@ import Button from '../../components/button/Button'
 
 class Admin extends Component {
   isAdmin = 0
-  notifications = []
+  newUserNotifications = []
+  resetPasswordNotifications = []
   users = []
   selectedUsers = []
   editOptions = [
@@ -27,8 +28,11 @@ class Admin extends Component {
       AdminApi.isAdmin(token).then((isAdmin) => {
         if (isAdmin) {
           this.isAdmin = 1
-          NotificationApi.getNewUserNotification(token)
-            .then((notifications) => (this.notifications = notifications))
+          NotificationApi.getAdminNotifications(token)
+            .then((res) => {
+              this.newUserNotifications = res.new_users
+              this.resetPasswordNotifications = res.reset_password
+            })
             .catch((error) => console.warn(error.message))
             .finally(() => this.setState({}))
         } else {
@@ -57,7 +61,14 @@ class Admin extends Component {
   newUserButton(id, ans) {
     const token = localStorage.getItem('token')
     NotificationApi.replyToNewUser(id, token, ans)
-      .then(() => document.getElementById(id).remove())
+      .then(() => document.getElementById('New users' + id).remove())
+      .catch((error) => console.warn(error.message))
+  }
+
+  resetPasswordButton(id, ans) {
+    const token = localStorage.getItem('token')
+    NotificationApi.replyToResetPassword(id, token, ans)
+      .then(() => document.getElementById('Password resets' + id).remove())
       .catch((error) => console.warn(error.message))
   }
 
@@ -84,49 +95,63 @@ class Admin extends Component {
       .finally(() => this.setState({}))
   }
 
+  notification_table(notifications, title, button) {
+    return (
+      notifications.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <h2>{title}</h2>
+          <div className="table-container">
+            <table id="new-users-table">
+              <tbody>
+                <tr>
+                  <th>Name</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+                {notifications.map((not) => (
+                  <tr key={not.id} id={title + not.id}>
+                    <th>{not.name}</th>
+                    <th>
+                      <button
+                        className="notification-button accept"
+                        onClick={() => button(not.id, 1)}
+                      >
+                        <span>&#10003;</span>
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className="notification-button decline"
+                        onClick={() => button(not.id, 2)}
+                      >
+                        <span>&#10005;</span>
+                      </button>
+                    </th>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    )
+  }
+
   render() {
     if (this.isAdmin === 1) {
-      const items = this.notifications.map((not) => (
-        <tr key={not.id} id={not.id}>
-          <th>{not.name}</th>
-          <th>
-            <button
-              className="new-user-button accept"
-              onClick={() => this.newUserButton(not.id, 1)}
-            >
-              <span>&#10003;</span>
-            </button>
-          </th>
-          <th>
-            <button
-              className="new-user-button decline"
-              onClick={() => this.newUserButton(not.id, 2)}
-            >
-              <span>&#10005;</span>
-            </button>
-          </th>
-        </tr>
-      ))
       return (
         <div>
           <h1>Hello Admin &#128526;</h1>
           <div className="container">
-            {items.length > 0 && (
-              <div style={{ marginBottom: '2rem' }}>
-                <h2>New users</h2>
-                <div className="table-container">
-                  <table id="new-users-table">
-                    <tbody>
-                      <tr>
-                        <th>Name</th>
-                        <th></th>
-                        <th></th>
-                      </tr>
-                      {items}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            {this.notification_table(
+              this.newUserNotifications,
+              'New users',
+              this.newUserButton,
+            )}
+            {this.notification_table(
+              this.resetPasswordNotifications,
+              'Password resets',
+              this.resetPasswordButton,
             )}
             <div>
               <h2>Edit users</h2>
