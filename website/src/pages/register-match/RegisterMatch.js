@@ -46,7 +46,7 @@ class RegisterMatch extends Component {
       return this.setErrorLabel('Players cannot be the same')
 
     MatchApi.registerMatch(this.winner, this.loser, token)
-      .then(() => this.props.history.push('/'))
+      .then(() => (window.location.href = '/'))
       .catch((error) => this.setErrorLabel('Something went wrong'))
   }
 
