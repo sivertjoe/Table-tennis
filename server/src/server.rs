@@ -605,11 +605,14 @@ impl DataBase
                     winner:        row.get(4)?,
                     loser:         row.get(5)?,
                 })
-            })?
-            .next()
-            .expect("Unwrapping element")
-            .expect("Unwrapping Option");
+            })?;
 
+        let mut match_notification = match match_notification.next()
+        {
+            Some(mn) => mn.unwrap(),
+            None => return Err(ServerError::Critical(String::from("Notification does not exist"))),
+        };
+        
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
             return Err(ServerError::Unauthorized);
