@@ -10,13 +10,14 @@ class LoginPage extends Component {
 
   constructor() {
     super()
-    this.onClick = this.onClick.bind(this)
+    this.onLogin = this.onLogin.bind(this)
     this.saveUsername = this.saveUsername.bind(this)
     this.savePassword = this.savePassword.bind(this)
     this.onResetPassword = this.onResetPassword.bind(this)
   }
 
-  onClick() {
+  onLogin(e) {
+    e.preventDefault() // Prevents the page from refreshing
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
@@ -64,7 +65,7 @@ class LoginPage extends Component {
 
   render() {
     return (
-      <div className="container">
+      <form onSubmit={this.onLogin} className="container">
         <h1>Login</h1>
         <div className="inputs">
           <input
@@ -90,7 +91,7 @@ class LoginPage extends Component {
           </>
         )}
         <div className="button">
-          <Button placeholder="Login" callback={this.onClick} />
+          <Button placeholder="Login" />
           <p className="reset-password" onClick={this.onResetPassword}>
             Reset Password
           </p>
@@ -99,7 +100,7 @@ class LoginPage extends Component {
           (For already registered users, default password is '@uit', change it
           asap Xdd, see profile page)
         </p>
-      </div>
+      </form>
     )
   }
 }

@@ -10,12 +10,13 @@ class RegisterPage extends Component {
 
   constructor() {
     super()
-    this.onClick = this.onClick.bind(this)
+    this.onRegister = this.onRegister.bind(this)
     this.saveUsername = this.saveUsername.bind(this)
     this.savePassword = this.savePassword.bind(this)
   }
 
-  onClick() {
+  onRegister(e) {
+    e.preventDefault() // Prevents the page from refreshing
     if (!this.username) return this.setError('Username cannot be empty')
     if (!this.password) return this.setError('Password cannot be empty')
 
@@ -42,7 +43,7 @@ class RegisterPage extends Component {
 
   render() {
     return (
-      <div className="container">
+      <form onSubmit={this.onRegister} className="container">
         <h1>Create a new user</h1>
         <div className="inputs">
           <input
@@ -61,9 +62,9 @@ class RegisterPage extends Component {
         {this.error && <h2 className="error"> {this.error} </h2>}
         {this.success && <h2 className="success"> {this.success} </h2>}
         <div className="button">
-          <Button placeholder="Register" callback={this.onClick} />
+          <Button placeholder="Register" />
         </div>
-      </div>
+      </form>
     )
   }
 }

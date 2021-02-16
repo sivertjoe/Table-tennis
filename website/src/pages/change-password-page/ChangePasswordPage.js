@@ -11,13 +11,14 @@ class ChangePasswordPage extends Component {
     super()
     if (!localStorage.getItem('token')) window.location.href = '/'
 
-    this.onClick = this.onClick.bind(this)
+    this.onResetPassword = this.onResetPassword.bind(this)
     this.saveOldPassword = this.saveOldPassword.bind(this)
     this.savePassword = this.savePassword.bind(this)
     this.saveConfirmPassword = this.saveConfirmPassword.bind(this)
   }
 
-  onClick() {
+  onResetPassword(e) {
+    e.preventDefault() // Prevents the page from refreshing
     if (!this.password) return this.setError('Old password cannot be empty')
     if (!this.newPassword) return this.setError('New password cannot be empty')
     if (!this.confirmPassword)
@@ -51,7 +52,7 @@ class ChangePasswordPage extends Component {
 
   render() {
     return (
-      <div className="container">
+      <form onSubmit={this.onResetPassword} className="container">
         <h1>Change Password</h1>
         <div className="inputs">
           <input
@@ -76,9 +77,9 @@ class ChangePasswordPage extends Component {
         </div>
         {this.error && <h2 className="error"> {this.error} </h2>}
         <div className="button">
-          <Button placeholder="ChangePassword" callback={this.onClick} />
+          <Button placeholder="ChangePassword" />
         </div>
-      </div>
+      </form>
     )
   }
 }
