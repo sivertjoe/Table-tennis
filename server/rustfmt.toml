@@ -3,6 +3,7 @@ group_imports = "StdExternalCrate"
 blank_lines_upper_bound = 2
 brace_style = "AlwaysNextLine"
 combine_control_expr = false
+chain_width = 80
 control_brace_style = "AlwaysNextLine"
 edition = "2018"
 chain_width = 80
