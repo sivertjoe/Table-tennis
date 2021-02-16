@@ -541,8 +541,8 @@ struct SqlCommand
 #[post("admin/execute-sql")]
 fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let s = DATABASE!(data);
     let info: SqlCommand = serde_json::from_str(&info).unwrap();
+    let s = DATABASE!(data);
 
     match s.get_is_admin(info.token.clone())
     {
