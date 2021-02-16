@@ -45,3 +45,10 @@ export const startSeason = () =>
   BaseApi.post('start_season', {
     token: localStorage.getItem('token'),
   })
+
+export const executeSql = (str) =>
+    BaseApi.post('admin/execute-sql', {
+        token: localStorage.getItem('token'),
+        command: str
+    })
+
