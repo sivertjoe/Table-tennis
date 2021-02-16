@@ -1156,58 +1156,24 @@ impl DataBase
 
     fn get_badges(&self, pid: i64) -> ServerResult<Vec<Badge>>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select id, season_id, badge_index, pid from badges where pid = :pid")?;
-        let badges = stmt.query_map_named(named_params! {":pid": pid}, |row| {
-            let index: u32 = row.get(2)?;
-            let index = index as usize;
-
-            Ok(Badge {
-                id:     row.get(0)?,
-                season: row.get(1)?,
-                name:   BADGES[index].to_string(),
-            })
-        })?;
-
-        let mut vec = Vec::new();
-        for badge in badges
-        {
-            if let Ok(b) = badge
-            {
-                vec.push(b);
-            }
-        }
-        return Ok(vec);
+        Ok(SQL!(self, 
+                "select id, season_id, badge_index, pid from badges where pid = :pid",
+                TYPE!(BADGE),
+                named_params! {":pid": pid})?)
     }
 
     fn get_users_with_user_role(&self, user_role: u8, val: u8) -> ServerResult<Vec<User>>
     {
-        let mut stmt = self.conn.prepare(
-            "select id, name, elo, user_role from users
-             where user_role & :user_role = :val;",
-        )?;
-        let users =
-            stmt.query_map_named(named_params! {":user_role": user_role, ":val": val}, |row| {
-                Ok(User {
-                    id:            row.get(0)?,
-                    name:          row.get(1)?,
-                    elo:           row.get(2)?,
-                    user_role:     row.get(3)?,
-                    match_history: Vec::new(),
-                    badges:        Vec::new(),
-                })
-            })?;
+        let mut vec = SQL!(self, 
+             "select id, name, elo, user_role from users where user_role & :user_role = :val;",
+             TYPE!(USER),
+             named_params! {":user_role": user_role, ":val": val})?;
 
-        let mut vec = Vec::new();
-        for user in users
+        for user in &mut vec
         {
-            if let Ok(mut u) = user
-            {
-                u.badges = self.get_badges(u.id)?;
-                vec.push(u);
-            };
+            user.badges = self.get_badges(user.id)?;
         }
+
         vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
         Ok(vec)
     }
@@ -1237,28 +1203,16 @@ impl DataBase
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
-        let mut stmt = self.conn.prepare(&format!(
-            "select id, name, elo, user_role from users where {} {} :val",
-            col, comp
-        ))?;
-        let mut users = stmt.query_map_named(named_params! {":val": val}, |row| {
-            Ok(User {
-                id:            row.get(0)?,
-                name:          row.get(1)?,
-                elo:           row.get(2)?,
-                user_role:     row.get(3)?,
-                match_history: Vec::new(),
-                badges:        Vec::new(),
-            })
-        })?;
-
-        match users.next()
-        {
-            Some(Ok(user)) => Ok(user),
-            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even */
-            // mean 🤷‍♀️
-            None => Err(ServerError::UserNotExist),
-        }
+        // For whatever reason, having every variable in the format does not work,
+        // and having every variable in the named_params doesn't work either
+        // ????
+        SQL!(self, 
+             &format!("select id, name, elo, user_role from users where {} {} :val", col, comp),
+             TYPE!(USER),
+             named_params! {":val": val})?
+            .into_iter()
+            .next()
+            .ok_or(ServerError::UserNotExist)
     }
 
     #[allow(dead_code)]

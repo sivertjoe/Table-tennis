@@ -60,12 +60,49 @@ macro_rules! SQL
             _final
         }
     };
+
+    ($data:expr, $sql:expr, $func: expr, $named:expr) =>
+    {
+        {
+            let mut stmt = $data.conn.prepare($sql.as_ref())?;
+            let res = stmt.query_map_named($named, |row|
+            {
+                $func(row)
+            })?;
+            
+            let mut vec = Vec::new();
+            for elem in res
+            {
+                if let Ok(e) = elem
+                {
+                    vec.push(e);
+                }
+            }
+            let _final: ServerResult<Vec<_>> = Ok(vec);
+            _final
+        }
+    };
 }
 
 
 #[macro_export]
 macro_rules! TYPE
 {
+    (BADGE) => 
+    {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Badge> 
+        { 
+            let index: u32 = row.get(2)?;
+            let index = index as usize;
+
+            Ok(Badge {
+                id:     row.get(0)?,
+                season: row.get(1)?,
+                name:   BADGES[index].to_string(),
+            })
+        }
+    };
+
     (USER) => 
     {
         |row: &rusqlite::Row<'_>| -> rusqlite::Result<User> 
