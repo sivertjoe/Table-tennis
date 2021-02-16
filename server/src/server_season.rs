@@ -7,6 +7,8 @@ use crate::{
     server::{DataBase, ServerError, ServerResult},
     user::USER_ROLE_SOFT_INACTIVE,
     GET_OR_CREATE_DB_VAR,
+    SQL,
+    TYPE
 };
 
 pub const N_SEASON_ID: u32 = 1;
@@ -147,14 +149,9 @@ impl DataBase
 {
     pub fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
-        let mut stmt = self.conn.prepare("select id, start_epoch from seasons order by id desc")?;
-        let mut seasons = stmt.query_map(NO_PARAMS, |row| {
-            Ok(Season {
-                id: row.get(0)?, start_epoch: row.get(1)?
-            })
-        })?;
-
-        Ok(seasons.next().map(|s| s.unwrap()))
+        Ok(SQL!(self, "select id, start_epoch from seasons order by id asc", TYPE!(SEASON))?
+           .pop()
+        )
     }
 
     pub fn archive_offseason(&self) -> ServerResult<()>
