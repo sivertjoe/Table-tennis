@@ -5,12 +5,15 @@ import './EloGraph.css'
 import { Defs } from '@nivo/core'
 import { area, curveMonotoneX } from 'd3-shape'
 import { getShortDate, getPreviousDate } from '../../utils/Date'
+import * as UserApi from '../../api/UserApi'
 
 function matchElo(match, name) {
   return match.winner === name ? match.winner_elo : match.loser_elo
 }
 
 class EloGraph extends Component {
+  x = 0
+
   periods = [
     {
       value: 'today',
@@ -42,9 +45,8 @@ class EloGraph extends Component {
 
   constructor(args) {
     super()
-    this.user = args.user
+    this.users = args.users
     this.changePeriod = this.changePeriod.bind(this)
-    this.getEveryMatch = this.getEveryMatch.bind(this)
     this.genLayers = this.genLayers.bind(this)
   }
 
@@ -53,22 +55,48 @@ class EloGraph extends Component {
     this.setState({})
   }
 
-  getEveryMatch() {
-    const name = this.user.name
+  orderMatches(users) {
+    let items = {}
+    users.forEach((user) => {
+      items[user.name] = []
+    })
+
+    let union = []
+    users.forEach((user) => {
+      user.match_history.forEach((match) => {
+        if (match.epoch > this.selectedPeriod.date.getTime()) {
+          if (!union.includes(match.epoch)) {
+            union.push(match.epoch)
+          }
+        }
+      })
+    })
+    union.sort()
+
+    this.union = union
+
     let x = 0
-    return this.user.match_history?.reduceRight((res, match, i) => {
-      if (match.epoch > this.selectedPeriod.date.getTime()) {
-        res.push({
-          y: Math.round(matchElo(match, name)),
-          x: x,
-          time: new Date(match.epoch),
-          info: [match.winner, match.loser],
-          elo_diff: Math.round(match.elo_diff),
+
+    union.forEach((epoch) => {
+      users.forEach((user) => {
+        user.match_history.forEach((match) => {
+          if (match.epoch === epoch) {
+            items[user.name].push({
+              x: x,
+              y: Math.round(matchElo(match, user.name)),
+              time: new Date(match.epoch),
+              info: [match.winner, match.loser],
+              name: user.name,
+              elo_diff: Math.round(match.elo_diff),
+            })
+          }
         })
-        x++
-      }
-      return res
-    }, [])
+        this.minElo = user.elo < this.minElo ? user.elo : this.minElo
+        this.maxElo = user.elo > this.maxElo ? user.elo : this.maxElo
+      })
+      x++
+    })
+    return items
   }
 
   genLayers(flag_change_col, day) {
@@ -113,54 +141,62 @@ class EloGraph extends Component {
   }
 
   render() {
-    const items = [
-      {
-        id: 0,
-        data: this.getEveryMatch(),
-      } /* TODO: Insert opponent's graph here */,
-    ]
-
-    let minElo = this.user.elo,
-      maxElo = this.user.elo
-
-    let layers = []
-    // If there is no history to show, just show current elo
-    if (!items[0].data.length) {
-      items[0].data = [{ time: new Date(), x: 0, y: Math.round(this.user.elo) }]
-    } else {
-      //min/max elo for upper and lower y value
-      for (let i = 1; i < items[0].data.length; i++) {
-        let value = items[0].data[i]
-        minElo = value.y < minElo ? value.y : minElo
-        maxElo = value.y > maxElo ? value.y : maxElo
-      }
-
-      //norm the timestamps in order to put them in the same grid
-      items[0].data.forEach((d) => {
-        d.dateTime = new Date(d.time.toDateString())
+    let items = []
+    this.x = 0
+    this.minElo = this.users[0].elo
+    this.maxElo = this.users[0].elo
+    this.users.forEach((user, i) => {
+      items.push({
+        id: user.name,
+        data: [],
       })
-
-      let first_match = items[0].data[0]
-      let last_match = items[0].data[0]
-      let col = true
-
-      //send first match and last match of the current day to in order for generating layer for that day
-      for (let i = 0; i < items[0].data.length; i++) {
-        if (first_match.dateTime.getTime() === last_match.dateTime.getTime()) {
-          last_match = items[0].data[i + 1]
-        } else {
-          col = !col
-          layers.push(this.genLayers(col, [first_match, last_match]))
-          first_match = last_match
-        }
+    })
+    let matches = this.orderMatches(this.users)
+    items.forEach((item) => {
+      if (matches[item.id].length === 0) {
+        console.log(this.users)
+        item.data = [
+          {
+            time: new Date(),
+            x: 0,
+            y: Math.round(this.users.find((user) => user.name === item.id).elo),
+          },
+        ]
+      } else {
+        item.data = matches[item.id]
+        item.data.forEach((match) => {
+          this.minElo = match.y < this.minElo ? match.y : this.minElo
+          this.maxElo = match.y > this.maxElo ? match.y : this.maxElo
+        })
       }
+    })
+    this.union = this.union.map((d) => {
+      d = new Date(new Date(d).toDateString())
+      return d.getTime()
+    })
+    this.union = [...new Set(this.union)]
+
+    let col = true
+    let layers = []
+
+    let min = { x: 0 },
+      max = { x: 0 }
+
+    for (let i = 0; i < this.union.length; i++) {
+      items.forEach((user) => {
+        const a = user.data.filter((match) => {
+          const t = new Date(match.time.toDateString())
+          return t.getTime() === this.union[i]
+        })
+        if (a.length !== 0) {
+          min.x = Math.min(min.x, a[0].x)
+          max.x = Math.max(max.x, a[a.length - 1].x)
+        } else return
+      })
       col = !col
-      layers.push(
-        this.genLayers(col, [
-          first_match,
-          items[0].data[items[0].data.length - 1],
-        ]),
-      )
+      const layer = [{ x: min.x }, { x: max.x }]
+      layers.push(this.genLayers(col, layer))
+      min.x = max.x
     }
     return (
       <>
@@ -179,14 +215,13 @@ class EloGraph extends Component {
             margin={{ top: 50, right: 10, bottom: 100, left: 40 }}
             xScale={{
               type: 'linear',
-              format: 'native',
               max: 'auto',
               min: '0',
             }}
             yScale={{
               type: items[0].data.length === 1 ? 'point' : 'linear',
-              max: maxElo + 25,
-              min: minElo - 25,
+              max: this.maxElo + 25,
+              min: this.minElo - 25,
             }}
             axisBottom={{
               orient: 'bottom',
@@ -207,6 +242,36 @@ class EloGraph extends Component {
             pointBorderWidth={2}
             pointBorderColor={{ from: 'serieColor' }}
             useMesh={true}
+            enableSlices={'x'}
+            sliceTooltip={({ slice }) => {
+              return (
+                <div className="tooltip">
+                  {slice.points.map((player, i) => {
+                    return (
+                      <div key={i}>
+                        <span
+                          style={{
+                            height: '15px',
+                            width: '15px',
+                            backgroundColor: player.serieColor,
+                            display: 'inline-block',
+                            borderRadius: '50%',
+                          }}
+                        ></span>
+                        {' ' + player.serieId}
+                        {' ' + player.data.y}
+                        {player.data.elo_diff === undefined
+                          ? ''
+                          : player.data.info[0] === player.serieId
+                          ? '(+' + player.data.elo_diff + ')'
+                          : '(-' + player.data.elo_diff + ')'}
+                      </div>
+                    )
+                  })}
+                  {getShortDate(slice.points[0].data.time)}
+                </div>
+              )
+            }}
             layers={[
               ...layers,
               'markers',
@@ -246,27 +311,18 @@ class EloGraph extends Component {
                 },
               },
             }}
-            tooltip={(input) => (
-              <div className="tooltip">
-                <div>
-                  {input.point.data.info
-                    ? 'W: ' +
-                      input.point.data.info[0] +
-                      ', L: ' +
-                      input.point.data.info[1]
-                    : ''}
-                </div>
-                <div>
-                  {input.point.data.y}{' '}
-                  {input.point.data.elo_diff === undefined
-                    ? ''
-                    : input.point.data.info[0] === this.user.name
-                    ? '(+' + input.point.data.elo_diff + ')'
-                    : '(-' + input.point.data.elo_diff + ')'}
-                </div>
-                <div>{getShortDate(input.point.data.time)}</div>
-              </div>
-            )}
+            legends={[
+              {
+                anchor: 'top-left',
+                direction: 'row',
+                symbolShape: 'circle',
+                itemCount: this.users.length,
+                itemWidth: 100,
+                itemHeight: 25,
+                itemsSpacing: 10,
+                translateX: 10,
+              },
+            ]}
           ></ResponsiveLine>
         </div>
       </>
