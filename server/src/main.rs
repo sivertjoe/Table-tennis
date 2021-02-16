@@ -10,6 +10,7 @@ mod server_rollback;
 mod server_season;
 mod test_util;
 mod user;
+mod sql_executor;
 
 use std::sync::{Arc, Mutex};
 
@@ -529,6 +530,40 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
     }
 }
 
+
+#[derive(Deserialize)]
+struct SqlCommand
+{
+    token: String,
+    command: String,
+}
+
+#[post("admin/execute-sql")]
+fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let s = DATABASE!(data);
+    let info: SqlCommand = serde_json::from_str(&info).unwrap();
+
+    match s.get_is_admin(info.token.clone())
+    {
+        Ok(true) => {
+            match s.execute_sql(info.command)
+            {
+                Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
+                Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
+            }
+        },
+        Ok(false) => {
+            HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""}))
+        },
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -599,6 +634,7 @@ async fn main() -> std::io::Result<()>
             .service(start_season)
             .service(get_leaderboard_info)
             .service(get_stats)
+            .service(execute_sql)
     });
 
     if cfg!(debug_assertions)
