@@ -394,6 +394,27 @@ async fn get_profile(
     }
 }
 
+#[derive(Deserialize)]
+struct Users
+{
+    users: Vec<i64>
+}
+
+#[post("/get-multiple-users")]
+async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: Users = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).get_multiple_users(info.users)
+    {
+        Ok(users) => HttpResponse::Ok().json(json!({"status": 0, "result": users})),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
 #[get("/is-admin/{token}")]
 async fn get_is_admin(
     data: web::Data<Arc<Mutex<DataBase>>>,
