@@ -2,13 +2,14 @@ import { React, Component } from 'react'
 import * as MatchApi from '../../api/MatchApi'
 import './Leaderboard.css'
 import '../../index.css'
-import Badges from '../badges/Badges'
+import Medals from '../medals/Medals'
 import images from '../../assets/images'
 
 class Leaderboard extends Component {
   users = []
   seasonText = ''
   isSeason = false
+  userCount = 0
 
   constructor() {
     super()
@@ -22,6 +23,7 @@ class Leaderboard extends Component {
         } else {
           this.seasonText = 'Off-season'
         }
+        this.userCount = this.users.length
       })
       .catch((error) => console.warn(error.message))
       .finally(() => this.setState({}))
@@ -33,6 +35,7 @@ class Leaderboard extends Component {
     if (rank === 1) badge = images['first_place.png']
     else if (rank === 2) badge = images['second_place.png']
     else if (rank === 3) badge = images['third_place.png']
+    else if (rank === this.userCount) badge = images['poop.png']
     else return
 
     return <img alt="Badge" src={badge} className="rank-badge" />
@@ -69,7 +72,7 @@ class Leaderboard extends Component {
                       <a href={'/profiles/' + user.name}>{user.name}</a>
                     </td>
                     <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
-                      <Badges user={user} />
+                      <Medals user={user} />
                     </td>
                     <td>{Math.trunc(user.elo)}</td>
                   </tr>
