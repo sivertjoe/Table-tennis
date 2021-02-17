@@ -193,6 +193,34 @@ impl DataBase
         self.get_active_users()
     }
 
+    pub fn get_multiple_users(&self, users: Vec<i64>) -> ServerResult<Vec<User>>
+    {
+        let list = format!("{:?}", users).as_str().replace("[", "(").replace("]", ")");
+        let sql = format!("select id, name, elo, user_role from users where id in {}", list);
+        let mut stmt = self.conn.prepare(&sql)?;
+        let users = stmt.query_map(NO_PARAMS, |row| {
+            let id: i64 = row.get(0)?;
+            Ok(User {
+                id:            id,
+                name:          row.get(1)?,
+                elo:           row.get(2)?,
+                user_role:     row.get(3)?,
+                match_history: self.get_matches(id)?,
+                badges:        Vec::new(),
+            })
+        })?;
+
+        let mut vec = Vec::new();
+        for user in users
+        {
+            if let Ok(u) = user
+            {
+                vec.push(u);
+            }
+        }
+        Ok(vec)
+    }
+
     pub fn register_match(
         &self,
         winner_name: String,
@@ -1953,5 +1981,21 @@ mod test
         let m = &s.get_all_matches().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(m.len(), 0);
+    }
+
+    #[test]
+    fn test_can_get_multiple_users()
+    {
+        let db_file = "tempJ1.db";
+        let s = DataBase::new(db_file);
+        create_user(&s, "Sivert");
+        create_user(&s, "Lars");
+        create_user(&s, "Bernt");
+
+        let vec = vec![2, 3];
+        let users = s.get_multiple_users(vec.clone()).unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(users[0].id, vec[0]);
+        assert_eq!(users[1].id, vec[1]);
     }
 }
