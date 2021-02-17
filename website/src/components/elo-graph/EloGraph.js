@@ -45,9 +45,21 @@ class EloGraph extends Component {
 
   constructor(args) {
     super()
-    this.users = args.users
+    this.users = args.users.filter((user) => user.match_history.length > 0)
     this.changePeriod = this.changePeriod.bind(this)
     this.genLayers = this.genLayers.bind(this)
+    // UserApi.getUser('Sander')
+    //   .then((user) => {
+    //     // user.match_history = user.match_history.reverse()
+    //     this.users.push(user)
+    //   })
+    //   .finally(() => this.setState({}))
+    // UserApi.getUser('Sivert')
+    //   .then((user) => this.users.push(user))
+    //   .finally(() => this.setState({}))
+    // UserApi.getUser('Ella')
+    //   .then((user) => this.users.push(user))
+    //   .finally(() => this.setState({}))
   }
 
   changePeriod(e) {
@@ -57,45 +69,64 @@ class EloGraph extends Component {
 
   orderMatches(users) {
     let items = {}
+    this.union = []
     users.forEach((user) => {
       items[user.name] = []
+      user._match_history = user.match_history.filter(
+        (match) => match.epoch >= this.selectedPeriod.date.getTime(),
+      )
+      //   user.match_history.forEach((match) => {
+      //     // if (match.epoch > this.selectedPeriod.date.getTime()) {
+      //     if (!this.union.includes(match.epoch)) {
+      //       this.union.push(match.epoch)
+      //     }
+      //     // }
+      //   })
     })
+    this.union.sort()
+    // console.log(items)
 
-    let union = []
-    users.forEach((user) => {
-      user.match_history.forEach((match) => {
-        if (match.epoch > this.selectedPeriod.date.getTime()) {
-          if (!union.includes(match.epoch)) {
-            union.push(match.epoch)
-          }
+    let indexes = users.map((user) => user._match_history.length - 1)
+    //loop over each user
+    // users.forEach((user) => (user._match_history = user._match_history.reverse()))
+    let x = -1
+    let prev = -1
+    while (users.some((_user, _i) => indexes[_i] >= 0)) {
+      let small = Infinity
+      let index = -1
+
+      users.forEach((user, i) => {
+        const _match_history = user._match_history
+        const len = _match_history.length
+        const userIndex = indexes[i]
+        if (userIndex < 0) {
+          return
+        }
+
+        if (_match_history[userIndex].epoch < small) {
+          small = _match_history[userIndex].epoch
+          index = i
         }
       })
-    })
-    union.sort()
+      if (prev !== small) x++
 
-    this.union = union
-
-    let x = 0
-
-    union.forEach((epoch) => {
-      users.forEach((user) => {
-        user.match_history.forEach((match) => {
-          if (match.epoch === epoch) {
-            items[user.name].push({
-              x: x,
-              y: Math.round(matchElo(match, user.name)),
-              time: new Date(match.epoch),
-              info: [match.winner, match.loser],
-              name: user.name,
-              elo_diff: Math.round(match.elo_diff),
-            })
-          }
-        })
-        this.minElo = user.elo < this.minElo ? user.elo : this.minElo
-        this.maxElo = user.elo > this.maxElo ? user.elo : this.maxElo
+      const user = users[index]
+      const match = user._match_history[indexes[index]]
+      indexes[index] -= 1
+      const y = Math.round(matchElo(match, user.name))
+      items[user.name].push({
+        x: x,
+        y: y,
+        time: new Date(match.epoch),
+        info: [match.winner, match.loser],
+        name: user.name,
+        elo_diff: Math.round(match.elo_diff),
       })
-      x++
-    })
+      prev = small
+
+      this.minElo = y < this.minElo ? y : this.minElo
+      this.maxElo = y > this.maxElo ? y : this.maxElo
+    }
     return items
   }
 
@@ -142,7 +173,6 @@ class EloGraph extends Component {
 
   render() {
     let items = []
-    this.x = 0
     this.minElo = this.users[0].elo
     this.maxElo = this.users[0].elo
     this.users.forEach((user, i) => {
@@ -151,10 +181,12 @@ class EloGraph extends Component {
         data: [],
       })
     })
+    // console.log(this.users)
     let matches = this.orderMatches(this.users)
+    // console.log(matches)
     items.forEach((item) => {
-      if (matches[item.id].length === 0) {
-        console.log(this.users)
+      if (matches[item.id].length === 0 && this.users.length === 1) {
+        console.log('panic')
         item.data = [
           {
             time: new Date(),
@@ -164,40 +196,36 @@ class EloGraph extends Component {
         ]
       } else {
         item.data = matches[item.id]
-        item.data.forEach((match) => {
-          this.minElo = match.y < this.minElo ? match.y : this.minElo
-          this.maxElo = match.y > this.maxElo ? match.y : this.maxElo
-        })
       }
     })
-    this.union = this.union.map((d) => {
-      d = new Date(new Date(d).toDateString())
-      return d.getTime()
-    })
-    this.union = [...new Set(this.union)]
+    // this.union = this.union.map((d) => {
+    //   d = new Date(new Date(d).toDateString())
+    //   return d.getTime()
+    // })
+    // this.union = [...new Set(this.union)]
 
-    let col = true
+    // let col = true
     let layers = []
 
-    let min = { x: 0 },
-      max = { x: 0 }
+    // let min = { x: 0 },
+    //   max = { x: 0 }
 
-    for (let i = 0; i < this.union.length; i++) {
-      items.forEach((user) => {
-        const a = user.data.filter((match) => {
-          const t = new Date(match.time.toDateString())
-          return t.getTime() === this.union[i]
-        })
-        if (a.length !== 0) {
-          min.x = Math.min(min.x, a[0].x)
-          max.x = Math.max(max.x, a[a.length - 1].x)
-        } else return
-      })
-      col = !col
-      const layer = [{ x: min.x }, { x: max.x }]
-      layers.push(this.genLayers(col, layer))
-      min.x = max.x
-    }
+    // for (let i = 0; i < this.union.length; i++) {
+    //   items.forEach((user) => {
+    //     const a = user.data.filter((match) => {
+    //       const t = new Date(match.time.toDateString())
+    //       return t.getTime() === this.union[i]
+    //     })
+    //     if (a.length !== 0) {
+    //       min.x = Math.min(min.x, a[0].x)
+    //       max.x = Math.max(max.x, a[a.length - 1].x)
+    //     } else return
+    //   })
+    //   col = !col
+    //   const layer = [{ x: min.x }, { x: max.x }]
+    //   layers.push(this.genLayers(col, layer))
+    //   min.x = max.x
+    // }
     return (
       <>
         <h2>Elo history</h2>
@@ -265,6 +293,13 @@ class EloGraph extends Component {
                           : player.data.info[0] === player.serieId
                           ? '(+' + player.data.elo_diff + ')'
                           : '(-' + player.data.elo_diff + ')'}
+                        {player.data.info
+                          ? 'W: ' +
+                            player.data.info[0] +
+                            ', L: ' +
+                            player.data.info[1]
+                          : ' '}
+                        {player.data.x}
                       </div>
                     )
                   })}
