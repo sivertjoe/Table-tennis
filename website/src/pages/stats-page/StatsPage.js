@@ -1,11 +1,12 @@
 import { React, Component } from 'react'
 import * as UserApi from '../../api/UserApi'
 import * as MatchApi from '../../api/MatchApi'
-import './StatsPage.css'
 import '../../index.css'
 import Select from 'react-select'
-
+import EloGraph from '../../components/elo-graph/EloGraph'
+import './StatsPage.css'
 class StatsPage extends Component {
+  ids = []
   constructor() {
     super()
     this.mounted = true
@@ -115,8 +116,9 @@ class StatsPage extends Component {
     if (this.user1 && this.user2)
       MatchApi.getStats(this.user1, this.user2)
         .then((stats) => {
-          this.stats = [...stats.current, ...stats.rest]
-          this.initSeasons(stats)
+          this.ids = stats[0]
+          this.stats = [...stats[1].current, ...stats[1].rest]
+          this.initSeasons(stats[1])
           this.initStats()
         })
         .catch((error) => (this.error = error.message))
@@ -146,50 +148,57 @@ class StatsPage extends Component {
 
   render() {
     return (
-      <div className="container">
-        <h1>Select users to compare</h1>
-        <table>
-          <tbody>
-            <tr>
-              <th>User 1</th>
-              <th>User 2</th>
-            </tr>
-            <tr>
-              <th>
+      <div>
+        <div className="container">
+          <h1>Select users to compare</h1>
+          <table>
+            <tbody>
+              <tr>
+                <th>User 1</th>
+                <th>User 2</th>
+              </tr>
+              <tr>
+                <th>
+                  <Select
+                    onChange={this.setUser1}
+                    className="selector"
+                    options={this.users}
+                    value={{ label: this.user1, value: this.user1 }}
+                  />
+                </th>
+                <th>
+                  <Select
+                    onChange={this.setUser2}
+                    className="selector"
+                    options={this.users}
+                    value={{ label: this.user2, value: this.user2 }}
+                  />
+                </th>
+              </tr>
+            </tbody>
+          </table>
+          {this.error && <h2 className="error"> {this.error} </h2>}
+          {this.stats && (
+            <div className="stats">
+              <div>
                 <Select
-                  onChange={this.setUser1}
-                  className="selector"
-                  options={this.users}
-                  value={{ label: this.user1, value: this.user1 }}
+                  className="season-select"
+                  onChange={this.onSelectSeason}
+                  options={this.seasons}
+                  value={this.selectedSeason}
                 />
-              </th>
-              <th>
-                <Select
-                  onChange={this.setUser2}
-                  className="selector"
-                  options={this.users}
-                  value={{ label: this.user2, value: this.user2 }}
-                />
-              </th>
-            </tr>
-          </tbody>
-        </table>
-        {this.error && <h2 className="error"> {this.error} </h2>}
+                {this.renderStats(this.current)}
+              </div>
+              <div>
+                <h1 style={{ margin: '0 auto' }}>All time</h1>
+                {this.renderStats(this.rest)}
+              </div>
+            </div>
+          )}
+        </div>
         {this.stats && (
-          <div className="stats">
-            <div>
-              <Select
-                className="season-select"
-                onChange={this.onSelectSeason}
-                options={this.seasons}
-                value={this.selectedSeason}
-              />
-              {this.renderStats(this.current)}
-            </div>
-            <div>
-              <h1 style={{ margin: '0 auto' }}>All time</h1>
-              {this.renderStats(this.rest)}
-            </div>
+          <div key={this.ids.join('-')} className="container">
+            <EloGraph users={this.ids} />
           </div>
         )}
       </div>
