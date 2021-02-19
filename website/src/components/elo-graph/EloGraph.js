@@ -45,7 +45,7 @@ class EloGraph extends Component {
 
   constructor(args) {
     super()
-    // this.users = args.users.filter((user) => user.match_history.length > 0)
+
     this.changePeriod = this.changePeriod.bind(this)
     this.genLayers = this.genLayers.bind(this)
     UserApi.getMultipleUsers(args.users)
@@ -68,59 +68,54 @@ class EloGraph extends Component {
       )
     })
 
-    let indexes = users.map((user) => user._match_history.length - 1)
-    let min = 0
+    let min_x = 0
     let day = ''
     let x = -1
     let prev = -1
     let col = true
-    while (users.some((_user, _i) => indexes[_i] >= 0)) {
-      let small = Infinity
-      let index = -1
+    let user = undefined
 
-      users.forEach((user, i) => {
-        const _match_history = user._match_history
-        const userIndex = indexes[i]
-        if (userIndex < 0) {
-          return
+    while (users.some((__user, _i) => __user._match_history.length > 0)) {
+      let current_first = Infinity
+
+      for (let i = 0; i < users.length; i++) {
+        const _user = users[i]
+        if (_user._match_history.length === 0) continue
+        const this_epoch =
+          _user._match_history[_user._match_history.length - 1].epoch
+        if (this_epoch < current_first) {
+          current_first = this_epoch
+          user = _user
         }
-
-        if (_match_history[userIndex].epoch < small) {
-          small = _match_history[userIndex].epoch
-          index = i
-        }
-      })
-      if (prev !== small) x++
-
-      const user = users[index]
-      const match = user._match_history[indexes[index]]
-      const t = new Date(match.epoch)
-
-      if (day === '') day = t.toDateString() //first day
-      if (
-        Date.parse(t.toDateString()) > Date.parse(day) ||
-        indexes[index] === 0
-      ) {
-        this.layers.push(this.genLayers((col = !col), [{ x: min }, { x: x }]))
-        min = x
-        day = t.toDateString()
       }
-      indexes[index] -= 1
+
+      const match = user._match_history.pop()
+      const time = new Date(match.epoch)
+      if (day === '') day = time.toDateString() //first day
+      if (Date.parse(time.toDateString()) > Date.parse(day)) {
+        this.layers.push(this.genLayers((col = !col), [{ x: min_x }, { x: x }]))
+        min_x = x
+        day = time.toDateString()
+      }
+
       const y = Math.round(matchElo(match, user.name))
+      if (prev !== current_first) x++
 
       items[user.name].push({
         x: x,
         y: y,
-        time: t,
+        time: time,
         info: [match.winner, match.loser],
         name: user.name,
         elo_diff: Math.round(match.elo_diff),
       })
-      prev = small
+      prev = current_first
 
       this.minElo = y < this.minElo ? y : this.minElo
       this.maxElo = y > this.maxElo ? y : this.maxElo
     }
+    this.layers.push(this.genLayers((col = !col), [{ x: min_x }, { x: x }]))
+
     return items
   }
 
@@ -198,7 +193,7 @@ class EloGraph extends Component {
         <h2>Elo history</h2>
         <div className="inputs">
           <Select
-            className="selector"
+            className="selectorElo"
             onChange={this.changePeriod}
             options={this.periods}
             value={this.selectedPeriod}
@@ -258,21 +253,18 @@ class EloGraph extends Component {
                         {player.data.elo_diff === undefined
                           ? ''
                           : player.data.info[0] === player.serieId
-                          ? '(+' + player.data.elo_diff + ')'
-                          : '(-' + player.data.elo_diff + ')'}
+                          ? '(+' + player.data.elo_diff + ') '
+                          : '(-' + player.data.elo_diff + ') '}
                         {player.data.info
                           ? 'W: ' +
                             player.data.info[0] +
                             ', L: ' +
                             player.data.info[1]
                           : ' '}
-                        {'--'}
-                        {player.data.x}
-                        {'--'}
-                        {getShortDate(player.data.time)}
                       </div>
                     )
                   })}
+                  {getShortDate(slice.points[0].data.time)}
                 </div>
               )
             }}
