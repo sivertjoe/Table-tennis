@@ -246,7 +246,7 @@ impl DataBase
         self.get_all_matches()
     }
 
-    pub fn get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    pub fn get_stats(&self, info: StatsUsers) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
     {
         self._get_stats(info)
     }
@@ -1144,7 +1144,7 @@ impl DataBase
         Ok(vec)
     }
 
-    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
+    fn _get_stats(&self, info: StatsUsers) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
     {
         let user1_id = self.get_user_without_matches(&info.user1)?.id;
         let user2_id = self.get_user_without_matches(&info.user2)?.id;
@@ -1166,7 +1166,7 @@ impl DataBase
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
         map.insert("rest".to_string(), rest);
-        Ok(map)
+        Ok((vec![user1_id, user2_id], map))
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
