@@ -6,9 +6,7 @@ use crate::{
     season::Season,
     server::{DataBase, ServerError, ServerResult},
     user::USER_ROLE_SOFT_INACTIVE,
-    GET_OR_CREATE_DB_VAR,
-    SQL,
-    TYPE
+    GET_OR_CREATE_DB_VAR, SQL, TYPE,
 };
 
 pub const N_SEASON_ID: u32 = 1;
@@ -149,9 +147,7 @@ impl DataBase
 {
     pub fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
-        Ok(SQL!(self, "select id, start_epoch from seasons order by id asc", TYPE!(SEASON))?
-           .pop()
-        )
+        Ok(SQL!(self, "select id, start_epoch from seasons order by id asc", TYPE!(SEASON))?.pop())
     }
 
     pub fn archive_offseason(&self) -> ServerResult<()>
@@ -211,7 +207,7 @@ mod test
         badge::*,
         test_util::*,
         user::{USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER},
-		SQL_TUPLE
+        SQL_TUPLE,
     };
 
     #[test]
@@ -380,8 +376,9 @@ mod test
 
         let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
 
-		let count = SQL_TUPLE!(s, "select count(*) from seasons", i64)?.get(0).unwrap().0;
-		let match_history_count = SQL_TUPLE!(s, "select count(*) from matches", i64)?.get(0).unwrap().0;
+        let count = SQL_TUPLE!(s, "select count(*) from seasons", i64)?.get(0).unwrap().0;
+        let match_history_count =
+            SQL_TUPLE!(s, "select count(*) from matches", i64)?.get(0).unwrap().0;
 
         let users = s.get_users().unwrap();
         let siv = s.get_user(siv).expect("Getting user Sivert");
@@ -394,7 +391,7 @@ mod test
         assert!(s_elo_new == 1500.0);
         assert!(m_elo_new == 1500.0);
         assert_eq!(siv.user_role, USER_ROLE_SOFT_INACTIVE | USER_ROLE_SUPERUSER);
-		Ok(())
+        Ok(())
     }
 
     #[test]

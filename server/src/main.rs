@@ -4,14 +4,14 @@ mod notification;
 mod season;
 #[macro_use]
 mod server;
+mod macros;
 mod process;
 mod server_init;
 mod server_rollback;
 mod server_season;
+mod sql_executor;
 mod test_util;
 mod user;
-mod sql_executor;
-mod macros;
 
 use std::sync::{Arc, Mutex};
 
@@ -535,7 +535,7 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
 #[derive(Deserialize)]
 struct SqlCommand
 {
-    token: String,
+    token:   String,
     command: String,
 }
 
@@ -547,16 +547,12 @@ fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match s.get_is_admin(info.token.clone())
     {
-        Ok(true) => {
-            match s.execute_sql(info.command)
-            {
-                Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
-                Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
-            }
+        Ok(true) => match s.execute_sql(info.command)
+        {
+            Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
+            Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
         },
-        Ok(false) => {
-            HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""}))
-        },
+        Ok(false) => HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),

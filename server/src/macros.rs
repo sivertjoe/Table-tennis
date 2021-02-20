@@ -1,8 +1,7 @@
-
 #[macro_export]
 macro_rules! SQL_TUPLE
 {
-    ($data:expr, $sql:expr, $($t: ty),+) => 
+    ($data:expr, $sql:expr, $($t: ty),+) =>
     {
         {
             type T = ($($t,)+);
@@ -11,7 +10,7 @@ macro_rules! SQL_TUPLE
             {
                 $crate::SQL_TUPLE!(@CREATE_TYPE; row, $($t),+)
             })?;
-            
+
             let mut vec = Vec::new();
             for elem in res
             {
@@ -25,7 +24,7 @@ macro_rules! SQL_TUPLE
         }
     };
 
-    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) => 
+    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) =>
     {
         {
             type T = ($($t,)+);
@@ -34,7 +33,7 @@ macro_rules! SQL_TUPLE
             {
                 $crate::SQL_TUPLE!(@CREATE_TYPE; row, $($t),+)
             })?;
-            
+
             let mut vec = Vec::new();
             for elem in res
             {
@@ -51,7 +50,7 @@ macro_rules! SQL_TUPLE
     (@CREATE_TYPE; $row: expr, $($t: ty),+) =>
     {
         {
-        let mut counter: usize = 0; 
+        let mut counter: usize = 0;
         Ok(($({ counter += 1;  $row.get::<_, $t>(counter - 1)? },)+))
         }
     };
@@ -61,7 +60,7 @@ macro_rules! SQL_TUPLE
 #[macro_export]
 macro_rules! SQL_TUPLE_NAMED
 {
-    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) => 
+    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) =>
     {
         {
             type T = ($($t,)+);
@@ -70,7 +69,7 @@ macro_rules! SQL_TUPLE_NAMED
             {
                 $crate::SQL_TUPLE!(@CREATE_TYPE; row, $($t),+)
             })?;
-            
+
             let mut vec = Vec::new();
             for elem in res
             {
@@ -87,7 +86,7 @@ macro_rules! SQL_TUPLE_NAMED
     (@CREATE_TYPE; $row: expr, $($t: ty),+) =>
     {
         {
-        let mut counter: usize = 0; 
+        let mut counter: usize = 0;
         Ok(($({ counter += 1;  $row.get::<_, $t>(counter - 1)? },)+))
         }
     };
@@ -95,61 +94,45 @@ macro_rules! SQL_TUPLE_NAMED
 
 
 #[macro_export]
-macro_rules! SQL
-{
-    ($data:expr, $sql:expr, $func: expr) =>
-    {
-        {
-            let mut stmt = $data.conn.prepare($sql.as_ref())?;
-            let res = stmt.query_map(NO_PARAMS, |row|
-            {
-                $func(row)
-            })?;
-            
-            let mut vec = Vec::new();
-            for elem in res
-            {
-                if let Ok(e) = elem
-                {
-                    vec.push(e);
-                }
-            }
-            let _final: ServerResult<Vec<_>> = Ok(vec);
-            _final
-        }
-    };
+macro_rules! SQL {
+    ($data:expr, $sql:expr, $func: expr) => {{
+        let mut stmt = $data.conn.prepare($sql.as_ref())?;
+        let res = stmt.query_map(NO_PARAMS, |row| $func(row))?;
 
-    ($data:expr, $sql:expr, $func: expr, $named:expr) =>
-    {
+        let mut vec = Vec::new();
+        for elem in res
         {
-            let mut stmt = $data.conn.prepare($sql.as_ref())?;
-            let res = stmt.query_map_named($named, |row|
+            if let Ok(e) = elem
             {
-                $func(row)
-            })?;
-            
-            let mut vec = Vec::new();
-            for elem in res
-            {
-                if let Ok(e) = elem
-                {
-                    vec.push(e);
-                }
+                vec.push(e);
             }
-            let _final: ServerResult<Vec<_>> = Ok(vec);
-            _final
         }
-    };
+        let _final: ServerResult<Vec<_>> = Ok(vec);
+        _final
+    }};
+
+    ($data:expr, $sql:expr, $func: expr, $named:expr) => {{
+        let mut stmt = $data.conn.prepare($sql.as_ref())?;
+        let res = stmt.query_map_named($named, |row| $func(row))?;
+
+        let mut vec = Vec::new();
+        for elem in res
+        {
+            if let Ok(e) = elem
+            {
+                vec.push(e);
+            }
+        }
+        let _final: ServerResult<Vec<_>> = Ok(vec);
+        _final
+    }};
 }
 
 
 #[macro_export]
-macro_rules! TYPE
-{
-    (BADGE) => 
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Badge> 
-        { 
+macro_rules! TYPE {
+    (BADGE) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Badge> {
             let index: u32 = row.get(2)?;
             let index = index as usize;
 
@@ -161,25 +144,21 @@ macro_rules! TYPE
         }
     };
 
-    (USER) => 
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<User> 
-        { 
+    (USER) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<User> {
             Ok(User {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                elo: row.get(2)?,
-                user_role: row.get(3)?,
+                id:            row.get(0)?,
+                name:          row.get(1)?,
+                elo:           row.get(2)?,
+                user_role:     row.get(3)?,
                 match_history: Vec::new(),
-                badges: Vec::new(),
+                badges:        Vec::new(),
             })
         }
     };
 
-    (MATCH) => 
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Match> 
-        {
+    (MATCH) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Match> {
             Ok(Match {
                 winner:     row.get(0)?,
                 loser:      row.get(1)?,
@@ -192,20 +171,16 @@ macro_rules! TYPE
         }
     };
 
-    (SEASON) => 
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Season> 
-        {
+    (SEASON) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<Season> {
             Ok(Season {
                 id: row.get(0)?, start_epoch: row.get(1)?
             })
         }
     };
 
-    (MATCH_NOTIFICATION) =>
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<MatchNotificationTable> 
-        {
+    (MATCH_NOTIFICATION) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<MatchNotificationTable> {
             Ok(MatchNotificationTable {
                 id:            row.get(0)?,
                 winner_accept: row.get(1)?,
@@ -217,10 +192,8 @@ macro_rules! TYPE
         }
     };
 
-    (EDIT_MATCH_INFO) => 
-    {
-        |row: &rusqlite::Row<'_>| -> rusqlite::Result<EditMatchInfo> 
-        {
+    (EDIT_MATCH_INFO) => {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<EditMatchInfo> {
             Ok(EditMatchInfo {
                 winner: row.get(0)?,
                 loser:  row.get(1)?,
@@ -261,21 +234,21 @@ macro_rules! GET_OR_CREATE_DB_VAR {
 #[macro_export]
 macro_rules! FILL
 {
-    (USER) => 
+    (USER) =>
     {
        i64, f64, String, u8, Vec<Match>, Vec<Badge>
     }
 }
 
 
-
 #[cfg(test)]
 mod test
 {
+    use rusqlite::NO_PARAMS;
+
+    use crate::server::{DataBase, ServerResult};
     use crate::test_util::*;
     use crate::user::*;
-    use crate::server::{ServerResult, DataBase};
-    use rusqlite::{NO_PARAMS};
 
     #[test]
     fn test_insanity() -> ServerResult<()>
@@ -287,8 +260,16 @@ mod test
         let res = SQL_TUPLE!(s, "select id, name from users", i64, String).unwrap();
         let expected = (1, "Sivert".to_string());
 
-        let res2 = SQL_TUPLE!(s, "select * from users", i64, String, f64, String, String, i64).unwrap();
-        let expected2 = (1, "Sivert".to_string(), 1500., "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8".to_string(), token, (USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR) as i64);
+        let res2 =
+            SQL_TUPLE!(s, "select * from users", i64, String, f64, String, String, i64).unwrap();
+        let expected2 = (
+            1,
+            "Sivert".to_string(),
+            1500.,
+            "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8".to_string(),
+            token,
+            (USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR) as i64,
+        );
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(expected, res[0]);
