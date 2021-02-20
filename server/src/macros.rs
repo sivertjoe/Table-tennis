@@ -25,6 +25,64 @@ macro_rules! SQL_TUPLE
         }
     };
 
+    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) => 
+    {
+        {
+            type T = ($($t,)+);
+            let mut stmt = $data.conn.prepare($sql.as_ref())?;
+            let res = stmt.query_map_named($named_params, |row|
+            {
+                $crate::SQL_TUPLE!(@CREATE_TYPE; row, $($t),+)
+            })?;
+            
+            let mut vec = Vec::new();
+            for elem in res
+            {
+                if let Ok(e) = elem
+                {
+                    vec.push(e);
+                }
+            }
+            let _final: ServerResult<Vec<T>> = Ok(vec);
+            _final
+        }
+    };
+
+    (@CREATE_TYPE; $row: expr, $($t: ty),+) =>
+    {
+        {
+        let mut counter: usize = 0; 
+        Ok(($({ counter += 1;  $row.get::<_, $t>(counter - 1)? },)+))
+        }
+    };
+}
+
+// Rust didn't like this pattern above 🤷‍♀️
+#[macro_export]
+macro_rules! SQL_TUPLE_NAMED
+{
+    ($data:expr, $sql:expr, $named_params:expr, $($t: ty),+) => 
+    {
+        {
+            type T = ($($t,)+);
+            let mut stmt = $data.conn.prepare($sql.as_ref())?;
+            let res = stmt.query_map_named($named_params, |row|
+            {
+                $crate::SQL_TUPLE!(@CREATE_TYPE; row, $($t),+)
+            })?;
+            
+            let mut vec = Vec::new();
+            for elem in res
+            {
+                if let Ok(e) = elem
+                {
+                    vec.push(e);
+                }
+            }
+            let _final: ServerResult<Vec<T>> = Ok(vec);
+            _final
+        }
+    };
 
     (@CREATE_TYPE; $row: expr, $($t: ty),+) =>
     {
@@ -129,7 +187,7 @@ macro_rules! TYPE
                 winner_elo: row.get(3)?,
                 loser_elo:  row.get(4)?,
                 epoch:      row.get(5)?,
-                season:     -1,
+                season:     row.get(6)?,
             })
         }
     };
@@ -142,7 +200,35 @@ macro_rules! TYPE
                 id: row.get(0)?, start_epoch: row.get(1)?
             })
         }
-    }
+    };
+
+    (MATCH_NOTIFICATION) =>
+    {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<MatchNotificationTable> 
+        {
+            Ok(MatchNotificationTable {
+                id:            row.get(0)?,
+                winner_accept: row.get(1)?,
+                loser_accept:  row.get(2)?,
+                epoch:         row.get(3)?,
+                winner:        row.get(4)?,
+                loser:         row.get(5)?,
+            })
+        }
+    };
+
+    (EDIT_MATCH_INFO) => 
+    {
+        |row: &rusqlite::Row<'_>| -> rusqlite::Result<EditMatchInfo> 
+        {
+            Ok(EditMatchInfo {
+                winner: row.get(0)?,
+                loser:  row.get(1)?,
+                epoch:  row.get(2)?,
+                id:     row.get(3)?,
+            })
+        }
+    };
 }
 
 // Kneel before my one-liner

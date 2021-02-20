@@ -379,12 +379,12 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 }
 
 #[get("/user/{name}")]
-async fn get_profile(
+async fn get_user(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(name): web::Path<String>,
 ) -> HttpResponse
 {
-    match DATABASE!(data).get_profile(name)
+    match DATABASE!(data).get_user(name)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e
@@ -577,7 +577,6 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
     builder
 }
 
-
 fn handle_args(data: &Arc<Mutex<DataBase>>)
 {
     let vec = std::env::args().collect::<Vec<String>>();
@@ -612,7 +611,7 @@ async fn main() -> std::io::Result<()>
             .service(edit_users)
             .service(edit_match)
             .service(delete_match)
-            .service(get_profile)
+            .service(get_user)
             .service(get_users)
             .service(get_all_users)
             .service(register_match)
