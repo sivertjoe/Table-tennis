@@ -656,7 +656,6 @@ async fn main() -> std::io::Result<()>
             .service(get_leaderboard_info)
             .service(get_stats)
             .service(execute_sql)
-            .service(get_multiple_users)
     });
 
     if cfg!(debug_assertions)
