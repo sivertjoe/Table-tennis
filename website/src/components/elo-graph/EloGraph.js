@@ -175,10 +175,9 @@ class EloGraph extends Component {
     })
     let matches = this.orderMatches(this.users)
     items.forEach((item) => {
-      if (matches[item.id].length === 0 && this.users.length === 1) {
+      if (matches[item.id].length === 0) {
         item.data = [
           {
-            time: new Date(),
             x: 0,
             y: Math.round(this.users.find((user) => user.name === item.id).elo),
           },
@@ -187,7 +186,6 @@ class EloGraph extends Component {
         item.data = matches[item.id]
       }
     })
-
     return (
       <>
         <h2>Elo history</h2>
