@@ -655,6 +655,7 @@ async fn main() -> std::io::Result<()>
             .service(start_season)
             .service(get_leaderboard_info)
             .service(get_stats)
+            .service(get_multiple_users)
             .service(execute_sql)
     });
 
