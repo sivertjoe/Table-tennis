@@ -1460,6 +1460,11 @@ mod test
         let db_file = "temp0.db";
         let s = DataBase::new(db_file);
 
+        let admin = "admin".to_string();
+        let admin_token = create_user(&s, &admin);
+        s.make_user_admin(admin.clone()).unwrap();
+        s.set_variable(admin_token, "user_conf".to_string(), 1).expect("set variable");
+
         let markus = "markus".to_string();
         s.create_user(markus.clone(), "password".to_string()).unwrap();
 
@@ -1487,6 +1492,7 @@ mod test
         let admin = "admin".to_string();
         let admin_token = create_user(&s, &admin);
         s.make_user_admin(admin.clone()).unwrap();
+        s.set_variable(admin_token.to_string(), "user_conf".to_string(), 1).unwrap();
 
         let markus = "markus".to_string();
         s.create_user(markus.clone(), "password".to_string()).unwrap();
