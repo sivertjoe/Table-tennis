@@ -47,8 +47,19 @@ export const startSeason = () =>
   })
 
 export const executeSql = (str) =>
-    BaseApi.post('admin/execute-sql', {
-        token: localStorage.getItem('token'),
-        command: str
-    })
+  BaseApi.post('admin/execute-sql', {
+    token: localStorage.getItem('token'),
+    command: str,
+  })
 
+export const getVariable = (variable) =>
+  BaseApi.post('admin/get-variable', {
+    variable: variable,
+  })
+
+export const setVariable = (variable, val) =>
+  BaseApi.post('admin/set-variable', {
+    variable: variable,
+    new_val: val,
+    token: localStorage.getItem('token'),
+  })

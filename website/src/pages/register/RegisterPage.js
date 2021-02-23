@@ -22,7 +22,7 @@ class RegisterPage extends Component {
 
     UserApi.register(this.username, this.password)
       .then((res) => {
-        this.success = 'Success! Now you have to wait for an admin to accept..!'
+        this.success = 'Success!' + res
       })
       .catch((error) => (this.error = error.message))
       .then(() => this.setState({}))

@@ -1609,6 +1609,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "elo",
+ "lazy_static",
  "openssl",
  "rusqlite",
  "serde",

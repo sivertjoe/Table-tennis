@@ -26,7 +26,7 @@ impl DataBase
         let mut rows = stmt.query(NO_PARAMS)?;
 
         let mut output = Vec::new();
-        while let Some(row) = rows.next()? 
+        while let Some(row) = rows.next()?
         {
             let mut row_vec = Vec::new();
             for i in 0..col_count
