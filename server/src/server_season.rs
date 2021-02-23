@@ -11,6 +11,7 @@ use crate::{
 
 pub const N_SEASON_ID: u32 = 1;
 pub const IS_SEASON_ID: u32 = 2;
+pub const REQUIRE_CONFIRMATION_ID: u32 = 3;
 
 impl DataBase
 {

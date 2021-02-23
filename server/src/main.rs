@@ -8,9 +8,9 @@ mod process;
 mod server_init;
 mod server_rollback;
 mod server_season;
+mod sql_executor;
 mod test_util;
 mod user;
-mod sql_executor;
 
 use std::sync::{Arc, Mutex};
 
@@ -76,10 +76,58 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
-        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Ok(s) => HttpResponse::Ok().json(response_ok_with(s)),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[derive(Deserialize)]
+struct Variable
+{
+    variable: String,
+}
+
+#[post("admin/get-variable")]
+async fn get_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: Variable = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).get_variable(info.variable)
+    {
+        Ok(val) => HttpResponse::Ok().json(response_ok_with(val.to_string())),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(r) => HttpResponse::Ok().json(response_ok_with(format!("{}", r))),
+            ServerError::Critical(c) => HttpResponse::Ok().json(response_ok_with(format!("{}", c))),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[derive(Deserialize)]
+struct EditVariable
+{
+    variable: String,
+    new_val:  String,
+    token:    String,
+}
+
+#[post("admin/set-variable")]
+async fn set_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: EditVariable = serde_json::from_str(&info).unwrap();
+    let new_val: i64 = info.new_val.parse().unwrap();
+    match DATABASE!(data).set_variable(info.token, info.variable, new_val)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(r) => HttpResponse::Ok().json(response_ok_with(format!("{}", r))),
+            ServerError::Critical(c) => HttpResponse::Ok().json(response_ok_with(format!("{}", c))),
             _ => HttpResponse::Ok().json(response_error(e)),
         },
     }
@@ -397,7 +445,7 @@ async fn get_profile(
 #[derive(Deserialize)]
 struct Users
 {
-    users: Vec<i64>
+    users: Vec<i64>,
 }
 
 #[post("/get-multiple-users")]
@@ -555,7 +603,7 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
 #[derive(Deserialize)]
 struct SqlCommand
 {
-    token: String,
+    token:   String,
     command: String,
 }
 
@@ -567,16 +615,12 @@ fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match s.get_is_admin(info.token.clone())
     {
-        Ok(true) => {
-            match s.execute_sql(info.command)
-            {
-                Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
-                Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
-            }
+        Ok(true) => match s.execute_sql(info.command)
+        {
+            Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
+            Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
         },
-        Ok(false) => {
-            HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""}))
-        },
+        Ok(false) => HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""})),
         Err(e) => match e
         {
             ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
@@ -657,6 +701,8 @@ async fn main() -> std::io::Result<()>
             .service(get_stats)
             .service(get_multiple_users)
             .service(execute_sql)
+            .service(get_variable)
+            .service(set_variable)
     });
 
     if cfg!(debug_assertions)

@@ -7,6 +7,8 @@ class Terminal extends Component {
   constructor() {
     super()
     this.sqlExectute = this.sqlExectute.bind(this)
+    this.getVariable = this.getVariable.bind(this)
+    this.setVariable = this.setVariable.bind(this)
   }
   showMsg = () => 'Hello World'
 
@@ -15,6 +17,16 @@ class Terminal extends Component {
     const command = str.join(' ')
 
     AdminApi.executeSql(command).then((res) => print(res))
+  }
+
+  getVariable(str, print) {
+    str.shift()
+    AdminApi.getVariable(str[0]).then((res) => print(res))
+  }
+
+  setVariable(str, print) {
+    str.shift()
+    AdminApi.setVariable(str[0], str[1]).then((res) => print(res))
   }
 
   render() {
@@ -38,6 +50,8 @@ class Terminal extends Component {
             style={{ fontWeight: 'bold', fontSize: '1em' }}
             commands={{
               sql: (str, print) => this.sqlExectute(str, print),
+              getVariable: (str, print) => this.getVariable(str, print),
+              setVariable: (str, print) => this.setVariable(str, print),
             }}
             descriptions={{
               color: false,
@@ -45,6 +59,10 @@ class Terminal extends Component {
               clear: false,
               sql:
                 'Exectue a sql command: sql <command>: sql select * from users',
+              getVariable:
+                'Get server variable, avaliable are: \nis_season\nseason_length\nuser_conf',
+              setVariable:
+                'Set server variable, avaliable are: \nis_season\nseason_length\nuser_conf',
             }}
             msg="Help for help"
           />
