@@ -6,7 +6,6 @@ combine_control_expr = false
 chain_width = 80
 control_brace_style = "AlwaysNextLine"
 edition = "2018"
-chain_width = 80
 empty_item_single_line = true
 enum_discrim_align_threshold = 20
 format_strings = true
