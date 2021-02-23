@@ -2,6 +2,7 @@ use std::{collections::HashMap, convert::From, str::FromStr};
 
 use chrono::prelude::*;
 use elo::EloRank;
+use lazy_static::lazy_static;
 use rusqlite::{named_params, params, Connection, NO_PARAMS};
 use uuid::Uuid;
 
@@ -11,6 +12,7 @@ use crate::{
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
+    server_season::{IS_SEASON_ID, N_SEASON_ID, REQUIRE_CONFIRMATION_ID},
     user::{
         EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR,
         USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
@@ -42,6 +44,18 @@ macro_rules! GET_OR_CREATE_DB_VAR {
             )
     };
 }
+
+// Map the name to the id _and_ the default value
+lazy_static! {
+    static ref HASHMAP: HashMap<&'static str, (i64, i64)> = {
+        let mut m = HashMap::new();
+        m.insert("is_season", (IS_SEASON_ID as i64, 1));
+        m.insert("season_length", (N_SEASON_ID as i64, 1));
+        m.insert("user_conf", (REQUIRE_CONFIRMATION_ID as i64, 0));
+        m
+    };
+}
+
 
 pub struct DataBase
 {
@@ -158,9 +172,57 @@ impl DataBase
         self.try_respond_to_notification(id, ans, token)
     }
 
-    pub fn create_user(&self, new_user: String, password: String) -> ServerResult<()>
+    pub fn get_variable(&self, variable: String) -> ServerResult<i64>
     {
-        self.create_new_user_notification(new_user, password)
+        let (id, default) = match HASHMAP.get(variable.as_str())
+        {
+            Some(t) => t,
+            None => return Err(ServerError::Critical(format!("No varialbe named {}", variable))),
+        };
+
+        let res: Result<i64, rusqlite::Error> = GET_OR_CREATE_DB_VAR!(&self.conn, *id, *default);
+        match res
+        {
+            Ok(r) => Ok(r),
+            Err(e) => Err(ServerError::Rusqlite(e)),
+        }
+    }
+
+    pub fn set_variable(&self, token: String, varialbe: String, val: i64) -> ServerResult<()>
+    {
+        if !self.get_is_admin(token)?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        let id = match HASHMAP.get(varialbe.as_str())
+        {
+            Some((id, _)) => id,
+            None => return Err(ServerError::Critical(format!("No variable named: {}", varialbe))),
+        };
+
+        self.conn
+            .execute("replace into variables(id, value) values (?1, ?2);", params![id, val])?;
+        Ok(())
+    }
+
+    pub fn create_user(&self, new_user: String, password: String) -> ServerResult<String>
+    {
+        if self.get_variable("user_conf".to_string())? == 1
+        {
+            self.create_new_user_notification(new_user, password)?;
+            Ok(" Now you have to wait for an admin to accept..!".to_string())
+        }
+        else
+        {
+            if !self.check_unique_name(&new_user)?
+            {
+                return Err(ServerError::UsernameTaken);
+            }
+            let password_hash = self.hash(&password);
+            self.create_user_with_password_hash(new_user, password_hash)?;
+            Ok("".to_string())
+        }
     }
 
     pub fn edit_users(
@@ -246,7 +308,10 @@ impl DataBase
         self.get_all_matches()
     }
 
-    pub fn get_stats(&self, info: StatsUsers) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
+    pub fn get_stats(
+        &self,
+        info: StatsUsers,
+    ) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
     {
         self._get_stats(info)
     }
@@ -685,24 +750,23 @@ impl DataBase
             "select id, winner_accept, loser_accept, epoch, winner, loser
             from match_notification where id = :id",
         )?;
-        let mut match_notification = stmt
-            .query_map_named(named_params! {":id": id}, |row| {
-                Ok(MatchNotificationTable {
-                    id:            row.get(0)?,
-                    winner_accept: row.get(1)?,
-                    loser_accept:  row.get(2)?,
-                    epoch:         row.get(3)?,
-                    winner:        row.get(4)?,
-                    loser:         row.get(5)?,
-                })
-            })?;
+        let mut match_notification = stmt.query_map_named(named_params! {":id": id}, |row| {
+            Ok(MatchNotificationTable {
+                id:            row.get(0)?,
+                winner_accept: row.get(1)?,
+                loser_accept:  row.get(2)?,
+                epoch:         row.get(3)?,
+                winner:        row.get(4)?,
+                loser:         row.get(5)?,
+            })
+        })?;
 
         let mut match_notification = match match_notification.next()
         {
             Some(mn) => mn.unwrap(),
             None => return Err(ServerError::Critical(String::from("Notification does not exist"))),
         };
-        
+
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
             return Err(ServerError::Unauthorized);
@@ -1144,7 +1208,8 @@ impl DataBase
         Ok(vec)
     }
 
-    fn _get_stats(&self, info: StatsUsers) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
+    fn _get_stats(&self, info: StatsUsers)
+        -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
     {
         let user1_id = self.get_user_without_matches(&info.user1)?.id;
         let user2_id = self.get_user_without_matches(&info.user2)?.id;
