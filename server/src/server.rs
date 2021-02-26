@@ -421,9 +421,18 @@ impl DataBase
                 },
             )?;
             self.set_new_name(id, new_name)?;
+            self.log_user_out(id)?;
         }
         self.conn
             .execute("delete from new_name_notification where id = (?1)", params![not.id])?;
+        Ok(())
+    }
+
+    pub fn log_user_out(&self, id: i64) -> ServerResult<()>
+    {
+        let uuid = format!("{}", Uuid::new_v4());
+        self.conn
+            .execute("update users set uuid = (?1) where id = (?2)", params![uuid, id])?;
         Ok(())
     }
 }
@@ -2202,5 +2211,18 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file temp0");
         assert!(user.is_ok());
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_user_can_get_logged_out()
+    {
+        let db_file = "tempJ5.db";
+        let s = DataBase::new(db_file);
+        let token = create_user(&s, "Sivert");
+        s.log_user_out(1).unwrap();
+
+        let user = s.get_user_without_matches_by("uuid", "=", &token);
+        std::fs::remove_file(db_file).expect("Removing file temp0");
+        assert!(user.is_err())
     }
 }
