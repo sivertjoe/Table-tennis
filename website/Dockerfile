@@ -8,6 +8,8 @@ RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build --prod
 
-FROM nginx:alpine
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY --from=builder /app/build/ /usr/share/nginx/html
+FROM node:14-alpine
+RUN npm install -g serve
+COPY --from=builder /app/build /build
+RUN ls
+CMD ["serve", "-s", "build", "-l", "3000"]
