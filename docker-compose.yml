@@ -5,7 +5,7 @@ services:
       context: ./website
       dockerfile: Dockerfile
     ports:
-      - '3000:80'
+      - '3000:3000'
   server:
     build:
       context: ./server
