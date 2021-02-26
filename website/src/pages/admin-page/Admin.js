@@ -10,6 +10,7 @@ class Admin extends Component {
   isAdmin = 0
   newUserNotifications = []
   resetPasswordNotifications = []
+newNameNotifications = []
   users = []
   selectedUsers = []
   editOptions = [
@@ -33,6 +34,7 @@ class Admin extends Component {
             .then((res) => {
               this.newUserNotifications = res.new_users
               this.resetPasswordNotifications = res.reset_password
+                this.newNameNotifications = res.rename
             })
             .catch((error) => console.warn(error.message))
             .finally(() => this.setState({}))
@@ -72,6 +74,14 @@ class Admin extends Component {
       .then(() => document.getElementById('Password resets' + id).remove())
       .catch((error) => console.warn(error.message))
   }
+
+    newNameButton(id, ans) {
+    const token = localStorage.getItem('token')
+    NotificationApi.replyToNewName(id, token, ans)
+      .then(() => document.getElementById('Rename requests' + id).remove())
+      .catch((error) => console.warn(error.message))
+
+    }
 
   selectUser(event) {
     this.selectedUsers = event
@@ -153,6 +163,11 @@ class Admin extends Component {
               this.resetPasswordNotifications,
               'Password resets',
               this.resetPasswordButton,
+            )}
+            {this.notification_table(
+              this.newNameNotifications,
+              'Rename requests',
+              this.newNameButton,
             )}
             <div>
               <h2>Edit users</h2>

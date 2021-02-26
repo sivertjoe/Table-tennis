@@ -35,6 +35,9 @@ class Profile extends Component {
     window.location.href = '/'
   }
 
+  changeName() {
+    window.location.href = '/rename'
+  }
   changePassword() {
     window.location.href = '/change-password'
   }
@@ -89,6 +92,7 @@ class Profile extends Component {
               placeholder="Change password"
               callback={this.changePassword}
             />
+            <Button placeholder="Change Name" callback={this.changeName} />
             <Button placeholder="Logout" callback={this.logout} />
           </div>
         )}

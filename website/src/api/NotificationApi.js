@@ -21,3 +21,10 @@ export const replyToResetPassword = (id, token, ans) =>
     ans: ans,
     token: token,
   })
+
+export const replyToNewName= (id, token, ans) =>
+  BaseApi.post('respond-to-new-name-notification', {
+    id: id,
+    ans: ans,
+    token: token,
+  })

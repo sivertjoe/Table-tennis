@@ -32,3 +32,9 @@ export const changePassword = (username, password, newPassword) =>
 
 export const requestResetPassword = (name) =>
   BaseApi.post('request-reset-password', { name: name })
+
+export const requestNewName = (name) =>
+  BaseApi.post('request-new-name', {
+    token: localStorage.getItem('token'),
+    new_name: name,
+  })

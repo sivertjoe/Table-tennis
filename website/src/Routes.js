@@ -19,6 +19,7 @@ const EditSeason = lazy(() =>
 )
 const StatsPage = lazy(() => import('./pages/stats-page/StatsPage.js'))
 const Terminal = lazy(() => import('./pages/admin-page/terminal/Terminal.js'))
+const Rename = lazy(() => import('./pages/rename/Rename.js'))
 
 const Routes = () => (
   <Switch>
@@ -26,6 +27,7 @@ const Routes = () => (
     <Route exact path="/register" component={RegisterPage} />
     <Route exact path="/profiles" component={ProfilePage} />
     <Route exact path="/profiles/:user" component={ProfilePage} />
+    <Route exact path="/rename" component={Rename} />
     <Route exact path="/match" component={RegisterMatch} />
     <Route exact path="/history" component={History} />
     <Route exact path="/login" component={LoginPage} />
