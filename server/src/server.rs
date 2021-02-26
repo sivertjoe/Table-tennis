@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::From, str::FromStr};
 use chrono::prelude::*;
 use elo::EloRank;
 use lazy_static::lazy_static;
+use regex::Regex;
 use rusqlite::{named_params, params, Connection, NO_PARAMS};
 use uuid::Uuid;
 
@@ -86,6 +87,7 @@ pub enum ServerError
     WaitingForAdmin,
     InactiveUser,
     ResetPasswordDuplicate,
+    InvalidUsername,
 }
 
 impl From<rusqlite::Error> for ServerError
@@ -208,6 +210,12 @@ impl DataBase
 
     pub fn create_user(&self, new_user: String, password: String) -> ServerResult<String>
     {
+        let re = Regex::new(r"^[a-zåA-ZæøåÆØÅ0-9_-]*$").unwrap();
+        if !re.is_match(&new_user)
+        {
+            return Err(ServerError::InvalidUsername);
+        }
+
         if self.get_variable("user_conf".to_string())? == 1
         {
             self.create_new_user_notification(new_user, password)?;
