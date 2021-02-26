@@ -15,5 +15,6 @@ export const errorMap = {
   7: 'Waiting for approval by an admin.',
   8: 'User is inactive.',
   9: 'Password reset has already been requested.',
+  10: "Invalid username. Must be valid by the following regex: '^[a-zåA-ZæøåÆØÅ0-9_-]*$'",
   // TODO: Get the error message from response
 }

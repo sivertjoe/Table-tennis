@@ -50,6 +50,7 @@ fn response_code(e: ServerError) -> u8
         ServerError::WaitingForAdmin => 7,
         ServerError::InactiveUser => 8,
         ServerError::ResetPasswordDuplicate => 9,
+        ServerError::InvalidUsername => 10,
         _ => 69,
     }
 }
