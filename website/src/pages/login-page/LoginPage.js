@@ -96,10 +96,6 @@ class LoginPage extends Component {
             Reset Password
           </p>
         </div>
-        <p style={{ textAlign: 'center' }}>
-          (For already registered users, default password is '@uit', change it
-          asap Xdd, see profile page)
-        </p>
       </form>
     )
   }
