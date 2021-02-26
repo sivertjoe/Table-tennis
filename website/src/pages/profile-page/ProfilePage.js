@@ -105,8 +105,8 @@ class Profiles extends Component {
     super()
     UserApi.getActiveUsers()
       .then((users) => {
-        this.users = users
-        this.filtered = users
+        this.users = users.sort((a, b) => a.name.localeCompare(b.name))
+        this.filtered = this.users
       })
       .catch((error) => console.warn(error.message))
       .finally(() => this.setState({}))
