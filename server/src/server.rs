@@ -216,6 +216,11 @@ impl DataBase
             return Err(ServerError::InvalidUsername);
         }
 
+        if !self.check_unique_name(&new_user)?
+        {
+            return Err(ServerError::UsernameTaken);
+        }
+
         if self.get_variable("user_conf".to_string())? == 1
         {
             self.create_new_user_notification(new_user, password)?;
@@ -223,10 +228,6 @@ impl DataBase
         }
         else
         {
-            if !self.check_unique_name(&new_user)?
-            {
-                return Err(ServerError::UsernameTaken);
-            }
             let password_hash = self.hash(&password);
             self.create_user_with_password_hash(new_user, password_hash)?;
             Ok("".to_string())
@@ -418,11 +419,6 @@ impl DataBase
 
     fn create_new_user_notification(&self, name: String, password: String) -> ServerResult<()>
     {
-        if !self.check_unique_name(&name)?
-        {
-            return Err(ServerError::UsernameTaken);
-        }
-
         self.conn.execute(
             "insert into new_user_notification (name, password_hash) values (?1, ?2)",
             params![name, self.hash(&password)],
