@@ -379,6 +379,53 @@ impl DataBase
         self.delete_reset_password_notification(info.id)?;
         Ok(())
     }
+
+    pub fn request_new_name(&self, token: String, new_name: String) -> ServerResult<()>
+    {
+        if !self.check_unique_name(&new_name)?
+        {
+            return Err(ServerError::UsernameTaken);
+        }
+        let user = self.get_user_without_matches_by("uuid", "=", &token)?;
+        self.conn.execute(
+            "insert into new_name_notification (user, new_name) values (?1, ?2)",
+            params![user.id, new_name],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn set_new_name(&self, id: i64, new_name: String) -> ServerResult<()>
+    {
+        self.conn
+            .execute("update users set name = (?1) where id = (?2)", params![new_name, id])?;
+        Ok(())
+    }
+
+    pub fn respond_to_new_name_notification(&self, not: AdminNotificationAns) -> ServerResult<()>
+    {
+        if !self.get_is_admin(not.token.clone())?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        if not.ans == ACCEPT_REQUEST
+        {
+            let (id, new_name): (i64, String) = self.conn.query_row(
+                "select user, new_name from new_name_notification where id = (?1)",
+                params![not.id],
+                |row| {
+                    let id: i64 = row.get(0)?;
+                    let name: String = row.get(1)?;
+                    Ok((id, name))
+                },
+            )?;
+            self.set_new_name(id, new_name)?;
+        }
+        self.conn
+            .execute("delete from new_name_notification where id = (?1)", params![not.id])?;
+        Ok(())
+    }
 }
 
 
@@ -693,10 +740,12 @@ impl DataBase
 
         let new_user = self.try_get_new_user_notifications()?;
         let reset_password = self.try_get_reset_password_notifications()?;
+        let rename = self.try_get_rename_notifications()?;
 
         let mut map = HashMap::new();
         map.insert("new_users".to_string(), new_user);
         map.insert("reset_password".to_string(), reset_password);
+        map.insert("rename".to_string(), rename);
         Ok(map)
     }
 
@@ -706,6 +755,31 @@ impl DataBase
         let notifications = stmt.query_map(NO_PARAMS, |row| {
             Ok(AdminNotification {
                 id: row.get(0)?, name: row.get(1)?
+            })
+        })?;
+
+        let mut vec: Vec<AdminNotification> = Vec::new();
+        for n in notifications
+        {
+            if let Ok(mn) = n
+            {
+                vec.push(mn);
+            };
+        }
+        Ok(vec)
+    }
+
+    fn try_get_rename_notifications(&self) -> ServerResult<Vec<AdminNotification>>
+    {
+        let mut stmt = self.conn.prepare("select * from new_name_notification as n")?;
+        let notifications = stmt.query_map(NO_PARAMS, |row| {
+            let user_id: i64 = row.get(1)?;
+            let user_name = self.get_user_without_matches_by("id", "=", &user_id.to_string())?.name;
+            let new_name: String = row.get(2)?;
+            let _final = format!("{} -> {}", user_name, new_name);
+
+            Ok(AdminNotification {
+                id: row.get(0)?, name: _final
             })
         })?;
 
@@ -2068,5 +2142,65 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(users[0].id, vec[0]);
         assert_eq!(users[1].id, vec[1]);
+    }
+
+    #[test]
+    fn test_user_can_rename()
+    {
+        let db_file = "tempJ2.db";
+        let s = DataBase::new(db_file);
+        create_user(&s, "Sivert");
+        s.set_new_name(1, "Markus".to_string()).unwrap();
+        s.get_user(&"Markus".to_string()).unwrap();
+        let sivert = s.get_user(&"Sivert".to_string());
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert!(sivert.is_err());
+    }
+
+    #[test]
+    fn test_user_can_request_new_name()
+    {
+        let db_file = "tempJ3.db";
+        let s = DataBase::new(db_file);
+        let token = create_user(&s, "Sivert");
+        s.request_new_name(token, "Markus".to_string()).unwrap();
+
+        let count: i64 = s
+            .conn
+            .query_row("select count(*) from new_name_notification", NO_PARAMS, |row| row.get(0))
+            .unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_admin_can_accept_new_username()
+    {
+        let db_file = "tempJ4.db";
+        let s = DataBase::new(db_file);
+
+        let admin = "admin".to_string();
+        let admin_token = create_user(&s, &admin);
+        s.make_user_admin(admin.clone()).unwrap();
+
+        s.request_new_name(admin_token.clone(), "not_admin".to_string()).unwrap();
+        let not =
+            AdminNotificationAns {
+                ans: ACCEPT_REQUEST, id: 1, token: admin_token.clone()
+            };
+
+        s.respond_to_new_name_notification(not).unwrap();
+
+        let user = s.get_user(&"not_admin".to_string());
+        let count: i64 = s
+            .conn
+            .query_row("select count(*) from new_name_notification", NO_PARAMS, |row| row.get(0))
+            .unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file temp0");
+        assert!(user.is_ok());
+        assert_eq!(count, 0);
     }
 }

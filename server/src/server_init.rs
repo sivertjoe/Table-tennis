@@ -111,6 +111,17 @@ impl DataBase
         .expect("Creating reset_password_notification");
 
         conn.execute(
+            "create table if not exists new_name_notification (
+                id                integer primary key autoincrement,
+                user              integer not null,
+                new_name          VARCHAR(20) not null,
+                foreign key(user) references users(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Creating new_name_notification");
+
+        conn.execute(
             "create table if not exists badges (
                 id              integer primary key autoincrement,
                 season_id       integer,

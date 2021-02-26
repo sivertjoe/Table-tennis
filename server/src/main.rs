@@ -167,6 +167,46 @@ async fn request_reset_password(data: web::Data<Arc<Mutex<DataBase>>>, info: Str
     }
 }
 
+#[derive(Deserialize)]
+struct NewNameInfo
+{
+    token:    String,
+    new_name: String,
+}
+
+#[post("/request-new-name")]
+async fn request_new_name(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: NewNameInfo = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).request_new_name(info.token, info.new_name)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(e) => HttpResponse::InternalServerError().body(&format!("{}", e)),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
+#[post("/respond-to-new-name-notification")]
+async fn respond_to_new_name_notification(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    info: String,
+) -> HttpResponse
+{
+    let info: AdminNotificationAns = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).respond_to_new_name_notification(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => match e
+        {
+            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
+            _ => HttpResponse::Ok().json(response_error(e)),
+        },
+    }
+}
+
 
 #[post("/register-match")]
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
@@ -703,6 +743,8 @@ async fn main() -> std::io::Result<()>
             .service(execute_sql)
             .service(get_variable)
             .service(set_variable)
+            .service(request_new_name)
+            .service(respond_to_new_name_notification)
     });
 
     if cfg!(debug_assertions)
