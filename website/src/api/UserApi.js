@@ -2,7 +2,10 @@ import * as BaseApi from './BaseApi'
 
 export const getUsers = () => BaseApi.get('users')
 
-export const getUser = (username) => BaseApi.get('user/' + username)
+export const getUser = (username) => BaseApi.post('user', {
+    token: localStorage.getItem('token') ?? '',
+    username: username
+})
 
 export const getActiveUsers = () => BaseApi.get('active-users')
 

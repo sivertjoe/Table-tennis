@@ -12,17 +12,21 @@ import Medals from '../../components/medals/Medals'
 
 class Profile extends Component {
   user = {}
+  myProfile = false
 
   constructor(args) {
     super()
     this.changePassword = this.changePassword.bind(this)
 
     UserApi.getUser(args.user)
-      .then((user) => (this.user = user))
+      .then((res) => {
+        this.myProfile = res[0]
+        this.user = res[1]
+      })
       .catch((error) => (window.location.href = '/profiles'))
       .finally(() => this.setState({}))
 
-    if (localStorage.getItem('username') === args.user)
+    if (this.myProfile)
       NotificationApi.getNotifications()
         .then((notifications) => (this.notifications = notifications))
         .catch((error) => console.warn(error.message))
@@ -46,7 +50,6 @@ class Profile extends Component {
     const numberOfMatches = this.user.match_history?.length
     const numberOfNotifications = this.notifications?.length
     const loggedInUser = localStorage.getItem('username')
-    const myProfile = loggedInUser === this.user.name
 
     return (
       <div className="container">
@@ -57,7 +60,7 @@ class Profile extends Component {
             <Medals user={this.user} size="40px" />
           )}
         </div>
-        {myProfile && numberOfNotifications > 0 && (
+        {this.myProfile && numberOfNotifications > 0 && (
           <div>
             <h2>
               Notifications (
@@ -77,7 +80,7 @@ class Profile extends Component {
         )}
         <div className="history-header">
           <h2>Match history ({numberOfMatches})</h2>
-          {loggedInUser && !myProfile && (
+          {loggedInUser && !this.myProfile && (
             <a
               href={'/stats?user1=' + loggedInUser + '&user2=' + this.user.name}
             >
@@ -86,7 +89,7 @@ class Profile extends Component {
           )}
         </div>
         <MatchHistory user={this.user} />
-        {myProfile && (
+        {this.myProfile && (
           <div className="row">
             <Button
               placeholder="Change password"
