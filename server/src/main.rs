@@ -50,7 +50,8 @@ fn response_code(e: ServerError) -> u8
         ServerError::WaitingForAdmin => 7,
         ServerError::InactiveUser => 8,
         ServerError::ResetPasswordDuplicate => 9,
-        _ => 69,
+        ServerError::InvalidToken => 10,
+        ServerError::Rusqlite(_) => unreachable!(),
     }
 }
 
@@ -465,13 +466,18 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
-#[get("/user/{name}")]
-async fn get_profile(
-    data: web::Data<Arc<Mutex<DataBase>>>,
-    web::Path(name): web::Path<String>,
-) -> HttpResponse
+#[derive(Deserialize)]
+struct ProfileInfo
 {
-    match DATABASE!(data).get_profile(name)
+    username: String,
+    token:    String,
+}
+
+#[post("/user")]
+async fn get_profile(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: ProfileInfo = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).get_profile(info.username, info.token)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => match e

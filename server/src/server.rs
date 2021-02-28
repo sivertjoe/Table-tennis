@@ -86,6 +86,7 @@ pub enum ServerError
     WaitingForAdmin,
     InactiveUser,
     ResetPasswordDuplicate,
+    InvalidToken,
 }
 
 impl From<rusqlite::Error> for ServerError
@@ -125,7 +126,7 @@ impl DataBase
 
     pub fn get_is_admin(&self, token: String) -> ServerResult<bool>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", &token)?;
+        let user = self.get_user_without_matches_by_token(&token)?;
         Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER)
     }
 
@@ -235,9 +236,25 @@ impl DataBase
         self._edit_users(users, action, token)
     }
 
-    pub fn get_profile(&self, user: String) -> ServerResult<User>
+    // The bool indicates if the user is logged in
+    pub fn get_profile(&self, username: String, token: String) -> ServerResult<(bool, User)>
     {
-        self.get_user(&user)
+        if !token.is_empty()
+        {
+            let mut profile = self.get_user_without_matches_by_token(&token)?;
+            if profile.name != username
+            {
+                return Err(ServerError::Critical("User does not have that token".to_string()));
+            }
+            profile.match_history = self.get_matches(profile.id)?;
+            profile.badges = self.get_badges(profile.id)?;
+            Ok((true, profile))
+        }
+        else
+        {
+            let user = self.get_user(&username)?;
+            Ok((false, user))
+        }
     }
 
     pub fn get_all_users(&self, token: String) -> ServerResult<Vec<User>>
@@ -290,10 +307,7 @@ impl DataBase
         token: String,
     ) -> ServerResult<()>
     {
-        if self.get_user_without_matches_by("uuid", "=", &token).is_err()
-        {
-            return Err(ServerError::UserNotExist);
-        };
+        self.get_user_without_matches_by_token(&token)?;
 
         let (winner, loser) = (
             self.get_user_without_matches(&winner_name)?,
@@ -386,7 +400,7 @@ impl DataBase
         {
             return Err(ServerError::UsernameTaken);
         }
-        let user = self.get_user_without_matches_by("uuid", "=", &token)?;
+        let user = self.get_user_without_matches_by_token(&token)?;
         self.conn.execute(
             "insert into new_name_notification (user, new_name) values (?1, ?2)",
             params![user.id, new_name],
@@ -699,7 +713,7 @@ impl DataBase
     // answered ones
     fn try_get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let user = self.get_user_without_matches_by_token(&token)?;
         let mut stmt = self.conn.prepare(
             "select id, winner, loser, epoch from match_notification
             where winner = :id and winner_accept = 0
@@ -828,7 +842,7 @@ impl DataBase
 
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let user = self.get_user_without_matches_by_token(&token)?;
         let mut stmt = self.conn.prepare(
             "select id, winner_accept, loser_accept, epoch, winner, loser
             from match_notification where id = :id",
@@ -1016,16 +1030,8 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select count(*) from users where id = :id and uuid = :token")?;
-        let mut c =
-            stmt.query_map_named(named_params! {":id": user_id, ":token": token}, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?;
-
-        Ok(c.next().unwrap().unwrap() == 1)
+        let user = self.get_user_without_matches_by_token(&token)?;
+        Ok(user.id == user_id)
     }
 
     fn try_change_password(
@@ -1467,6 +1473,31 @@ impl DataBase
         user.match_history = self.get_matches(user.id)?;
         user.badges = self.get_badges(user.id)?;
         Ok(user)
+    }
+
+    fn get_user_without_matches_by_token(&self, token: &str) -> ServerResult<User>
+    {
+        let mut stmt = self
+            .conn
+            .prepare("select id, name, elo, user_role from users where uuid = :token")?;
+        let mut users = stmt.query_map_named(named_params! {":token": token}, |row| {
+            Ok(User {
+                id:            row.get(0)?,
+                name:          row.get(1)?,
+                elo:           row.get(2)?,
+                user_role:     row.get(3)?,
+                match_history: Vec::new(),
+                badges:        Vec::new(),
+            })
+        })?;
+
+        match users.next()
+        {
+            Some(Ok(user)) => Ok(user),
+            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even */
+            // mean 🤷‍♀️
+            None => Err(ServerError::InvalidToken),
+        }
     }
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
