@@ -5,8 +5,8 @@ import '../../index.css'
 import Select from 'react-select'
 import EloGraph from '../../components/elo-graph/EloGraph'
 import './StatsPage.css'
+
 class StatsPage extends Component {
-  names = []
   constructor() {
     super()
     this.mounted = true
@@ -14,7 +14,6 @@ class StatsPage extends Component {
     const params = new URLSearchParams(window.location.search)
     this.user1 = params.get('user1')
     this.user2 = params.get('user2')
-      this.names = [this.user1, this.user2]
 
     UserApi.getActiveUsers()
       .then((users) => {
@@ -147,6 +146,7 @@ class StatsPage extends Component {
   }
 
   render() {
+
     return (
       <div>
         <div className="container">
@@ -197,8 +197,8 @@ class StatsPage extends Component {
           )}
         </div>
         {this.stats && (
-          <div key={this.names.join('-')} className="container">
-            <EloGraph users={this.names} />
+          <div key={'elo-graph'} className="container">
+            <EloGraph users={[this.user1, this.user2]} />
           </div>
         )}
       </div>
