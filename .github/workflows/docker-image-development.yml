@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [master]
+    branches: [development]
 
 jobs:
   build:
@@ -13,4 +13,4 @@ jobs:
       - name: Build the stack
         run: docker-compose build --parallel
       - name: Bring up
-        run: docker-compose up -d website server
+        run: docker-compose up -d website-dev server-dev

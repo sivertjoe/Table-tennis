@@ -1,4 +1,5 @@
 FROM rust:latest AS builder
+ARG build_mode
 
 RUN apt update && \
     apt dist-upgrade -y && \
@@ -7,7 +8,7 @@ RUN apt update && \
 
 WORKDIR /server
 COPY . /server/
-RUN cargo install --target x86_64-unknown-linux-musl --path .
+RUN cargo install $build_mode --target x86_64-unknown-linux-musl --path .
 
 FROM alpine:latest
 RUN apk add --no-cache pkgconfig openssl-dev

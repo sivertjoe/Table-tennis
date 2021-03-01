@@ -4,6 +4,8 @@ services:
     build:
       context: ./website
       dockerfile: Dockerfile
+      args:
+        build_mode: 'build:prod'
     ports:
       - '3000:3000'
   server:
@@ -19,6 +21,30 @@ services:
       - type: bind
         source: ~/db
         target: /db
+  website-dev:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        build_mode: 'build:dev'
+    ports:
+      - '5000:3000'
+  server-dev:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        build_mode: '--debug'
+    ports:
+      - '38642:58642'
+    volumes:
+      - type: bind
+        source: ~/db-development/db.db
+        target: /db.db
+      - type: bind
+        source: ~/db-development
+        target: /db
+
 networks:
   default:
     name: table_tennis_network
