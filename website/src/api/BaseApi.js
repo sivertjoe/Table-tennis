@@ -1,10 +1,7 @@
 import { ApiError, errorMap } from './ApiErrors'
 
-const url =
-  process.env.NODE_ENV !== 'development'
-    ? 'https://sivert.dev'
-    : 'http://localhost'
-const ip = '58642'
+const url = process.env.REACT_APP_URL ?? 'http://localhost'
+const ip = process.env.REACT_APP_IP ?? '58642'
 const apiUrl = url + ':' + ip + '/'
 
 const parseResponse = (response) => {
