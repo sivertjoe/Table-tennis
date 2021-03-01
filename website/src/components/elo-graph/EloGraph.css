@@ -7,7 +7,8 @@
 
 .selectorElo {
   color: black;
-  width: 10rem;
+  width: 20rem;
+  margin-right: 10px;
 }
 
 .inputs {

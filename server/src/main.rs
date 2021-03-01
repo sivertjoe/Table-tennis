@@ -446,7 +446,7 @@ async fn get_profile(
 #[derive(Deserialize)]
 struct Users
 {
-    users: Vec<i64>,
+    users: Vec<String>,
 }
 
 #[post("/get-multiple-users")]
