@@ -70,7 +70,7 @@ class Profile extends Component {
           </div>
         )}
         {Object.keys(this.user).length !== 0 && (
-          <EloGraph users={[this.user.id]} />
+          <EloGraph users={[this.user.name]} />
         )}
         <div className="history-header">
           <h2>Match history ({numberOfMatches})</h2>

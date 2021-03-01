@@ -13,6 +13,7 @@ function matchElo(match, name) {
 
 class EloGraph extends Component {
   x = 0
+  userList = []
 
   periods = [
     {
@@ -48,15 +49,36 @@ class EloGraph extends Component {
 
     this.changePeriod = this.changePeriod.bind(this)
     this.genLayers = this.genLayers.bind(this)
+    this.addUser = this.addUser.bind(this)
     UserApi.getMultipleUsers(args.users)
       .then((users) => (this.users = users))
       .catch((error) => (this.error = error.message))
       .finally(() => this.setState({}))
+
+    UserApi.getActiveUsers()
+      .then((users) => (this.userList = users))
+
+      .finally(() => {
+        this.setState({})
+      })
   }
 
   changePeriod(e) {
     this.selectedPeriod = e
     this.setState({})
+  }
+
+  addUser(e) {
+    if (e == null) {
+      this.users = []
+      this.setState({})
+    } else {
+      UserApi.getMultipleUsers(e.map((user) => user.value))
+        .then((users) => {
+          this.users = users
+        })
+        .finally(() => this.setState({}))
+    }
   }
 
   orderMatches(users) {
@@ -162,6 +184,24 @@ class EloGraph extends Component {
 
   render() {
     if (this.users === undefined) return <h1>Loading users</h1>
+    if (this.users.length === 0)
+      return (
+        <>
+          <Select
+            className="selectorElo"
+            onChange={this.addUser}
+            options={this.userList
+              .filter((user) => !this.users.includes(user.name))
+              .map((user) => ({ value: user.name, label: user.name }))}
+            value={this.users.map((user) => ({
+              value: user.name,
+              label: user.name,
+            }))}
+            isMulti={true}
+          />
+          <h1>No users selected</h1>
+        </>
+      )
     let items = []
     this.layers = []
 
@@ -195,6 +235,19 @@ class EloGraph extends Component {
             onChange={this.changePeriod}
             options={this.periods}
             value={this.selectedPeriod}
+          />
+          <br />
+          <Select
+            className="selectorElo"
+            onChange={this.addUser}
+            options={this.userList
+              .filter((user) => !this.users.includes(user.name))
+              .map((user) => ({ value: user.name, label: user.name }))}
+            value={this.users.map((user) => ({
+              value: user.name,
+              label: user.name,
+            }))}
+            isMulti={true}
           />
         </div>
         <div style={{ width: '100%', height: '600px' }}>

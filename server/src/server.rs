@@ -255,10 +255,10 @@ impl DataBase
         self.get_active_users()
     }
 
-    pub fn get_multiple_users(&self, users: Vec<i64>) -> ServerResult<Vec<User>>
+    pub fn get_multiple_users(&self, users: Vec<String>) -> ServerResult<Vec<User>>
     {
         let list = format!("{:?}", users).as_str().replace("[", "(").replace("]", ")");
-        let sql = format!("select id, name, elo, user_role from users where id in {}", list);
+        let sql = format!("select id, name, elo, user_role from users where name in {}", list);
         let mut stmt = self.conn.prepare(&sql)?;
         let users = stmt.query_map(NO_PARAMS, |row| {
             let id: i64 = row.get(0)?;
@@ -311,7 +311,7 @@ impl DataBase
     pub fn get_stats(
         &self,
         info: StatsUsers,
-    ) -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
+    ) -> ServerResult<HashMap<String, Vec<Match>>>
     {
         self._get_stats(info)
     }
@@ -1209,7 +1209,7 @@ impl DataBase
     }
 
     fn _get_stats(&self, info: StatsUsers)
-        -> ServerResult<(Vec<i64>, HashMap<String, Vec<Match>>)>
+        -> ServerResult<HashMap<String, Vec<Match>>>
     {
         let user1_id = self.get_user_without_matches(&info.user1)?.id;
         let user2_id = self.get_user_without_matches(&info.user2)?.id;
@@ -1231,7 +1231,7 @@ impl DataBase
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
         map.insert("rest".to_string(), rest);
-        Ok((vec![user1_id, user2_id], map))
+        Ok(map)
     }
 
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>

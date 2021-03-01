@@ -6,7 +6,7 @@ import Select from 'react-select'
 import EloGraph from '../../components/elo-graph/EloGraph'
 import './StatsPage.css'
 class StatsPage extends Component {
-  ids = []
+  names = []
   constructor() {
     super()
     this.mounted = true
@@ -14,6 +14,7 @@ class StatsPage extends Component {
     const params = new URLSearchParams(window.location.search)
     this.user1 = params.get('user1')
     this.user2 = params.get('user2')
+      this.names = [this.user1, this.user2]
 
     UserApi.getActiveUsers()
       .then((users) => {
@@ -116,9 +117,8 @@ class StatsPage extends Component {
     if (this.user1 && this.user2)
       MatchApi.getStats(this.user1, this.user2)
         .then((stats) => {
-          this.ids = stats[0]
-          this.stats = [...stats[1].current, ...stats[1].rest]
-          this.initSeasons(stats[1])
+          this.stats = [...stats.current, ...stats.rest]
+          this.initSeasons(stats)
           this.initStats()
         })
         .catch((error) => (this.error = error.message))
@@ -197,8 +197,8 @@ class StatsPage extends Component {
           )}
         </div>
         {this.stats && (
-          <div key={this.ids.join('-')} className="container">
-            <EloGraph users={this.ids} />
+          <div key={this.names.join('-')} className="container">
+            <EloGraph users={this.names} />
           </div>
         )}
       </div>
