@@ -33,8 +33,6 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-      args:
-        build_mode: '--debug'
     ports:
       - '38642:58642'
     volumes:
