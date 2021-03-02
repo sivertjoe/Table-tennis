@@ -3,6 +3,8 @@ name: Rust
 on:
   pull_request:
     branches: [ development ]
+    paths:
+      - 'server/**'
 
 env:
   CARGO_TERM_COLOR: always
