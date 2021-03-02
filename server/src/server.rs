@@ -470,19 +470,8 @@ impl DataBase
 
     fn make_user_active(&self, name: String) -> ServerResult<usize>
     {
-        let user: User = match self.get_user_without_matches(&name)
-        {
-            Ok(user) => user,
-            Err(e) => return Err(e),
-        };
-
-        if user.user_role & (USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE) > 0
-        {
-            let role = user.user_role & !USER_ROLE_INACTIVE & !USER_ROLE_SOFT_INACTIVE;
-            let mut stmt =
-                self.conn.prepare("update users set user_role = :role where name = :name")?;
-            stmt.execute_named(named_params! {":role": role, ":name": name})?;
-        }
+        self.conn.execute("update users set user_role = user_role & (~?1 & ~?2) where name = ?3",
+        params![USER_ROLE_SOFT_INACTIVE, USER_ROLE_INACTIVE, name])?;
         Ok(0)
     }
 
