@@ -211,7 +211,7 @@ impl DataBase
     pub fn create_user(&self, new_user: String, password: String) -> ServerResult<String>
     {
         let re = Regex::new(r"^[a-zåA-ZæøåÆØÅ0-9_-]*$").unwrap();
-        if !re.is_match(&new_user)
+        if !re.is_match(&new_user) || new_user.is_empty()
         {
             return Err(ServerError::InvalidUsername);
         }
