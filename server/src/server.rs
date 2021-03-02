@@ -861,6 +861,8 @@ impl DataBase
         if self.need_to_roll_back(m.epoch)?
         {
             self.roll_back(m.epoch)?;
+            self.make_user_active(winner.name.clone())?;
+            self.make_user_active(loser.name.clone())?;
             return Ok(());
         }
 
