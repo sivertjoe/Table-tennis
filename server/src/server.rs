@@ -2056,10 +2056,9 @@ mod test
         create_user(&s, "Lars");
         create_user(&s, "Bernt");
 
-        let vec = vec![2, 3];
+        let vec = vec!["Lars".to_string(), "Bernt".to_string()];
         let users = s.get_multiple_users(vec.clone()).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(users[0].id, vec[0]);
-        assert_eq!(users[1].id, vec[1]);
+        users.into_iter().for_each(|u| assert!(vec.contains(&u.name)));
     }
 }
