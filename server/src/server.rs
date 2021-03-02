@@ -317,10 +317,7 @@ impl DataBase
         self.get_all_matches()
     }
 
-    pub fn get_stats(
-        &self,
-        info: StatsUsers,
-    ) -> ServerResult<HashMap<String, Vec<Match>>>
+    pub fn get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
     {
         self._get_stats(info)
     }
@@ -470,8 +467,10 @@ impl DataBase
 
     fn make_user_active(&self, name: String) -> ServerResult<usize>
     {
-        self.conn.execute("update users set user_role = user_role & (~?1 & ~?2) where name = ?3",
-        params![USER_ROLE_SOFT_INACTIVE, USER_ROLE_INACTIVE, name])?;
+        self.conn.execute(
+            "update users set user_role = user_role & (~?1 & ~?2) where name = ?3",
+            params![USER_ROLE_SOFT_INACTIVE, USER_ROLE_INACTIVE, name],
+        )?;
         Ok(0)
     }
 
@@ -1201,8 +1200,7 @@ impl DataBase
         Ok(vec)
     }
 
-    fn _get_stats(&self, info: StatsUsers)
-        -> ServerResult<HashMap<String, Vec<Match>>>
+    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
     {
         let user1_id = self.get_user_without_matches(&info.user1)?.id;
         let user2_id = self.get_user_without_matches(&info.user2)?.id;
