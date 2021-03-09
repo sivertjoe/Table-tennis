@@ -20,6 +20,8 @@ use crate::{
     },
 };
 
+pub const DATABASE_FILE: &'static str = "db.db";
+
 // Kneel before my one-liner
 #[macro_export]
 macro_rules! GET_OR_CREATE_DB_VAR {

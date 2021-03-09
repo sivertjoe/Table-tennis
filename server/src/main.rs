@@ -1,35 +1,20 @@
-mod badge;
-mod r#match;
-mod notification;
-mod season;
-#[macro_use]
-mod server;
-mod process;
-mod server_init;
-mod server_rollback;
-mod server_season;
-mod sql_executor;
-mod test_util;
-mod user;
-mod server_trait;
-
 use std::sync::{Arc, Mutex};
 
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
-use notification::AdminNotificationAns;
+use server::r#match::{DeleteMatchInfo, MatchInfo, MatchResponse, NewEditMatchInfo};
+use server::notification::AdminNotificationAns;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use process::spawn_season_checker;
+use server::process::spawn_season_checker;
 use serde_derive::Deserialize;
 use serde_json::json;
-use server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
-use user::{
+use server::server::{DataBase, ServerError, START_SEASON, STOP_SEASON};
+use server::user::{
     AdminToken, ChangePasswordInfo, EditUsersInfo, LoginInfo, RequestResetPassword, StatsUsers,
 };
+use server::server::DATABASE_FILE;
 
 const PORT: u32 = 58642;
-pub const DATABASE_FILE: &'static str = "db.db";
 
 
 macro_rules! DATABASE {

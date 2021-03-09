@@ -10,6 +10,7 @@ trait Sql
 }
 
 
+
 impl Sql for User
 {
     fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self>

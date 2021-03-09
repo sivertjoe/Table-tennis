@@ -2,7 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use chrono::prelude::*;
 
-use crate::{season::Season, server::DataBase, DATABASE_FILE};
+use crate::{season::Season, server::DataBase};
+use crate::server::DATABASE_FILE;
 
 fn get_ars(data: &Arc<Mutex<DataBase>>) -> (bool, i64, u32)
 {

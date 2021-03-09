@@ -1,19 +1,21 @@
 [package]
-name = "table_tennis"
+name = "server"
 version = "0.1.0"
 authors = ["sivertjoe <sivert-joh@hotmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies.rusqlite]
+version = "0.24.1"
+features = ["bundled"]
 
 [dependencies]
-actix-web = { version = "3.1.0", features = ["openssl"] }
-actix-cors= "0.5.0"
-openssl = { version  = "0.10", features = ["vendored"] }
+elo  = "0.3.0"
+sha2 = "0.9.2"
+uuid = { version = "0.8", features = ["v4"] }
+chrono = "0.4"
 serde_json = "1.0.59"
 serde_derive = "1.0.117"
 serde = "1.0.117"
-
-
-[dependencies.server]
-path = "server"
+lazy_static = "1.4.0"
+regex = "1.4.3"
