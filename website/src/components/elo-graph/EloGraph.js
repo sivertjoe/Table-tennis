@@ -231,7 +231,7 @@ class EloGraph extends Component {
         <h2>Elo history</h2>
         <div className="inputs">
           <Select
-            className="selectorElo"
+            className="selectorElo first-selector"
             onChange={this.changePeriod}
             options={this.periods}
             value={this.selectedPeriod}
