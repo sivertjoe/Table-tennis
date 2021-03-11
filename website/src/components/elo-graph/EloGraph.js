@@ -10,6 +10,42 @@ import * as UserApi from '../../api/UserApi'
 function matchElo(match, name) {
   return match.winner === name ? match.winner_elo : match.loser_elo
 }
+class GraphToolTip extends Component {
+  render() {
+    let player = this.props.props
+    return (
+      <div key={player.label} className="match">
+        <div
+          style={{
+            height: '15px',
+            width: '15px',
+            backgroundColor: player.serieColor,
+            display: 'inline-block',
+            borderRadius: '50%',
+          }}
+        ></div>
+        <div className="justify-center">{' ' + player.serieId}</div>
+        <div className="justify-center">{' ' + player.data.y}</div>
+
+        <div className="justify-center">
+          {player.data.elo_diff === undefined ? (
+            ''
+          ) : (
+            <span style={{ fontSize: 'inherit' }}>
+              {' ('}
+              {player.data.winner === player.serieId ? (
+                <span className="winner">{'+' + player.data.elo_diff}</span>
+              ) : (
+                <span className="loser">{'−' + player.data.elo_diff}</span>
+              )}
+              {')'}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+}
 
 class EloGraph extends Component {
   x = 0
@@ -34,13 +70,6 @@ class EloGraph extends Component {
       ticks: 'every 2 day',
       date: getPreviousDate(30),
     },
-    // {
-    //   value: 'alltime',
-    //   label: 'All Time',
-    //   ticks: 'every 1 year',
-    //   date: new Date(0),
-    // },
-    /* Qurey db for all time */
   ]
   selectedPeriod = this.periods[1]
 
@@ -122,12 +151,14 @@ class EloGraph extends Component {
 
       const y = Math.round(matchElo(match, user.name))
       if (prev !== current_first) x++
-
       items[user.name].push({
         x: x,
         y: y,
         time: time,
-        info: [match.winner, match.loser],
+        winner: match.winner,
+        winner_elo: Math.round(match.winner_elo),
+        loser: match.loser,
+        loser_elo: Math.round(match.loser_elo),
         name: user.name,
         elo_diff: Math.round(match.elo_diff),
       })
@@ -285,37 +316,36 @@ class EloGraph extends Component {
             useMesh={true}
             enableSlices={'x'}
             sliceTooltip={({ slice }) => {
+              let random_player = {}
+              if (slice.points.length === 1) {
+                random_player['data'] =
+                  slice.points[0].data.winner !== slice.points[0].serieId
+                    ? {
+                        winner: slice.points[0].data.winner,
+                        y: slice.points[0].data.winner_elo,
+                      }
+                    : {
+                        loser: slice.points[0].data.loser,
+                        y: slice.points[0].data.loser_elo,
+                      }
+                random_player['data'].elo_diff = slice.points[0].data.elo_diff
+                random_player['serieId'] =
+                  slice.points[0].data.winner === slice.points[0].serieId
+                    ? slice.points[0].data.loser
+                    : slice.points[0].data.winner
+              }
               return (
                 <div className="tooltip">
+                  <div className="justify-center">
+                    {getShortDate(slice.points[0].data.time)}
+                  </div>
                   {slice.points.map((player, i) => {
-                    return (
-                      <div key={i}>
-                        <span
-                          style={{
-                            height: '15px',
-                            width: '15px',
-                            backgroundColor: player.serieColor,
-                            display: 'inline-block',
-                            borderRadius: '50%',
-                          }}
-                        ></span>
-                        {' ' + player.serieId}
-                        {' ' + player.data.y}
-                        {player.data.elo_diff === undefined
-                          ? ''
-                          : player.data.info[0] === player.serieId
-                          ? '(+' + player.data.elo_diff + ') '
-                          : '(-' + player.data.elo_diff + ') '}
-                        {player.data.info
-                          ? 'W: ' +
-                            player.data.info[0] +
-                            ', L: ' +
-                            player.data.info[1]
-                          : ' '}
-                      </div>
-                    )
+                    return <GraphToolTip props={player} key={i} />
                   })}
-                  {getShortDate(slice.points[0].data.time)}
+                  {slice.points.length === 1 &&
+                    random_player.serieId !== undefined && (
+                      <GraphToolTip props={random_player} key={-1} />
+                    )}
                 </div>
               )
             }}
