@@ -3,6 +3,7 @@
   background-color: var(--primary-color);
   padding: 6px;
   border-radius: 4px;
+  /* display: table; */
 }
 
 .selectorElo {
@@ -27,4 +28,28 @@
   .first-selector {
     margin-right: 0;
   }
+}
+/* .matches-container {
+} */
+.match {
+  display: table-row;
+  text-align: left;
+  white-space: pre-wrap;
+}
+.match > div {
+  display: table-cell;
+}
+.winner {
+  color: green;
+  font-size: inherit;
+}
+.loser {
+  color: red;
+  font-size: inherit;
+}
+
+.justify-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
