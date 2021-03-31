@@ -1,11 +1,12 @@
 // These tags are kind of ungly, but idk how else to do it
 
 #[cfg(test)] use rusqlite::{named_params, params, NO_PARAMS};
+#[cfg(test)]
+use server_core::constants::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
+#[cfg(test)] use server_core::{constants::*, types::*};
 #[cfg(test)] use uuid::Uuid;
 
-#[cfg(test)] use crate::server::{DataBase, ServerResult, ACCEPT_REQUEST};
-#[cfg(test)]
-use crate::user::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
+#[cfg(test)] use super::DataBase;
 
 
 #[cfg(test)]

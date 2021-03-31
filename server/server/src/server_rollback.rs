@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use elo::EloRank;
 use rusqlite::{named_params, Connection, NO_PARAMS};
+use server_core::types::ServerResult;
 
-use crate::{
-    r#match::Match,
-    server::{DataBase, ServerResult},
-};
+use super::{r#match::Match, server::DataBase};
 
 impl DataBase
 {

@@ -1,5 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
-
+use server_core::types::FromSql;
+use server_macro::Sql;
 
 #[derive(Serialize)]
 pub struct MatchNotification
@@ -20,7 +21,7 @@ pub struct MatchNotificationTable
     pub loser:         i64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Sql)]
 pub struct AdminNotification
 {
     pub id:   i64,
