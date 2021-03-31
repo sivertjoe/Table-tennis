@@ -1,17 +1,12 @@
 use chrono::prelude::*;
 use rusqlite::{named_params, params, NO_PARAMS};
-
-use crate::{
-    badge::NUM_SEASON_PRIZES,
-    season::Season,
-    server::{DataBase, ServerError, ServerResult},
-    user::USER_ROLE_SOFT_INACTIVE,
-    GET_OR_CREATE_DB_VAR,
+use server_core::{
+    constants::*,
+    types::{ServerError, ServerResult},
 };
 
-pub const N_SEASON_ID: u32 = 1;
-pub const IS_SEASON_ID: u32 = 2;
-pub const REQUIRE_CONFIRMATION_ID: u32 = 3;
+use super::{season::Season, server::DataBase};
+use crate::GET_OR_CREATE_DB_VAR;
 
 impl DataBase
 {
@@ -211,11 +206,7 @@ impl DataBase
 mod test
 {
     use super::*;
-    use crate::{
-        badge::*,
-        test_util::*,
-        user::{USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER},
-    };
+    use crate::test_util::*;
 
     #[test]
     fn test_get_set_is_season()

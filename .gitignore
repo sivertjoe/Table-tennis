@@ -1,4 +1,7 @@
 /server/target
+/server/server/target
+/server/server_core/target
+/server/server_macro/target
 /server/src/default_password.txt
 **/*.db
 **/*.pem

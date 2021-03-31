@@ -4,21 +4,50 @@ use chrono::prelude::*;
 use elo::EloRank;
 use lazy_static::lazy_static;
 use regex::Regex;
-use rusqlite::{named_params, params, Connection, NO_PARAMS};
+use rusqlite::{named_params, params, Connection, ToSql, NO_PARAMS};
+use server_core::{constants::*, types::*};
 use uuid::Uuid;
 
-use crate::{
+use super::{
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
-    server_season::{IS_SEASON_ID, N_SEASON_ID, REQUIRE_CONFIRMATION_ID},
-    user::{
-        EditUserAction, StatsUsers, User, USER_ROLE_INACTIVE, USER_ROLE_REGULAR,
-        USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
-    },
+    user::{StatsUsers, User},
 };
+
+
+pub enum ParamsType<'a>
+{
+    Named(&'a [(&'a str, &'a dyn ToSql)]),
+    Params(&'a [&'a dyn ToSql]),
+}
+
+pub type Params<'a> = Option<ParamsType<'a>>;
+
+
+#[macro_export]
+macro_rules! _params {
+        () => {
+            $crate::NO_PARAMS
+        };
+        ($($param:expr),+ $(,)?) => {
+            Some(ParamsType::Params(&[$(&$param as &dyn $crate::ToSql),+] as &[&dyn $crate::ToSql]))
+        };
+}
+
+#[macro_export]
+macro_rules! _named_params {
+        () => {
+                    &[]
+                            };
+            // Note: It's a lot more work to support this as part of the same macro as
+                     ($($param_name:literal: $param_val:expr),+ $(,)?) => {
+                             Some(ParamsType::Named(&[$(($param_name, &$param_val as &dyn $crate::ToSql)),+]))
+                                 };
+                                 }
+
 
 // Kneel before my one-liner
 #[macro_export]
@@ -57,58 +86,11 @@ lazy_static! {
     };
 }
 
-
 pub struct DataBase
 {
     pub conn: Connection,
 }
-#[allow(dead_code)]
-const MATCH_NO_ANS: u8 = 0;
-pub const ACCEPT_REQUEST: u8 = 1;
-#[allow(dead_code)]
-const DECLINE_REQUEST: u8 = 2;
 
-pub const STOP_SEASON: i64 = -1;
-pub const START_SEASON: i64 = -2;
-
-
-pub type ServerResult<T> = rusqlite::Result<T, ServerError>;
-
-#[derive(Debug)]
-pub enum ServerError
-{
-    Rusqlite(rusqlite::Error),
-    Critical(String),
-    UserNotExist,
-    UsernameTaken,
-    WrongUsernameOrPassword,
-    PasswordNotMatch,
-    Unauthorized,
-    WaitingForAdmin,
-    InactiveUser,
-    ResetPasswordDuplicate,
-    InvalidUsername,
-}
-
-impl From<rusqlite::Error> for ServerError
-{
-    fn from(error: rusqlite::Error) -> Self
-    {
-        Self::Rusqlite(error)
-    }
-}
-
-impl From<ServerError> for rusqlite::Error
-{
-    fn from(error: ServerError) -> Self
-    {
-        match error
-        {
-            ServerError::Rusqlite(e) => e,
-            _ => unreachable!(),
-        }
-    }
-}
 
 impl DataBase
 {
@@ -384,6 +366,50 @@ impl DataBase
         }
         self.delete_reset_password_notification(info.id)?;
         Ok(())
+    }
+
+    pub fn sql_one<S, T>(&self, s: S, params: Params) -> ServerResult<T>
+    where
+        S: AsRef<str>,
+        T: FromSql,
+    {
+        let mut stmt = self.conn.prepare(s.as_ref())?;
+        let res = match params
+        {
+            None => stmt.query_map(NO_PARAMS, T::from_sql)?.next(),
+            Some(ParamsType::Named(n)) => stmt.query_map_named(n, T::from_sql)?.next(),
+            Some(ParamsType::Params(p)) => stmt.query_map(p, T::from_sql)?.next(),
+        };
+        match res
+        {
+            Some(Ok(res)) => Ok(res),
+            Some(Err(e)) => Err(ServerError::Rusqlite(e)),
+            None => Err(ServerError::Critical("Could not find any rows".to_string())),
+        }
+    }
+
+    pub fn sql_many<T, S>(&self, s: S, params: Params) -> ServerResult<Vec<T>>
+    where
+        S: AsRef<str>,
+        T: FromSql,
+    {
+        let mut stmt = self.conn.prepare(s.as_ref())?;
+        let result = match params
+        {
+            None => stmt.query_map(NO_PARAMS, T::from_sql)?,
+            Some(ParamsType::Named(n)) => stmt.query_map_named(n, T::from_sql)?,
+            Some(ParamsType::Params(p)) => stmt.query_map(p, T::from_sql)?,
+        };
+
+        let mut vec = Vec::new();
+        for elem in result
+        {
+            if let Ok(r) = elem
+            {
+                vec.push(r);
+            };
+        }
+        Ok(vec)
     }
 }
 
@@ -1428,14 +1454,12 @@ impl DataBase
 mod test
 {
     use rusqlite::NO_PARAMS;
+    use server_core::constants::{
+        USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
+    };
 
     use super::*;
-    use crate::{
-        test_util::*,
-        user::{
-            USER_ROLE_INACTIVE, USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER,
-        },
-    };
+    use crate::test_util::*;
 
 
     #[test]

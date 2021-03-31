@@ -1368,9 +1368,9 @@ dependencies = [
 
 [[package]]
 name = "rusqlite"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e3d4791ab5517217f51216a84a688b53c1ebf7988736469c538d02f46ddba68"
+checksum = "d5f38ee71cbab2c827ec0ac24e76f82eca723cee92c509a65f67dee393c25112"
 dependencies = [
  "bitflags",
  "fallible-iterator",
@@ -1464,6 +1464,41 @@ dependencies = [
  "itoa",
  "serde",
  "url",
+]
+
+[[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "elo",
+ "lazy_static",
+ "rusqlite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "server_core",
+ "server_macro",
+ "sha2",
+ "uuid",
+]
+
+[[package]]
+name = "server_core"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+]
+
+[[package]]
+name = "server_macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rusqlite",
+ "server_core",
+ "syn",
 ]
 
 [[package]]
@@ -1592,9 +1627,9 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 name = "syn"
-version = "1.0.48"
+version = "1.0.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc371affeffc477f42a221a1e4297aedcea33d47d19b61455588bd9d8f6b19ac"
+checksum = "6498a9efc342871f91cc2d0d694c674368b4ceb40f62b65a7a08c3792935e702"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1616,6 +1651,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "server",
+ "server_core",
  "sha2",
  "uuid",
 ]
