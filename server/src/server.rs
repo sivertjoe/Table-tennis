@@ -637,26 +637,24 @@ impl DataBase
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let mut stmt = self.conn.prepare(
-            "select id, winner, loser, epoch from match_notification
-            where winner = :id and winner_accept = 0
+            "select * from
+            (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
+            join users u1 on m.winner = u1.id
+            join users u2 on m.loser = u2.id
+            where m.winner = :id and m.winner_accept = 0
             union
-            select id, winner, loser, epoch from match_notification
-            where loser = :id and loser_accept = 0
-            ",
+            select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
+            join users u1 on m.winner = u1.id
+            join users u2 on m.loser = u2.id
+            where m.loser = :id and m.loser_accept = 0)
+            order by epoch",
         )?;
 
         let notifications = stmt.query_map_named(named_params! {":id": user.id}, |row| {
-            let winner_id: i64 = row.get(1)?;
-            let loser_id: i64 = row.get(2)?;
-
-            let winner_name: String =
-                self.get_user_without_matches_by("id", "=", &winner_id.to_string())?.name;
-            let loser_name: String =
-                self.get_user_without_matches_by("id", "=", &loser_id.to_string())?.name;
             Ok(MatchNotification {
                 id:     row.get(0)?,
-                winner: winner_name,
-                loser:  loser_name,
+                winner: row.get(1)?,
+                loser:  row.get(2)?,
                 epoch:  row.get(3)?,
             })
         })?;
@@ -1158,31 +1156,29 @@ impl DataBase
     fn get_stats_from_table(
         &self,
         table: String,
-        info: &StatsUsers,
         user1_id: i64,
         user2_id: i64,
     ) -> ServerResult<Vec<Match>>
     {
         let mut stmt = self.conn.prepare(&format!(
-            "select winner, loser, elo_diff, winner_elo, loser_elo, epoch, {}
-             where winner = :user1 and loser = :user2
-             or winner = :user2 and loser = :user1;",
-            table
+            "select u1.name as winner, u2.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
+             {} t
+             join users u1 on t.winner = u1.id
+             join users u2 on t.loser = u2.id
+             where t.winner = :user1 and t.loser = :user2
+             union
+             select u2.name as winner, u1.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
+             {} t
+             join users u1 on t.loser = u1.id
+             join users u2 on t.winner = u2.id
+             where t.winner = :user2 and t.loser = :user1;",
+            table, table
         ))?;
         let matches =
             stmt.query_map_named(named_params! {":user1": user1_id, ":user2": user2_id}, |row| {
-                let res: i64 = row.get(0)?;
-                let (winner, loser) = if res == user1_id
-                {
-                    (info.user1.clone(), info.user2.clone())
-                }
-                else
-                {
-                    (info.user2.clone(), info.user1.clone())
-                };
                 Ok(Match {
-                    winner:     winner,
-                    loser:      loser,
+                    winner:     row.get(0)?,
+                    loser:      row.get(1)?,
                     elo_diff:   row.get(2)?,
                     winner_elo: row.get(3)?,
                     loser_elo:  row.get(4)?,
@@ -1210,16 +1206,11 @@ impl DataBase
         let current_season = self.get_latest_season_number()?;
         let current = self.get_stats_from_table(
             format!("{} from matches", current_season),
-            &info,
             user1_id,
             user2_id,
         )?;
-        let rest = self.get_stats_from_table(
-            "season from old_matches".to_string(),
-            &info,
-            user1_id,
-            user2_id,
-        )?;
+        let rest =
+            self.get_stats_from_table("season from old_matches".to_string(), user1_id, user2_id)?;
 
         let mut map = HashMap::new();
         map.insert("current".to_string(), current);
