@@ -39,6 +39,7 @@ fn response_code(e: ServerError) -> u8
         ServerError::WaitingForAdmin => 7,
         ServerError::InactiveUser => 8,
         ServerError::ResetPasswordDuplicate => 9,
+        ServerError::InvalidUsername => 10,
         _ => 69,
     }
 }
@@ -66,11 +67,7 @@ async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
     {
         Ok(s) => HttpResponse::Ok().json(response_ok_with(s)),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -88,12 +85,7 @@ async fn get_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
     match DATABASE!(data).get_variable(info.variable)
     {
         Ok(val) => HttpResponse::Ok().json(response_ok_with(val.to_string())),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(r) => HttpResponse::Ok().json(response_ok_with(format!("{}", r))),
-            ServerError::Critical(c) => HttpResponse::Ok().json(response_ok_with(format!("{}", c))),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -113,12 +105,7 @@ async fn set_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
     match DATABASE!(data).set_variable(info.token, info.variable, new_val)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(r) => HttpResponse::Ok().json(response_ok_with(format!("{}", r))),
-            ServerError::Critical(c) => HttpResponse::Ok().json(response_ok_with(format!("{}", c))),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -131,11 +118,7 @@ async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
     match DATABASE!(data).edit_users(info.users, info.action, info.token)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -148,11 +131,7 @@ async fn request_reset_password(data: web::Data<Arc<Mutex<DataBase>>>, info: Str
     match DATABASE!(data).request_reset_password(info.name)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -165,11 +144,7 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
     match DATABASE!(data).register_match(info.winner, info.loser, info.token)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -184,11 +159,7 @@ async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     match DATABASE!(data).respond_to_match(id, answer, token)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -202,11 +173,7 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
     match DATABASE!(data).login(name, password)
     {
         Ok(uuid) => HttpResponse::Ok().json(response_ok_with(uuid)),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -221,11 +188,7 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
     match DATABASE!(data).change_password(name, password, new_password)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -236,11 +199,7 @@ async fn get_active_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     match DATABASE!(data).get_non_inactive_users()
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(s) => HttpResponse::InternalServerError().body(format!("{}", s)),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -250,11 +209,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     match DATABASE!(data).get_users()
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(s) => HttpResponse::InternalServerError().body(format!("{}", s)),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -281,11 +236,7 @@ async fn get_notifications(
     match DATABASE!(data).get_notifications(token)
     {
         Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -299,11 +250,7 @@ async fn get_admin_notifications(
     match DATABASE!(data).get_admin_notifications(info.token)
     {
         Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -314,11 +261,7 @@ async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String
     match DATABASE!(data).respond_to_new_user(info)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -332,11 +275,7 @@ async fn respond_to_reset_password(
     match DATABASE!(data).respond_to_reset_password(info)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -346,11 +285,7 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     match DATABASE!(data).get_history()
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -361,12 +296,7 @@ async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpR
     match DATABASE!(data).get_stats(info)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(err) => HttpResponse::InternalServerError()
-                .json(json!({"status": 8, "result": err.to_string()})),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -377,11 +307,7 @@ async fn delete_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
     match DATABASE!(data).delete_match(info)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -392,11 +318,7 @@ async fn edit_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
     match DATABASE!(data).edit_match(info)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -406,11 +328,7 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     match DATABASE!(data).get_edit_match_history()
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -423,18 +341,14 @@ async fn get_profile(
     match DATABASE!(data).get_profile(name)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
 #[derive(Deserialize)]
 struct Users
 {
-    users: Vec<i64>,
+    users: Vec<String>,
 }
 
 #[post("/get-multiple-users")]
@@ -444,11 +358,7 @@ async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
     match DATABASE!(data).get_multiple_users(info.users)
     {
         Ok(users) => HttpResponse::Ok().json(json!({"status": 0, "result": users})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -461,11 +371,7 @@ async fn get_is_admin(
     match DATABASE!(data).get_is_admin(token.to_string())
     {
         Ok(val) => HttpResponse::Ok().json(json!({"status": 0, "result": val})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -478,11 +384,7 @@ async fn roll_back(
     match DATABASE!(data).admin_rollback(token.to_string())
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -492,11 +394,7 @@ async fn get_season_length(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpRespons
     match DATABASE!(data).get_season_length()
     {
         Ok(n_months) => HttpResponse::Ok().json(json!({"status": 0, "result": n_months})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -515,11 +413,7 @@ async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     match DATABASE!(data).set_season_length(info.token, info.new_val)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -556,11 +450,7 @@ fn change_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String, val: i64) 
         },
         Ok(false) => HttpResponse::Ok().json(response_error(ServerError::Unauthorized)),
 
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
@@ -610,11 +500,7 @@ fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
             Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
         },
         Ok(false) => HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""})),
-        Err(e) => match e
-        {
-            ServerError::Rusqlite(_) => HttpResponse::InternalServerError().finish(),
-            _ => HttpResponse::Ok().json(response_error(e)),
-        },
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
 
