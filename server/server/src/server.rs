@@ -9,12 +9,14 @@ use server_core::{constants::*, types::*};
 use uuid::Uuid;
 
 use super::{
+    _named_params,
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
     user::{StatsUsers, User},
+    GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
 };
 
 
@@ -26,54 +28,6 @@ pub enum ParamsType<'a>
 
 pub type Params<'a> = Option<ParamsType<'a>>;
 
-
-#[macro_export]
-macro_rules! _params {
-        () => {
-            $crate::NO_PARAMS
-        };
-        ($($param:expr),+ $(,)?) => {
-            Some(ParamsType::Params(&[$(&$param as &dyn rusqlite::ToSql),+] as &[&dyn $crate::ToSql]))
-        };
-}
-
-#[macro_export]
-macro_rules! _named_params {
-        () => {
-                    &[]
-                            };
-            // Note: It's a lot more work to support this as part of the same macro as
-                     ($($param_name:literal: $param_val:expr),+ $(,)?) => {
-                             Some(ParamsType::Named(&[$(($param_name, &$param_val as &dyn rusqlite::ToSql)),+]))
-                                 };
-                                 }
-
-
-// Kneel before my one-liner
-#[macro_export]
-macro_rules! GET_OR_CREATE_DB_VAR {
-    ($conn: expr, $id: expr, $default_value: expr) => {
-        $conn
-            .prepare("select value from variables where id = :id")?
-            .query_map_named(named_params! {":id": $id}, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?
-            .next()
-            .map_or_else(
-                || {
-                    $conn
-                        .execute("insert into variables (id, value) values (?1, ?2)", params![
-                            $id,
-                            $default_value
-                        ])
-                        .expect(&format!("Inserting into variables <{}, {}>", $id, $default_value));
-                    Ok($default_value)
-                },
-                |val| Ok(val.unwrap()),
-            )
-    };
-}
 
 // Map the name to the id _and_ the default value
 lazy_static! {
@@ -573,22 +527,19 @@ impl DataBase
 
     fn check_unique_name(&self, name: &String) -> ServerResult<bool>
     {
-        let mut stmt = self.conn.prepare(
-            "select
+        let sql = "select
              (select count(*) from users where name = :name)+
              (select count(*) from new_user_notification where name = :name);
-        ",
-        )?;
+        ";
 
-        let count = stmt
-            .query_map_named(named_params! {":name": name}, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?
-            .next()
-            .unwrap()
-            .unwrap();
-        Ok(count == 0)
+
+        let count = SQL_TUPLE_NAMED!(self, sql, named_params! {":name": name}, i64)?;
+        if count.len() == 0
+        {
+            return Err(ServerError::Critical("Could not count tables".into()));
+        }
+
+        Ok(count[0].0 == 0)
     }
 
     fn delete_new_user_notification(&self, id: i64) -> ServerResult<usize>
@@ -608,24 +559,19 @@ impl DataBase
 
     fn create_user_from_notification(&self, id: i64) -> ServerResult<String>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select name, password_hash from new_user_notification where id = :id")?;
-        let user = stmt
-            .query_map_named(named_params! {":id": id}, |row| {
-                let name: String = row.get(0)?;
-                let password_hash: String = row.get(1)?;
-                Ok((name, password_hash))
-            })?
-            .next();
+        let user = SQL_TUPLE_NAMED!(
+            self,
+            "select name, password_hash from new_user_notification where id = :id",
+            named_params! {":id": id},
+            String,
+            String
+        )?;
 
-        if user.is_none()
+        if user.len() == 0
         {
             return Err(ServerError::Critical("err".into())); // Should not be possible to reach this
         }
-
-        let user = user.unwrap().unwrap();
-        self.create_user_with_password_hash(user.0, user.1)
+        self.create_user_with_password_hash(user[0].0.clone(), user[0].1.clone())
     }
 
     fn create_user_with_password_hash(
@@ -647,8 +593,7 @@ impl DataBase
     fn try_get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
-        let sql =
-            "select * from
+        let sql = "select * from
             (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
             join users u1 on m.winner = u1.id
             join users u2 on m.loser = u2.id
@@ -700,7 +645,8 @@ impl DataBase
         let sql = "select id, winner_accept, loser_accept, epoch, winner, loser
                   from match_notification where id = :id";
 
-        let mut match_notification: MatchNotificationTable  = self.sql_one(sql, _named_params! {":id": id})?;
+        let mut match_notification: MatchNotificationTable =
+            self.sql_one(sql, _named_params! {":id": id})?;
 
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
@@ -818,21 +764,9 @@ impl DataBase
 
     fn need_to_roll_back(&self, epoch: i64) -> ServerResult<bool>
     {
-        let mut stmt = self.conn.prepare(
-            "select count(*) from matches
-             where epoch > :epoch;",
-        )?;
-
-        let count = stmt
-            .query_map_named(named_params! {":epoch": epoch}, |row| {
-                let n: i64 = row.get(0)?;
-                Ok(n)
-            })?
-            .next()
-            .unwrap()
-            .unwrap();
-
-        Ok(count > 0)
+        let sql = "select count(*) from matches where epoch > :epoch";
+        let count = SQL_TUPLE_NAMED!(self, sql, named_params! {":epoch": epoch}, i64)?;
+        Ok(count[0].0 > 0)
     }
 
     fn create_match_notification(
@@ -870,16 +804,9 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select count(*) from users where id = :id and uuid = :token")?;
-        let mut c =
-            stmt.query_map_named(named_params! {":id": user_id, ":token": token}, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })?;
-
-        Ok(c.next().unwrap().unwrap() == 1)
+        let sql = "select count(*) from users where id = :id and uuid = :token";
+        let c = SQL_TUPLE_NAMED!(self, sql, named_params! {":id": user_id, ":token": token}, i64)?;
+        Ok(c[0].0 == 1)
     }
 
     fn try_change_password(
@@ -889,30 +816,20 @@ impl DataBase
         new_password: String,
     ) -> ServerResult<()>
     {
-        let mut stmt =
-            self.conn.prepare("select id, password_hash from users where name = :name;")?;
-        let info = stmt
-            .query_map_named(named_params! {":name" : name}, |row| {
-                let id: i64 = row.get(0)?;
-                let passwd: String = row.get(1)?;
-                Ok((id, passwd))
-            })?
-            .next()
-            .expect("getting user");
-
-        match info
+        let sql = "select id, password_hash from users where name = :name;";
+        let mut info = SQL_TUPLE_NAMED!(self, sql, named_params! {":name" : name}, i64, String)?;
+        if info.len() == 0
         {
-            Ok((id, p)) =>
-            {
-                if self.hash(&password) == p
-                {
-                    return self.update_password(id, new_password);
-                }
-
-                return Err(ServerError::PasswordNotMatch);
-            },
-            _ => Err(ServerError::UserNotExist),
+            return Err(ServerError::UserNotExist);
         }
+
+        let (id, p) = info.pop().unwrap();
+        if self.hash(&password) == p
+        {
+            return self.update_password(id, new_password);
+        }
+
+        return Err(ServerError::PasswordNotMatch);
     }
 
     fn update_password(&self, id: i64, new_password: String) -> ServerResult<()>
@@ -926,105 +843,81 @@ impl DataBase
 
     fn reset_password(&self, id: i64) -> ServerResult<()>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select user from reset_password_notification where id = :id;")?;
-        let user_id = stmt
-            .query_map_named(named_params! {":id" : id}, |row| {
-                let id: i64 = row.get(0)?;
-                Ok(id)
-            })?
-            .next();
-        if user_id.is_none()
+        let sql = "select user from reset_password_notification where id = :id;";
+        let user_id = SQL_TUPLE_NAMED!(self, sql, named_params! {":id" : id}, i64)?;
+        if user_id.len() == 0
         {
             return Err(ServerError::Critical("Something went wrong".into())); // Should not be possible to reach this
         }
-
-        let user_id = user_id.unwrap().unwrap();
+        let user_id = user_id[0].0;
         let hash = self.hash(&"@uit".to_string());
-        stmt = self.conn.prepare("update users set password_hash = :hash where id = :id")?;
-        stmt.execute_named(named_params! {":hash": hash, ":id": user_id})?;
+        self.conn.execute_named(
+            "update users set password_hash = :hash where id = :id",
+            named_params! {":hash": hash, ":id": user_id},
+        )?;
         Ok(())
     }
 
     fn _request_reset_password(&self, user: String) -> ServerResult<()>
     {
+        let sql = "select user from reset_password_notification where user = :id;";
         let user_id = self.get_user_without_matches(&user)?.id;
-        let mut stmt = self
-            .conn
-            .prepare("select user from reset_password_notification where user = :id;")?;
-        let notification = stmt
-            .query_map_named(named_params! {":id" : user_id}, |row| {
-                let id: i64 = row.get(0)?;
-                Ok(id)
-            })?
-            .next();
-        if !notification.is_none()
+        let params = named_params! {":id": user_id};
+        let notification = SQL_TUPLE_NAMED!(self, sql, params, i64)?;
+        if notification.len() == 0
         {
             return Err(ServerError::ResetPasswordDuplicate);
         }
 
-        stmt = self
-            .conn
-            .prepare("insert into reset_password_notification (user) values (:id)")?;
-        stmt.execute_named(named_params! {":id": user_id})?;
+        self.conn
+            .execute_named("insert into reset_password_notification (user) values (:id)", params)?;
+
         Ok(())
     }
 
     fn try_login(&self, name: String, password: String) -> ServerResult<String>
     {
-        let mut stmt = self
-            .conn
-            .prepare("select password_hash, uuid, user_role from users where name = :name;")?;
-        let info = stmt
-            .query_map_named(named_params! {":name" : name}, |row| {
-                let passwd: String = row.get(0)?;
-                let uuid: String = row.get(1)?;
-                let role: u8 = row.get(2)?;
-                Ok((passwd, uuid, role))
-            })?
-            .next();
+        let mut info = SQL_TUPLE_NAMED!(
+            self,
+            "select password_hash, uuid, user_role from users where name = :name;",
+            named_params! {":name" : name},
+            String,
+            String,
+            u8
+        )?;
 
-        if info.is_none()
+        if info.len() == 0
         {
-            let mut stmt = self
-                .conn
-                .prepare("select count(*) from new_user_notification where name = :name")?;
-            let c = stmt
-                .query_map_named(named_params! {":name": &name}, |row| {
-                    let c: i64 = row.get(0)?;
-                    Ok(c)
-                })?
-                .next()
-                .unwrap()
-                .unwrap();
-
-            if c == 1
+            let count = SQL_TUPLE_NAMED!(
+                self,
+                "select count(*) from new_user_notification where name = :name",
+                named_params! {":name": &name},
+                i64
+            )?;
+            if let Some((c, ..)) = count.get(0)
             {
-                return Err(ServerError::WaitingForAdmin);
+                if c == &1
+                {
+                    return Err(ServerError::WaitingForAdmin);
+                }
             }
 
             return Err(ServerError::UserNotExist);
         }
 
-        match info.unwrap()
+        let (p, u, r) = info.pop().expect("Getting user stuff");
+
+        if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
         {
-            Ok((p, u, r)) =>
-            {
-                if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
-                {
-                    return Err(ServerError::InactiveUser);
-                }
-
-                if self.hash(&password) == p
-                {
-                    return Ok(u);
-                }
-
-                return Err(ServerError::WrongUsernameOrPassword);
-            },
-            _ => Err(ServerError::UserNotExist),
+            return Err(ServerError::InactiveUser);
         }
+
+        if self.hash(&password) == p
+        {
+            return Ok(u);
+        }
+
+        return Err(ServerError::WrongUsernameOrPassword);
     }
 
     fn hash(&self, word: &String) -> String
@@ -1038,8 +931,7 @@ impl DataBase
 
     fn get_all_edit_matches(&self) -> ServerResult<Vec<EditMatchInfo>>
     {
-        let sql =
-            "select a.name, b.name, epoch, m.id from matches as m
+        let sql = "select a.name, b.name, epoch, m.id from matches as m
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
              order by epoch;";
@@ -1051,10 +943,13 @@ impl DataBase
     {
         let current_season = self.get_latest_season_number()?;
         let sql = format!(
-            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} as season from matches
+            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} \
+             as season from matches
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;", current_season);
+             order by epoch;",
+            current_season
+        );
 
         self.sql_many(sql, None)
     }
@@ -1113,12 +1008,16 @@ impl DataBase
     fn get_matches(&self, id: i64) -> ServerResult<Vec<Match>>
     {
         let current_season = self.get_latest_season_number()?;
-        let sql = format!("select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} as season
+        let sql = format!(
+            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} \
+             as season
                 from matches
                 inner join users as a on a.id = winner
                 inner join users as b on b.id = loser
                 where winner = :id or loser = :id
-                order by epoch asc", current_season);
+                order by epoch asc",
+            current_season
+        );
         self.sql_many(sql, _named_params! {":id" : id})
     }
 
@@ -1129,7 +1028,7 @@ impl DataBase
             return Err(ServerError::Unauthorized);
         }
 
-        
+
         let sql = "select * from users order by elo asc";
         self.sql_many(sql, None)
     }
@@ -1164,11 +1063,11 @@ impl DataBase
 
     fn get_users_with_user_role(&self, user_role: u8, val: u8) -> ServerResult<Vec<User>>
     {
-        let sql =
-            "select id, name, elo, user_role from users
+        let sql = "select id, name, elo, user_role from users
              where user_role & :user_role = :val
              order by elo asc";
-        let mut users: Vec<User> = self.sql_many(sql, _named_params! {":user_role": user_role, ":val": val})?;
+        let mut users: Vec<User> =
+            self.sql_many(sql, _named_params! {":user_role": user_role, ":val": val})?;
         for user in &mut users
         {
             user.badges = self.get_badges(user.id)?;
@@ -1191,7 +1090,7 @@ impl DataBase
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
-    fn get_user(&self, name: &String) -> ServerResult<User>
+    pub fn get_user(&self, name: &String) -> ServerResult<User>
     {
         let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
         user.match_history = self.get_matches(user.id)?;
@@ -1201,20 +1100,15 @@ impl DataBase
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
-        let sql = &format!(
-            "select id, name, elo, user_role from users where {} {} :val",
-            col, comp);
+        let sql =
+            &format!("select id, name, elo, user_role from users where {} {} :val", col, comp);
 
 
-        self.sql_one(sql, _named_params! {":val": val})
-            .map_err(|e| 
-            {
-                match e
-                {
-                    ServerError::Critical(_) => ServerError::UserNotExist,
-                    _ => e
-                }
-            })
+        self.sql_one(sql, _named_params! {":val": val}).map_err(|e| match e
+        {
+            ServerError::Critical(_) => ServerError::UserNotExist,
+            _ => e,
+        })
     }
 
     #[allow(dead_code)]
@@ -1254,11 +1148,11 @@ mod test
     };
 
     use super::*;
-    use crate::test_util::*;
+    use crate::{test_util::*, SQL_TUPLE};
 
 
     #[test]
-    fn test_register_user_creates_notification()
+    fn test_register_user_creates_notification() -> ServerResult<()>
     {
         let db_file = "temp0.db";
         let s = DataBase::new(db_file);
@@ -1271,19 +1165,12 @@ mod test
         let markus = "markus".to_string();
         s.create_user(markus.clone(), "password".to_string()).unwrap();
 
-        let mut stmt = s.conn.prepare("select name from new_user_notification;").unwrap();
-        let user_notification_name = stmt
-            .query_map(NO_PARAMS, |row| {
-                let name: String = row.get(0).expect("Getting first (and only) row");
-                Ok(name)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
+        let user_notification_name =
+            SQL_TUPLE!(s, "select name from new_user_notification;", String).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp0");
-        assert_eq!(user_notification_name, markus);
+        assert_eq!(user_notification_name[0].0, markus);
+        Ok(())
     }
 
     #[test]
@@ -1326,7 +1213,7 @@ mod test
 
 
     #[test]
-    fn test_match_notification_both_accepted()
+    fn test_match_notification_both_accepted() -> ServerResult<()>
     {
         let db_file = "temp1.db";
         let s = DataBase::new(db_file);
@@ -1336,41 +1223,29 @@ mod test
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-
         s.register_match(winner, loser, uuid).expect("Creating match");
         respond_to_match(&s, "Sivert", 1);
         respond_to_match(&s, "Lars", 1);
 
-        let mut stmt =
-            s.conn.prepare("select * from match_notification").expect("creating statement");
-
-        let find = stmt.query_map(NO_PARAMS, |row| {
-            let c: i64 = row.get(0).expect("getting first row");
-            Ok(c)
-        });
-
-        assert!(find.expect("unwrapping quey map").next().is_none());
-
-        let mut stmn = s.conn.prepare("select COUNT(*) from matches").expect("creating statement");
-
-        let find = stmn.query_map(NO_PARAMS, |row| {
-            let c: i64 = row.get(0).expect("getting first row");
-            Ok(c)
-        });
+        let find1 = SQL_TUPLE!(s, "select * from match_notification", i64)?;
+        let find2 = SQL_TUPLE!(s, "select COUNT(*) from matches", i64)?;
 
         std::fs::remove_file(db_file).expect("Removing file temp2");
-        assert!(find.unwrap().next().unwrap().unwrap() == 1);
 
+        assert!(find1.len() == 0);
+        assert!(find2[0].0 == 1);
         let (sivert, lars) = (
             s.get_user_without_matches(&"Sivert".to_string()).unwrap(),
             s.get_user_without_matches(&"Lars".to_string()).unwrap(),
         );
+
         assert!(sivert.elo > 1500.0);
         assert!(lars.elo < 1500.0);
+        Ok(())
     }
 
     #[test]
-    fn test_match_registered_by_none_participant_gets_answered_no()
+    fn test_match_registered_by_none_participant_gets_answered_no() -> ServerResult<()>
     {
         let db_file = "tempB.db";
         let s = DataBase::new(db_file);
@@ -1381,50 +1256,23 @@ mod test
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-
         s.register_match(winner.clone(), loser.clone(), uuid.clone())
             .expect("Creating match");
         s.register_match(winner.clone(), loser.clone(), uuid).expect("Creating match");
 
-
-        let mut stmt = s
-            .conn
-            .prepare("select winner_accept from match_notification where id = 1")
-            .unwrap();
-        let winner_accept = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: u8 = row.get(0).expect("Getting first (and only) row");
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
-
-
-        let mut stmt = s
-            .conn
-            .prepare("select loser_accept from match_notification where id = 2")
-            .unwrap();
-        let loser_accept = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: u8 = row.get(0).expect("Getting first (and only) row");
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
+        let winner_accept =
+            SQL_TUPLE!(s, "select winner_accept from match_notification where id = 1", u8)?;
+        let loser_accept =
+            SQL_TUPLE!(s, "select loser_accept from match_notification where id = 2", u8)?;
 
         std::fs::remove_file(db_file).expect("Removing file tempA");
-        assert!(winner_accept == MATCH_NO_ANS);
-        assert!(loser_accept == MATCH_NO_ANS);
+        assert!(winner_accept[0].0 == MATCH_NO_ANS);
+        assert!(loser_accept[0].0 == MATCH_NO_ANS);
+        Ok(())
     }
 
     #[test]
-    fn test_match_registered_by_participant_gets_answered_yes()
+    fn test_match_registered_by_participant_gets_answered_yes() -> ServerResult<()>
     {
         let db_file = "tempA.db";
         let s = DataBase::new(db_file);
@@ -1439,45 +1287,19 @@ mod test
         s.register_match(winner.clone(), loser.clone(), loser_uuid)
             .expect("Creating match");
 
-
-        let mut stmt = s
-            .conn
-            .prepare("select winner_accept from match_notification where id = 1")
-            .unwrap();
-        let winner_accept = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: u8 = row.get(0).expect("Getting first (and only) row");
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
-
-
-        let mut stmt = s
-            .conn
-            .prepare("select loser_accept from match_notification where id = 2")
-            .unwrap();
-        let loser_accept = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: u8 = row.get(0).expect("Getting first (and only) row");
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
+        let winner_accept =
+            SQL_TUPLE!(s, "select winner_accept from match_notification where id = 1", u8)?;
+        let loser_accept =
+            SQL_TUPLE!(s, "select loser_accept from match_notification where id = 2", u8)?;
 
         std::fs::remove_file(db_file).expect("Removing file tempA");
-        assert!(winner_accept == ACCEPT_REQUEST);
-        assert!(loser_accept == ACCEPT_REQUEST);
+        assert!(winner_accept[0].0 == ACCEPT_REQUEST);
+        assert!(loser_accept[0].0 == ACCEPT_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn test_can_respond_to_match()
+    fn test_can_respond_to_match() -> ServerResult<()>
     {
         let db_file = "temp2.db";
         let s = DataBase::new(db_file);
@@ -1487,21 +1309,14 @@ mod test
         let winner = "Sivert".to_string();
         let loser = "Lars".to_string();
 
-
         s.register_match(winner, loser, uuid).expect("Creating match");
         respond_to_match(&s, "Sivert", 1);
 
-
-        let mut stmt =
-            s.conn.prepare("select * from match_notification").expect("creating statement");
-
-        let find = stmt.query_map(NO_PARAMS, |row| {
-            let c: i64 = row.get(1).expect("getting first row");
-            Ok(c)
-        });
+        let find = SQL_TUPLE!(s, "select * from match_notification", i64)?;
 
         std::fs::remove_file(db_file).expect("Removing file temp2");
-        assert!(find.unwrap().next().unwrap().unwrap() == 1);
+        assert!(find[0].0 == 1);
+        Ok(())
     }
 
     #[test]
