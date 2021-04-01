@@ -4,6 +4,7 @@ mod notification;
 mod season;
 #[macro_use]
 mod server;
+mod macros;
 mod process;
 mod server_init;
 mod server_rollback;

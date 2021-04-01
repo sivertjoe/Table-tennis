@@ -144,8 +144,7 @@ impl DataBase
     pub fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
         let sql = "select id, start_epoch from seasons order by id desc";
-        Ok(self.sql_one(sql, None)
-            .ok())
+        Ok(self.sql_one(sql, None).ok())
     }
 
     pub fn archive_offseason(&self) -> ServerResult<()>
@@ -201,7 +200,7 @@ impl DataBase
 mod test
 {
     use super::*;
-    use crate::test_util::*;
+    use crate::{test_util::*, SQL_TUPLE};
 
     #[test]
     fn test_get_set_is_season()
@@ -344,7 +343,7 @@ mod test
     }
 
     #[test]
-    fn test_start_new_season_creates_season_table_and_resets_users_and_history()
+    fn test_start_new_season_creates_season_table_and_resets_users_and_history() -> ServerResult<()>
     {
         let db_file = "tempM.db";
         let s = DataBase::new(db_file);
@@ -359,38 +358,20 @@ mod test
         respond_to_match(&s, siv.as_str(), 1);
 
         let (s_elo_old, m_elo_old) =
-            (s.get_profile(siv.clone()).unwrap().elo, s.get_profile(mark.clone()).unwrap().elo);
+            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
 
         s.start_new_season().unwrap();
         s.end_season().unwrap();
 
         let (s_elo_new, m_elo_new) =
-            (s.get_profile(siv.clone()).unwrap().elo, s.get_profile(mark.clone()).unwrap().elo);
+            (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
 
-        let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
-        let count = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
-
-        let mut stmt = s.conn.prepare("select count(*) from matches").unwrap();
-        let match_history_count = stmt
-            .query_map(NO_PARAMS, |row| {
-                let c: i64 = row.get(0)?;
-                Ok(c)
-            })
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
+        let count = SQL_TUPLE!(s, "select count(*) from seasons", i64)?.get(0).unwrap().0;
+        let match_history_count =
+            SQL_TUPLE!(s, "select count(*) from matches", i64)?.get(0).unwrap().0;
 
         let users = s.get_users().unwrap();
-        let siv = s.get_profile(siv).expect("Getting user Sivert");
+        let siv = s.get_user(&siv).expect("Getting user Sivert");
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(count, 1);
         assert_eq!(match_history_count, 0);
@@ -400,6 +381,7 @@ mod test
         assert!(s_elo_new == 1500.0);
         assert!(m_elo_new == 1500.0);
         assert_eq!(siv.user_role, USER_ROLE_SOFT_INACTIVE | USER_ROLE_SUPERUSER);
+        Ok(())
     }
 
     #[test]
