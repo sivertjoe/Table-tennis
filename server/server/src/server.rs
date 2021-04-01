@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::From, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use chrono::prelude::*;
 use elo::EloRank;
@@ -33,7 +33,7 @@ macro_rules! _params {
             $crate::NO_PARAMS
         };
         ($($param:expr),+ $(,)?) => {
-            Some(ParamsType::Params(&[$(&$param as &dyn $crate::ToSql),+] as &[&dyn $crate::ToSql]))
+            Some(ParamsType::Params(&[$(&$param as &dyn rusqlite::ToSql),+] as &[&dyn $crate::ToSql]))
         };
 }
 
@@ -44,7 +44,7 @@ macro_rules! _named_params {
                             };
             // Note: It's a lot more work to support this as part of the same macro as
                      ($($param_name:literal: $param_val:expr),+ $(,)?) => {
-                             Some(ParamsType::Named(&[$(($param_name, &$param_val as &dyn $crate::ToSql)),+]))
+                             Some(ParamsType::Named(&[$(($param_name, &$param_val as &dyn rusqlite::ToSql)),+]))
                                  };
                                  }
 
@@ -250,28 +250,13 @@ impl DataBase
     {
         let list = format!("{:?}", users).as_str().replace("[", "(").replace("]", ")");
         let sql = format!("select id, name, elo, user_role from users where name in {}", list);
-        let mut stmt = self.conn.prepare(&sql)?;
-        let users = stmt.query_map(NO_PARAMS, |row| {
-            let id: i64 = row.get(0)?;
-            Ok(User {
-                id:            id,
-                name:          row.get(1)?,
-                elo:           row.get(2)?,
-                user_role:     row.get(3)?,
-                match_history: self.get_matches(id)?,
-                badges:        Vec::new(),
-            })
-        })?;
 
-        let mut vec = Vec::new();
-        for user in users
+        let mut users = self.sql_many::<User, _>(sql, None)?;
+        for user in &mut users
         {
-            if let Ok(u) = user
-            {
-                vec.push(u);
-            }
+            user.match_history = self.get_matches(user.id)?;
         }
-        Ok(vec)
+        Ok(users)
     }
 
     pub fn register_match(
@@ -662,7 +647,7 @@ impl DataBase
     fn try_get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
-        let mut stmt = self.conn.prepare(
+        let sql =
             "select * from
             (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
             join users u1 on m.winner = u1.id
@@ -673,28 +658,9 @@ impl DataBase
             join users u1 on m.winner = u1.id
             join users u2 on m.loser = u2.id
             where m.loser = :id and m.loser_accept = 0)
-            order by epoch",
-        )?;
+            order by epoch";
 
-        let notifications = stmt.query_map_named(named_params! {":id": user.id}, |row| {
-            Ok(MatchNotification {
-                id:     row.get(0)?,
-                winner: row.get(1)?,
-                loser:  row.get(2)?,
-                epoch:  row.get(3)?,
-            })
-        })?;
-
-        let mut vec: Vec<MatchNotification> = Vec::new();
-        for n in notifications
-        {
-            if let Ok(mn) = n
-            {
-                vec.push(mn);
-            };
-        }
-        vec.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
-        Ok(vec)
+        self.sql_many(sql, _named_params! {":id": user.id})
     }
 
     fn _get_admin_notifications(
@@ -718,70 +684,23 @@ impl DataBase
 
     fn try_get_new_user_notifications(&self) -> ServerResult<Vec<AdminNotification>>
     {
-        let mut stmt = self.conn.prepare("select id, name from new_user_notification")?;
-        let notifications = stmt.query_map(NO_PARAMS, |row| {
-            Ok(AdminNotification {
-                id: row.get(0)?, name: row.get(1)?
-            })
-        })?;
-
-        let mut vec: Vec<AdminNotification> = Vec::new();
-        for n in notifications
-        {
-            if let Ok(mn) = n
-            {
-                vec.push(mn);
-            };
-        }
-        Ok(vec)
+        self.sql_many("select * from new_user_notification", None)
     }
 
     fn try_get_reset_password_notifications(&self) -> ServerResult<Vec<AdminNotification>>
     {
-        let mut stmt = self.conn.prepare(
-            "select n.id, name from reset_password_notification as n
-             join users as a on a.id = n.user",
-        )?;
-        let notifications = stmt.query_map(NO_PARAMS, |row| {
-            Ok(AdminNotification {
-                id: row.get(0)?, name: row.get(1)?
-            })
-        })?;
-
-        let mut vec: Vec<AdminNotification> = Vec::new();
-        for n in notifications
-        {
-            if let Ok(mn) = n
-            {
-                vec.push(mn);
-            };
-        }
-        Ok(vec)
+        let sql = "select n.id, name from reset_password_notification as n
+                  join users as a on a.id = n.user";
+        self.sql_many(sql, None)
     }
 
     fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
-        let mut stmt = self.conn.prepare(
-            "select id, winner_accept, loser_accept, epoch, winner, loser
-            from match_notification where id = :id",
-        )?;
-        let mut match_notification = stmt.query_map_named(named_params! {":id": id}, |row| {
-            Ok(MatchNotificationTable {
-                id:            row.get(0)?,
-                winner_accept: row.get(1)?,
-                loser_accept:  row.get(2)?,
-                epoch:         row.get(3)?,
-                winner:        row.get(4)?,
-                loser:         row.get(5)?,
-            })
-        })?;
+        let sql = "select id, winner_accept, loser_accept, epoch, winner, loser
+                  from match_notification where id = :id";
 
-        let mut match_notification = match match_notification.next()
-        {
-            Some(mn) => mn.unwrap(),
-            None => return Err(ServerError::Critical(String::from("Notification does not exist"))),
-        };
+        let mut match_notification: MatchNotificationTable  = self.sql_one(sql, _named_params! {":id": id})?;
 
         if user.id != match_notification.winner && user.id != match_notification.loser
         {
@@ -1119,64 +1038,25 @@ impl DataBase
 
     fn get_all_edit_matches(&self) -> ServerResult<Vec<EditMatchInfo>>
     {
-        let mut stmt = self.conn.prepare(
+        let sql =
             "select a.name, b.name, epoch, m.id from matches as m
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;",
-        )?;
-        let matches = stmt.query_map(NO_PARAMS, |row| {
-            Ok(EditMatchInfo {
-                winner: row.get(0)?,
-                loser:  row.get(1)?,
-                epoch:  row.get(2)?,
-                id:     row.get(3)?,
-            })
-        })?;
+             order by epoch;";
 
-        let mut vec = Vec::new();
-        for m in matches
-        {
-            if let Ok(u) = m
-            {
-                vec.push(u);
-            };
-        }
-        vec.reverse();
-        Ok(vec)
+        self.sql_many(sql, None)
     }
 
     fn get_all_matches(&self) -> ServerResult<Vec<Match>>
     {
         let current_season = self.get_latest_season_number()?;
-        let mut stmt = self.conn.prepare(
-            "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch from matches
+        let sql = format!(
+            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} as season from matches
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;",
-        )?;
-        let matches = stmt.query_map(NO_PARAMS, |row| {
-            Ok(Match {
-                winner:     row.get(0)?,
-                loser:      row.get(1)?,
-                elo_diff:   row.get(2)?,
-                winner_elo: row.get(3)?,
-                loser_elo:  row.get(4)?,
-                epoch:      row.get(5)?,
-                season:     current_season, // -1 if off-season
-            })
-        })?;
+             order by epoch;", current_season);
 
-        let mut vec = Vec::new();
-        for m in matches
-        {
-            if let Ok(u) = m
-            {
-                vec.push(u);
-            };
-        }
-        vec.reverse();
-        Ok(vec)
+        self.sql_many(sql, None)
     }
 
     fn get_stats_from_table(
@@ -1186,7 +1066,7 @@ impl DataBase
         user2_id: i64,
     ) -> ServerResult<Vec<Match>>
     {
-        let mut stmt = self.conn.prepare(&format!(
+        let sql = &format!(
             "select u1.name as winner, u2.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
              {} t
              join users u1 on t.winner = u1.id
@@ -1199,29 +1079,8 @@ impl DataBase
              join users u2 on t.winner = u2.id
              where t.winner = :user2 and t.loser = :user1;",
             table, table
-        ))?;
-        let matches =
-            stmt.query_map_named(named_params! {":user1": user1_id, ":user2": user2_id}, |row| {
-                Ok(Match {
-                    winner:     row.get(0)?,
-                    loser:      row.get(1)?,
-                    elo_diff:   row.get(2)?,
-                    winner_elo: row.get(3)?,
-                    loser_elo:  row.get(4)?,
-                    epoch:      row.get(5)?,
-                    season:     row.get(6)?,
-                })
-            })?;
-
-        let mut vec = Vec::new();
-        for _match in matches
-        {
-            if let Ok(m) = _match
-            {
-                vec.push(m);
-            };
-        }
-        Ok(vec)
+        );
+        self.sql_many(sql, _named_params! {":user1": user1_id, ":user2": user2_id})
     }
 
     fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
@@ -1254,34 +1113,13 @@ impl DataBase
     fn get_matches(&self, id: i64) -> ServerResult<Vec<Match>>
     {
         let current_season = self.get_latest_season_number()?;
-        let s = "select a.name, b.name, elo_diff, winner_elo, loser_elo, epoch
+        let sql = format!("select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} as season
                 from matches
                 inner join users as a on a.id = winner
                 inner join users as b on b.id = loser
-                where winner = :id or loser = :id";
-        let mut stmt = self.conn.prepare(s)?;
-        let matches = stmt.query_map_named(named_params! {":id" : id}, |row| {
-            Ok(Match {
-                winner:     row.get(0)?,
-                loser:      row.get(1)?,
-                elo_diff:   row.get(2)?,
-                winner_elo: row.get(3)?,
-                loser_elo:  row.get(4)?,
-                epoch:      row.get(5)?,
-                season:     current_season,
-            })
-        })?;
-
-        let mut vec = Vec::new();
-        for m in matches
-        {
-            if let Ok(u) = m
-            {
-                vec.push(u);
-            };
-        }
-        vec.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
-        Ok(vec)
+                where winner = :id or loser = :id
+                order by epoch asc", current_season);
+        self.sql_many(sql, _named_params! {":id" : id})
     }
 
     fn _get_all_users(&self, token: String) -> ServerResult<Vec<User>>
@@ -1291,30 +1129,12 @@ impl DataBase
             return Err(ServerError::Unauthorized);
         }
 
-        let mut stmt = self.conn.prepare("select id, name, elo, user_role from users;")?;
-        let users = stmt.query_map(NO_PARAMS, |row| {
-            Ok(User {
-                id:            row.get(0)?,
-                name:          row.get(1)?,
-                elo:           row.get(2)?,
-                user_role:     row.get(3)?,
-                match_history: Vec::new(),
-                badges:        Vec::new(),
-            })
-        })?;
-
-        let mut vec = Vec::new();
-        for user in users
-        {
-            if let Ok(u) = user
-            {
-                vec.push(u);
-            };
-        }
-        vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
-        Ok(vec)
+        
+        let sql = "select * from users order by elo asc";
+        self.sql_many(sql, None)
     }
 
+    //@TODO: Hmm, name is an issue here. Store the names in a table maybe to fix?
     fn get_badges(&self, pid: i64) -> ServerResult<Vec<Badge>>
     {
         let mut stmt = self
@@ -1344,33 +1164,16 @@ impl DataBase
 
     fn get_users_with_user_role(&self, user_role: u8, val: u8) -> ServerResult<Vec<User>>
     {
-        let mut stmt = self.conn.prepare(
+        let sql =
             "select id, name, elo, user_role from users
-             where user_role & :user_role = :val;",
-        )?;
-        let users =
-            stmt.query_map_named(named_params! {":user_role": user_role, ":val": val}, |row| {
-                Ok(User {
-                    id:            row.get(0)?,
-                    name:          row.get(1)?,
-                    elo:           row.get(2)?,
-                    user_role:     row.get(3)?,
-                    match_history: Vec::new(),
-                    badges:        Vec::new(),
-                })
-            })?;
-
-        let mut vec = Vec::new();
-        for user in users
+             where user_role & :user_role = :val
+             order by elo asc";
+        let mut users: Vec<User> = self.sql_many(sql, _named_params! {":user_role": user_role, ":val": val})?;
+        for user in &mut users
         {
-            if let Ok(mut u) = user
-            {
-                u.badges = self.get_badges(u.id)?;
-                vec.push(u);
-            };
+            user.badges = self.get_badges(user.id)?;
         }
-        vec.sort_by(|a, b| b.elo.partial_cmp(&a.elo).unwrap());
-        Ok(vec)
+        Ok(users)
     }
 
     fn get_all_non_inactive_users(&self) -> ServerResult<Vec<User>>
@@ -1398,28 +1201,20 @@ impl DataBase
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
-        let mut stmt = self.conn.prepare(&format!(
+        let sql = &format!(
             "select id, name, elo, user_role from users where {} {} :val",
-            col, comp
-        ))?;
-        let mut users = stmt.query_map_named(named_params! {":val": val}, |row| {
-            Ok(User {
-                id:            row.get(0)?,
-                name:          row.get(1)?,
-                elo:           row.get(2)?,
-                user_role:     row.get(3)?,
-                match_history: Vec::new(),
-                badges:        Vec::new(),
-            })
-        })?;
+            col, comp);
 
-        match users.next()
-        {
-            Some(Ok(user)) => Ok(user),
-            Some(Err(_)) => Err(ServerError::Critical("???".into())), /* What does this even */
-            // mean 🤷‍♀️
-            None => Err(ServerError::UserNotExist),
-        }
+
+        self.sql_one(sql, _named_params! {":val": val})
+            .map_err(|e| 
+            {
+                match e
+                {
+                    ServerError::Critical(_) => ServerError::UserNotExist,
+                    _ => e
+                }
+            })
     }
 
     #[allow(dead_code)]

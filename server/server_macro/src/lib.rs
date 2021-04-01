@@ -45,7 +45,7 @@ fn create_type(struct_name: String, names: Vec<String>, types: Vec<String>) -> S
         .map(|(i, (n, t))| {
             let _c = if SUPPORTED_TYPES.contains(&t.as_str())
             {
-                format!("row.get(map[{}].unwrap())?", i)
+                format!("row.get(map[{}].expect(&format!(\"{{}}\", \"{}\")))?", i, n)
             }
             else
             {
