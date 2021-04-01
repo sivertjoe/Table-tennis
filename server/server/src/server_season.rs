@@ -143,14 +143,9 @@ impl DataBase
 {
     pub fn get_latest_season(&self) -> ServerResult<Option<Season>>
     {
-        let mut stmt = self.conn.prepare("select id, start_epoch from seasons order by id desc")?;
-        let mut seasons = stmt.query_map(NO_PARAMS, |row| {
-            Ok(Season {
-                id: row.get(0)?, start_epoch: row.get(1)?
-            })
-        })?;
-
-        Ok(seasons.next().map(|s| s.unwrap()))
+        let sql = "select id, start_epoch from seasons order by id desc";
+        Ok(self.sql_one(sql, None)
+            .ok())
     }
 
     pub fn archive_offseason(&self) -> ServerResult<()>

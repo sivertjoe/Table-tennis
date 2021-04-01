@@ -1,7 +1,9 @@
 use serde_derive::{Deserialize, Serialize};
+use server_core::types::FromSql;
+use server_macro::Sql;
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Sql)]
 pub struct Match
 {
     pub winner:     String,
@@ -13,7 +15,7 @@ pub struct Match
     pub season:     i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Sql)]
 pub struct EditMatchInfo
 {
     pub winner: String,
