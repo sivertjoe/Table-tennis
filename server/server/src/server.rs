@@ -102,12 +102,72 @@ impl DataBase
 
     pub fn login(&self, name: String, password: String) -> ServerResult<String> // String = Uuid
     {
-        self.try_login(name, password)
+        let mut info = SQL_TUPLE_NAMED!(
+            self,
+            "select password_hash, uuid, user_role from users where name = :name;",
+            named_params! {":name" : name},
+            String,
+            String,
+            u8
+        )?;
+
+        if info.len() == 0
+        {
+            let count = SQL_TUPLE_NAMED!(
+                self,
+                "select count(*) from new_user_notification where name = :name",
+                named_params! {":name": &name},
+                i64
+            )?;
+            if let Some((c, ..)) = count.get(0)
+            {
+                if c == &1
+                {
+                    return Err(ServerError::WaitingForAdmin);
+                }
+            }
+
+            return Err(ServerError::UserNotExist);
+        }
+
+        let (p, u, r) = info.pop().expect("Getting user stuff");
+
+        if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
+        {
+            return Err(ServerError::InactiveUser);
+        }
+
+        if self.hash(&password) == p
+        {
+            return Ok(u);
+        }
+
+        return Err(ServerError::WrongUsernameOrPassword);
     }
 
     pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        self.try_respond_to_notification(id, ans, token)
+        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let sql = "select id, winner_accept, loser_accept, epoch, winner, loser
+                  from match_notification where id = :id";
+
+        let mut match_notification: MatchNotificationTable =
+            self.sql_one(sql, _named_params! {":id": id})?;
+
+        if user.id != match_notification.winner && user.id != match_notification.loser
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        if user.id == match_notification.winner
+        {
+            match_notification.winner_accept = ans;
+        }
+        else
+        {
+            match_notification.loser_accept = ans;
+        }
+        self.handle_notification_answer(&user, ans, &match_notification)
     }
 
     pub fn get_variable(&self, variable: String) -> ServerResult<i64>
@@ -180,24 +240,34 @@ impl DataBase
         self._edit_users(users, action, token)
     }
 
-    pub fn get_profile(&self, user: String) -> ServerResult<User>
+    pub fn get_user(&self, name: &String) -> ServerResult<User>
     {
-        self.get_user(&user)
+        let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
+        user.match_history = self.get_matches(user.id)?;
+        user.badges = self.get_badges(user.id)?;
+        Ok(user)
     }
 
     pub fn get_all_users(&self, token: String) -> ServerResult<Vec<User>>
     {
-        self._get_all_users(token)
+        if !self.get_is_admin(token)?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+
+        let sql = "select * from users order by elo asc";
+        self.sql_many(sql, None)
     }
 
     pub fn get_non_inactive_users(&self) -> ServerResult<Vec<User>>
     {
-        self.get_all_non_inactive_users()
+        self.get_users_with_user_role(USER_ROLE_INACTIVE, 0)
     }
 
     pub fn get_users(&self) -> ServerResult<Vec<User>>
     {
-        self.get_active_users()
+        self.get_users_with_user_role(USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE, 0)
     }
 
     pub fn get_multiple_users(&self, users: Vec<String>) -> ServerResult<Vec<User>>
@@ -235,17 +305,47 @@ impl DataBase
 
     pub fn get_history(&self) -> ServerResult<Vec<Match>>
     {
-        self.get_all_matches()
+        let current_season = self.get_latest_season_number()?;
+        let sql = format!(
+            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} \
+             as season from matches
+             inner join users as a on a.id = winner
+             inner join users as b on b.id = loser
+             order by epoch;",
+            current_season
+        );
+
+        self.sql_many(sql, None)
     }
 
     pub fn get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
     {
-        self._get_stats(info)
+        let user1_id = self.get_user_without_matches(&info.user1)?.id;
+        let user2_id = self.get_user_without_matches(&info.user2)?.id;
+
+        let current_season = self.get_latest_season_number()?;
+        let current = self.get_stats_from_table(
+            format!("{} from matches", current_season),
+            user1_id,
+            user2_id,
+        )?;
+        let rest =
+            self.get_stats_from_table("season from old_matches".to_string(), user1_id, user2_id)?;
+
+        let mut map = HashMap::new();
+        map.insert("current".to_string(), current);
+        map.insert("rest".to_string(), rest);
+        Ok(map)
     }
 
     pub fn get_edit_match_history(&self) -> ServerResult<Vec<EditMatchInfo>>
     {
-        self.get_all_edit_matches()
+        let sql = "select a.name, b.name, epoch, m.id from matches as m
+             inner join users as a on a.id = winner
+             inner join users as b on b.id = loser
+             order by epoch;";
+
+        self.sql_many(sql, None)
     }
 
     pub fn change_password(
@@ -255,17 +355,55 @@ impl DataBase
         new_password: String,
     ) -> ServerResult<()>
     {
-        self.try_change_password(name, password, new_password)
+        let sql = "select id, password_hash from users where name = :name;";
+        let mut info = SQL_TUPLE_NAMED!(self, sql, named_params! {":name" : name}, i64, String)?;
+        if info.len() == 0
+        {
+            return Err(ServerError::UserNotExist);
+        }
+
+        let (id, p) = info.pop().unwrap();
+        if self.hash(&password) == p
+        {
+            return self.update_password(id, new_password);
+        }
+
+        return Err(ServerError::PasswordNotMatch);
     }
 
     pub fn request_reset_password(&self, name: String) -> ServerResult<()>
     {
-        self._request_reset_password(name)
+        let sql = "select user from reset_password_notification where user = :id;";
+        let user_id = self.get_user_without_matches(&name)?.id;
+        let params = named_params! {":id": user_id};
+        let notification = SQL_TUPLE_NAMED!(self, sql, params, i64)?;
+        if notification.len() == 0
+        {
+            return Err(ServerError::ResetPasswordDuplicate);
+        }
+
+        self.conn
+            .execute_named("insert into reset_password_notification (user) values (:id)", params)?;
+
+        Ok(())
     }
 
     pub fn get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
-        self.try_get_notifications(token)
+        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let sql = "select * from
+            (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
+            join users u1 on m.winner = u1.id
+            join users u2 on m.loser = u2.id
+            where m.winner = :id and m.winner_accept = 0
+            union
+            select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
+            join users u1 on m.winner = u1.id
+            join users u2 on m.loser = u2.id
+            where m.loser = :id and m.loser_accept = 0)
+            order by epoch";
+
+        self.sql_many(sql, _named_params! {":id": user.id})
     }
 
     pub fn get_admin_notifications(
@@ -273,7 +411,18 @@ impl DataBase
         token: String,
     ) -> ServerResult<HashMap<String, Vec<AdminNotification>>>
     {
-        self._get_admin_notifications(token)
+        if !self.get_is_admin(token)?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        let new_user = self.try_get_new_user_notifications()?;
+        let reset_password = self.try_get_reset_password_notifications()?;
+
+        let mut map = HashMap::new();
+        map.insert("new_users".to_string(), new_user);
+        map.insert("reset_password".to_string(), reset_password);
+        Ok(map)
     }
 
     pub fn respond_to_new_user(&self, not: AdminNotificationAns) -> ServerResult<()>
@@ -532,7 +681,6 @@ impl DataBase
              (select count(*) from new_user_notification where name = :name);
         ";
 
-
         let count = SQL_TUPLE_NAMED!(self, sql, named_params! {":name": name}, i64)?;
         if count.len() == 0
         {
@@ -588,45 +736,6 @@ impl DataBase
         Ok(uuid)
     }
 
-    // Get all notifications for the users, exclude already
-    // answered ones
-    fn try_get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
-    {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
-        let sql = "select * from
-            (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
-            join users u1 on m.winner = u1.id
-            join users u2 on m.loser = u2.id
-            where m.winner = :id and m.winner_accept = 0
-            union
-            select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
-            join users u1 on m.winner = u1.id
-            join users u2 on m.loser = u2.id
-            where m.loser = :id and m.loser_accept = 0)
-            order by epoch";
-
-        self.sql_many(sql, _named_params! {":id": user.id})
-    }
-
-    fn _get_admin_notifications(
-        &self,
-        token: String,
-    ) -> ServerResult<HashMap<String, Vec<AdminNotification>>>
-    {
-        if !self.get_is_admin(token)?
-        {
-            return Err(ServerError::Unauthorized);
-        }
-
-        let new_user = self.try_get_new_user_notifications()?;
-        let reset_password = self.try_get_reset_password_notifications()?;
-
-        let mut map = HashMap::new();
-        map.insert("new_users".to_string(), new_user);
-        map.insert("reset_password".to_string(), reset_password);
-        Ok(map)
-    }
-
     fn try_get_new_user_notifications(&self) -> ServerResult<Vec<AdminNotification>>
     {
         self.sql_many("select * from new_user_notification", None)
@@ -637,31 +746,6 @@ impl DataBase
         let sql = "select n.id, name from reset_password_notification as n
                   join users as a on a.id = n.user";
         self.sql_many(sql, None)
-    }
-
-    fn try_respond_to_notification(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
-    {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
-        let sql = "select id, winner_accept, loser_accept, epoch, winner, loser
-                  from match_notification where id = :id";
-
-        let mut match_notification: MatchNotificationTable =
-            self.sql_one(sql, _named_params! {":id": id})?;
-
-        if user.id != match_notification.winner && user.id != match_notification.loser
-        {
-            return Err(ServerError::Unauthorized);
-        }
-
-        if user.id == match_notification.winner
-        {
-            match_notification.winner_accept = ans;
-        }
-        else
-        {
-            match_notification.loser_accept = ans;
-        }
-        self.handle_notification_answer(&user, ans, &match_notification)
     }
 
     fn handle_notification_answer(
@@ -809,29 +893,6 @@ impl DataBase
         Ok(c[0].0 == 1)
     }
 
-    fn try_change_password(
-        &self,
-        name: String,
-        password: String,
-        new_password: String,
-    ) -> ServerResult<()>
-    {
-        let sql = "select id, password_hash from users where name = :name;";
-        let mut info = SQL_TUPLE_NAMED!(self, sql, named_params! {":name" : name}, i64, String)?;
-        if info.len() == 0
-        {
-            return Err(ServerError::UserNotExist);
-        }
-
-        let (id, p) = info.pop().unwrap();
-        if self.hash(&password) == p
-        {
-            return self.update_password(id, new_password);
-        }
-
-        return Err(ServerError::PasswordNotMatch);
-    }
-
     fn update_password(&self, id: i64, new_password: String) -> ServerResult<()>
     {
         let hash = self.hash(&new_password);
@@ -858,68 +919,6 @@ impl DataBase
         Ok(())
     }
 
-    fn _request_reset_password(&self, user: String) -> ServerResult<()>
-    {
-        let sql = "select user from reset_password_notification where user = :id;";
-        let user_id = self.get_user_without_matches(&user)?.id;
-        let params = named_params! {":id": user_id};
-        let notification = SQL_TUPLE_NAMED!(self, sql, params, i64)?;
-        if notification.len() == 0
-        {
-            return Err(ServerError::ResetPasswordDuplicate);
-        }
-
-        self.conn
-            .execute_named("insert into reset_password_notification (user) values (:id)", params)?;
-
-        Ok(())
-    }
-
-    fn try_login(&self, name: String, password: String) -> ServerResult<String>
-    {
-        let mut info = SQL_TUPLE_NAMED!(
-            self,
-            "select password_hash, uuid, user_role from users where name = :name;",
-            named_params! {":name" : name},
-            String,
-            String,
-            u8
-        )?;
-
-        if info.len() == 0
-        {
-            let count = SQL_TUPLE_NAMED!(
-                self,
-                "select count(*) from new_user_notification where name = :name",
-                named_params! {":name": &name},
-                i64
-            )?;
-            if let Some((c, ..)) = count.get(0)
-            {
-                if c == &1
-                {
-                    return Err(ServerError::WaitingForAdmin);
-                }
-            }
-
-            return Err(ServerError::UserNotExist);
-        }
-
-        let (p, u, r) = info.pop().expect("Getting user stuff");
-
-        if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
-        {
-            return Err(ServerError::InactiveUser);
-        }
-
-        if self.hash(&password) == p
-        {
-            return Ok(u);
-        }
-
-        return Err(ServerError::WrongUsernameOrPassword);
-    }
-
     fn hash(&self, word: &String) -> String
     {
         use sha2::{Digest, Sha256};
@@ -927,31 +926,6 @@ impl DataBase
         hasher.update(word);
         let result = hasher.finalize();
         format!("{:x}", result)
-    }
-
-    fn get_all_edit_matches(&self) -> ServerResult<Vec<EditMatchInfo>>
-    {
-        let sql = "select a.name, b.name, epoch, m.id from matches as m
-             inner join users as a on a.id = winner
-             inner join users as b on b.id = loser
-             order by epoch;";
-
-        self.sql_many(sql, None)
-    }
-
-    fn get_all_matches(&self) -> ServerResult<Vec<Match>>
-    {
-        let current_season = self.get_latest_season_number()?;
-        let sql = format!(
-            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} \
-             as season from matches
-             inner join users as a on a.id = winner
-             inner join users as b on b.id = loser
-             order by epoch;",
-            current_season
-        );
-
-        self.sql_many(sql, None)
     }
 
     fn get_stats_from_table(
@@ -978,26 +952,6 @@ impl DataBase
         self.sql_many(sql, _named_params! {":user1": user1_id, ":user2": user2_id})
     }
 
-    fn _get_stats(&self, info: StatsUsers) -> ServerResult<HashMap<String, Vec<Match>>>
-    {
-        let user1_id = self.get_user_without_matches(&info.user1)?.id;
-        let user2_id = self.get_user_without_matches(&info.user2)?.id;
-
-        let current_season = self.get_latest_season_number()?;
-        let current = self.get_stats_from_table(
-            format!("{} from matches", current_season),
-            user1_id,
-            user2_id,
-        )?;
-        let rest =
-            self.get_stats_from_table("season from old_matches".to_string(), user1_id, user2_id)?;
-
-        let mut map = HashMap::new();
-        map.insert("current".to_string(), current);
-        map.insert("rest".to_string(), rest);
-        Ok(map)
-    }
-
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("update users set elo = :elo WHERE id = :id")?;
@@ -1019,18 +973,6 @@ impl DataBase
             current_season
         );
         self.sql_many(sql, _named_params! {":id" : id})
-    }
-
-    fn _get_all_users(&self, token: String) -> ServerResult<Vec<User>>
-    {
-        if !self.get_is_admin(token)?
-        {
-            return Err(ServerError::Unauthorized);
-        }
-
-
-        let sql = "select * from users order by elo asc";
-        self.sql_many(sql, None)
     }
 
     //@TODO: Hmm, name is an issue here. Store the names in a table maybe to fix?
@@ -1075,28 +1017,11 @@ impl DataBase
         Ok(users)
     }
 
-    fn get_all_non_inactive_users(&self) -> ServerResult<Vec<User>>
-    {
-        self.get_users_with_user_role(USER_ROLE_INACTIVE, 0)
-    }
-
-    fn get_active_users(&self) -> ServerResult<Vec<User>>
-    {
-        self.get_users_with_user_role(USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE, 0)
-    }
-
     fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
     {
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
-    pub fn get_user(&self, name: &String) -> ServerResult<User>
-    {
-        let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
-        user.match_history = self.get_matches(user.id)?;
-        user.badges = self.get_badges(user.id)?;
-        Ok(user)
-    }
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
@@ -1636,7 +1561,7 @@ mod test
 
         s.edit_match(info).expect("Editing match");
 
-        let m = &s.get_all_matches().unwrap()[0];
+        let m = &s.get_history().unwrap()[0];
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(m.epoch, 15);
         assert_eq!(m.winner, loser);
@@ -1667,7 +1592,7 @@ mod test
 
         s.delete_match(info).expect("delete match");
 
-        let m = &s.get_all_matches().unwrap();
+        let m = &s.get_history().unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(m.len(), 0);
     }

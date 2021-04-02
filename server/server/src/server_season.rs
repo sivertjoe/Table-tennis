@@ -284,7 +284,7 @@ mod test
         respond_to_match(&s, lars.as_str(), 1);
         s.end_season().unwrap();
 
-        let badge_len = s.get_profile(lars.clone()).unwrap().badges.len();
+        let badge_len = s.get_user(&lars).unwrap().badges.len();
         let old_matches_len = get_table_size(&s, "old_matches");
         let matches_len = get_table_size(&s, "matches");
         let offseason_matches = get_table_size(&s, "offseason_matches");
@@ -300,7 +300,7 @@ mod test
         let old_matches_len2 = get_table_size(&s, "old_matches");
         let matches_len2 = get_table_size(&s, "matches");
         let offseason_matches2 = get_table_size(&s, "offseason_matches");
-        let badge_len2 = s.get_profile(lars.clone()).unwrap().badges.len();
+        let badge_len2 = s.get_user(&lars).unwrap().badges.len();
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(badge_len, 1);
