@@ -1473,6 +1473,7 @@ dependencies = [
  "chrono",
  "elo",
  "lazy_static",
+ "regex",
  "rusqlite",
  "serde",
  "serde_derive",

@@ -338,7 +338,7 @@ async fn get_profile(
     web::Path(name): web::Path<String>,
 ) -> HttpResponse
 {
-    match DATABASE!(data).get_profile(name)
+    match DATABASE!(data).get_user(&name)
     {
         Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
