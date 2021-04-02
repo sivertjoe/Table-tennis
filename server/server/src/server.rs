@@ -256,7 +256,7 @@ impl DataBase
         }
 
 
-        let sql = "select * from users order by elo asc";
+        let sql = "select * from users order by elo";
         self.sql_many(sql, None)
     }
 
@@ -311,7 +311,7 @@ impl DataBase
              as season from matches
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;",
+             order by epoch desc;",
             current_season
         );
 
@@ -325,7 +325,7 @@ impl DataBase
 
         let current_season = self.get_latest_season_number()?;
         let current = self.get_stats_from_table(
-            format!("{} from matches", current_season),
+            format!("{} as season from matches", current_season),
             user1_id,
             user2_id,
         )?;
@@ -338,9 +338,33 @@ impl DataBase
         Ok(map)
     }
 
+    fn get_stats_from_table(
+        &self,
+        table: String,
+        user1_id: i64,
+        user2_id: i64,
+    ) -> ServerResult<Vec<Match>>
+    {
+        let sql = &format!(
+            "select u1.name as winner, u2.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
+             {} t
+             join users u1 on t.winner = u1.id
+             join users u2 on t.loser = u2.id
+             where t.winner = :user1 and t.loser = :user2
+             union
+             select u2.name as winner, u1.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
+             {} t
+             join users u1 on t.loser = u1.id
+             join users u2 on t.winner = u2.id
+             where t.winner = :user2 and t.loser = :user1;",
+            table, table
+        );
+        self.sql_many(sql, _named_params! {":user1": user1_id, ":user2": user2_id})
+    }
+
     pub fn get_edit_match_history(&self) -> ServerResult<Vec<EditMatchInfo>>
     {
-        let sql = "select a.name, b.name, epoch, m.id from matches as m
+        let sql = "select a.name as winner, b.name as loser, epoch, m.id as id from matches as m
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
              order by epoch;";
@@ -928,30 +952,6 @@ impl DataBase
         format!("{:x}", result)
     }
 
-    fn get_stats_from_table(
-        &self,
-        table: String,
-        user1_id: i64,
-        user2_id: i64,
-    ) -> ServerResult<Vec<Match>>
-    {
-        let sql = &format!(
-            "select u1.name as winner, u2.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
-             {} t
-             join users u1 on t.winner = u1.id
-             join users u2 on t.loser = u2.id
-             where t.winner = :user1 and t.loser = :user2
-             union
-             select u2.name as winner, u1.name as loser, elo_diff, winner_elo, loser_elo, epoch, \
-             {} t
-             join users u1 on t.loser = u1.id
-             join users u2 on t.winner = u2.id
-             where t.winner = :user2 and t.loser = :user1;",
-            table, table
-        );
-        self.sql_many(sql, _named_params! {":user1": user1_id, ":user2": user2_id})
-    }
-
     fn update_elo(&self, id: i64, elo: f64) -> ServerResult<()>
     {
         let mut stmt = self.conn.prepare("update users set elo = :elo WHERE id = :id")?;
@@ -969,7 +969,7 @@ impl DataBase
                 inner join users as a on a.id = winner
                 inner join users as b on b.id = loser
                 where winner = :id or loser = :id
-                order by epoch asc",
+                order by epoch desc",
             current_season
         );
         self.sql_many(sql, _named_params! {":id" : id})
@@ -1007,7 +1007,7 @@ impl DataBase
     {
         let sql = "select id, name, elo, user_role from users
              where user_role & :user_role = :val
-             order by elo asc";
+             order by elo desc";
         let mut users: Vec<User> =
             self.sql_many(sql, _named_params! {":user_role": user_role, ":val": val})?;
         for user in &mut users
