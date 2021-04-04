@@ -19,4 +19,4 @@ jobs:
     - name: Run tests
       run: |
        cd server/src
-       cargo test
+       cargo test -p server
