@@ -3,17 +3,17 @@ use std::sync::{Arc, Mutex};
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
+use server::{
+    spawn_season_checker, AdminNotificationAns, AdminToken, ChangePasswordInfo, DataBase,
+    DeleteMatchInfo, EditUsersInfo, LoginInfo, MatchInfo, MatchResponse, NewEditMatchInfo,
+    RequestResetPassword, StatsUsers,
+};
 use server_core::{
     constants::{START_SEASON, STOP_SEASON},
     types::ServerError,
-};
-
-use server::{
-    spawn_season_checker,
-    AdminNotificationAns, AdminToken, ChangePasswordInfo, DataBase, DeleteMatchInfo, EditUsersInfo,
-    LoginInfo, MatchInfo, MatchResponse, NewEditMatchInfo, RequestResetPassword, StatsUsers,
 };
 
 const PORT: u32 = 58642;
@@ -49,7 +49,9 @@ fn response_error(e: ServerError) -> serde_json::Value
     json!({ "status": response_code(e) })
 }
 
-fn response_ok_with(item: String) -> serde_json::Value
+fn response_ok_with<T>(item: T) -> serde_json::Value
+where
+    T: Serialize,
 {
     json!({"status": 0, "result": item})
 }
@@ -478,6 +480,15 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
     }
 }
 
+#[get("season_start")]
+async fn get_season_start_date(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_season_start()
+    {
+        Ok(date) => HttpResponse::Ok().json(response_ok_with(date)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
 
 #[derive(Deserialize)]
 struct SqlCommand
@@ -578,6 +589,7 @@ async fn main() -> std::io::Result<()>
             .service(execute_sql)
             .service(get_variable)
             .service(set_variable)
+            .service(get_season_start_date)
     });
 
     if cfg!(debug_assertions)

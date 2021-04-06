@@ -6,6 +6,7 @@ import { Defs } from '@nivo/core'
 import { area, curveMonotoneX } from 'd3-shape'
 import { getShortDate, getPreviousDate } from '../../utils/Date'
 import * as UserApi from '../../api/UserApi'
+import * as MatchApi from '../../api/MatchApi'
 
 function matchElo(match, name) {
   return match.winner === name ? match.winner_elo : match.loser_elo
@@ -90,6 +91,11 @@ class EloGraph extends Component {
       .finally(() => {
         this.setState({})
       })
+
+    MatchApi.getSeasonStart().then((date) => {
+      const start = new Date(date)
+      this.periods[2].date = start
+    })
   }
 
   changePeriod(e) {
