@@ -200,7 +200,7 @@ async fn get_active_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_non_inactive_users()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -210,7 +210,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -224,7 +224,7 @@ async fn get_all_users(
 {
     match DATABASE!(data).get_all_users(token)
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(_) => HttpResponse::NotFound().finish(),
     }
 }
@@ -237,7 +237,7 @@ async fn get_notifications(
 {
     match DATABASE!(data).get_notifications(token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
+        Ok(notifications) => HttpResponse::Ok().json(response_ok_with(notifications)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -251,7 +251,7 @@ async fn get_admin_notifications(
     let info: AdminToken = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).get_admin_notifications(info.token)
     {
-        Ok(notifications) => HttpResponse::Ok().json(json!({"status": 0, "result": notifications})),
+        Ok(notifications) => HttpResponse::Ok().json(response_ok_with(notifications)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -286,7 +286,7 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_history()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -297,7 +297,7 @@ async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpR
     let info: StatsUsers = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).get_stats(info)
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -329,7 +329,7 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_edit_match_history()
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -342,7 +342,7 @@ async fn get_profile(
 {
     match DATABASE!(data).get_user(&name)
     {
-        Ok(data) => HttpResponse::Ok().json(json!({"status": 0, "result": data})),
+        Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -359,7 +359,7 @@ async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
     let info: Users = serde_json::from_str(&info).unwrap();
     match DATABASE!(data).get_multiple_users(info.users)
     {
-        Ok(users) => HttpResponse::Ok().json(json!({"status": 0, "result": users})),
+        Ok(users) => HttpResponse::Ok().json(response_ok_with(users)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -372,7 +372,7 @@ async fn get_is_admin(
 {
     match DATABASE!(data).get_is_admin(token.to_string())
     {
-        Ok(val) => HttpResponse::Ok().json(json!({"status": 0, "result": val})),
+        Ok(val) => HttpResponse::Ok().json(response_ok_with(val)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -395,7 +395,7 @@ async fn get_season_length(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpRespons
 {
     match DATABASE!(data).get_season_length()
     {
-        Ok(n_months) => HttpResponse::Ok().json(json!({"status": 0, "result": n_months})),
+        Ok(n_months) => HttpResponse::Ok().json(response_ok_with(n_months)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -474,8 +474,9 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
     let s = DATABASE!(data);
     match (s.get_users(), s.get_is_season(), s.get_latest_season_number())
     {
-        (Ok(users), Ok(is_season), Ok(len)) =>
-            HttpResponse::Ok().json(json!({"status": 0, "result": json!({"users": users, "is_season": is_season, "season_number": len})})),
+        (Ok(users), Ok(is_season), Ok(len)) => HttpResponse::Ok().json(response_ok_with(
+            json!({"users": users, "is_season": is_season, "season_number": len}),
+        )),
         _ => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -507,8 +508,8 @@ fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
     {
         Ok(true) => match s.execute_sql(info.command)
         {
-            Ok(string) => HttpResponse::Ok().json(json!({"status": 0, "result": string})),
-            Err(e) => HttpResponse::Ok().json(json!({"status": 0, "result": &format!("{}", e)})),
+            Ok(string) => HttpResponse::Ok().json(response_ok_with(string)),
+            Err(e) => HttpResponse::Ok().json(response_ok_with(&format!("{}", e))),
         },
         Ok(false) => HttpResponse::InternalServerError().json(json!({"status": 5, "result": ""})),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
