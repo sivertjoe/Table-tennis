@@ -84,3 +84,11 @@ pub fn make_user_admin(s: &DataBase, name: String) -> ServerResult<usize>
     )?;
     Ok(0)
 }
+
+#[cfg(test)]
+pub fn create_season(s: &DataBase, id: i64, time: i64) -> ServerResult<usize>
+{
+    s.conn
+        .execute("insert into seasons (id, start_epoch) values (?1, ?2)", params![id, time])?;
+    Ok(0)
+}
