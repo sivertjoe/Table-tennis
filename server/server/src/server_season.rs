@@ -59,6 +59,12 @@ impl DataBase
             _ => Ok(-1),
         }
     }
+
+    pub fn get_season_start(&self) -> ServerResult<i64>
+    {
+        self.sql_one::<Season, _>("select * from seasons order by id desc", None)
+            .map(|season| season.start_epoch)
+    }
 }
 
 
@@ -430,5 +436,19 @@ mod test
         let users = s.get_users().expect("Getting users");
         std::fs::remove_file(db_file).expect("Removing file tempH");
         users.into_iter().for_each(|u| assert!(u.badges.len() == 0));
+    }
+
+    #[test]
+    fn test_gets_latest_season_start()
+    {
+        let db_file = "tempL1.db";
+        let s = DataBase::new(db_file);
+
+        create_season(&s, 1, s.epoch()).unwrap();
+        let time = s.epoch();
+        create_season(&s, 2, time).unwrap();
+        let start = s.get_season_start();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(time, start.unwrap())
     }
 }

@@ -15,7 +15,6 @@ use super::{
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
-    season::Season,
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
 };
@@ -523,12 +522,6 @@ impl DataBase
             };
         }
         Ok(vec)
-    }
-
-    pub fn get_season_start(&self) -> ServerResult<i64>
-    {
-        self.sql_one::<Season, _>("select * from seasons order by id desc", None)
-            .map(|season| season.start_epoch)
     }
 }
 
@@ -1063,7 +1056,7 @@ impl DataBase
         format!("{:x}", result)
     }
 
-    fn epoch(&self) -> i64
+    pub fn epoch(&self) -> i64
     {
         Utc::now().timestamp_millis()
     }
