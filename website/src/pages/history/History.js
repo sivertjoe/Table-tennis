@@ -2,6 +2,7 @@ import { React, Component } from 'react'
 import * as MatchApi from '../../api/MatchApi'
 import './History.css'
 import '../../index.css'
+import { getDateTime } from '../../utils/Date'
 
 class History extends Component {
   history = []
@@ -28,6 +29,7 @@ class History extends Component {
                 <th>New Elo</th>
                 <th>Loser</th>
                 <th>New Elo</th>
+                <th>Date</th>
               </tr>
               {this.history.map((match) => {
                 ranking += 1
@@ -56,6 +58,7 @@ class History extends Component {
                       {Math.trunc(match.loser_elo)} (
                       <div className="red">-{Math.trunc(match.elo_diff)}</div>)
                     </td>
+                    <td>{getDateTime(match.epoch)}</td>
                   </tr>
                 )
               })}

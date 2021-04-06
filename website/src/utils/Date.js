@@ -1,8 +1,7 @@
 export const getDateTime = (ms) => {
   const d = new Date(ms)
   return (
-    `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ` +
-    `${d.getHours()}:${d.getMinutes()}`
+    `${d.getDate()}/${d.getMonth() + 1} ` + `${d.getHours()}:${d.getMinutes()}`
   )
 }
 
