@@ -15,6 +15,7 @@ use super::{
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
     },
+    season::Season,
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
 };
@@ -480,7 +481,7 @@ impl DataBase
         Ok(())
     }
 
-    pub fn sql_one<S, T>(&self, s: S, params: Params) -> ServerResult<T>
+    pub fn sql_one<T, S>(&self, s: S, params: Params) -> ServerResult<T>
     where
         S: AsRef<str>,
         T: FromSql,
@@ -522,6 +523,12 @@ impl DataBase
             };
         }
         Ok(vec)
+    }
+
+    pub fn get_season_start(&self) -> ServerResult<i64>
+    {
+        self.sql_one::<Season, _>("select * from seasons order by id desc", None)
+            .map(|season| season.start_epoch)
     }
 }
 
@@ -1021,7 +1028,6 @@ impl DataBase
     {
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
-
 
     fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
     {
