@@ -14,6 +14,7 @@ use super::{
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
         AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
+        Notification, NotificationType,
     },
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
@@ -412,7 +413,7 @@ impl DataBase
         Ok(())
     }
 
-    pub fn get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
+    pub fn get_match_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let sql = "select * from
@@ -522,6 +523,22 @@ impl DataBase
             };
         }
         Ok(vec)
+    }
+
+    pub fn get_notifications(
+        &self,
+        t: NotificationType,
+        token: String,
+    ) -> ServerResult<Notification>
+    {
+        match t
+        {
+            NotificationType::Admin =>
+            {
+                Ok(Notification::Admin(self.get_admin_notifications(token)?))
+            },
+            NotificationType::Match => Ok(Notification::Match(self.get_match_notifications(token)?)),
+        }
     }
 }
 

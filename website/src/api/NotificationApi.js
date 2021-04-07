@@ -1,12 +1,10 @@
 import * as BaseApi from './BaseApi'
 
 export const getNotifications = () =>
-  BaseApi.get('notifications/' + localStorage.getItem('token'))
+  BaseApi.get('notifications?type=match&token=' + localStorage.getItem('token'))
 
 export const getAdminNotifications = (token) =>
-  BaseApi.post('admin-notifications', {
-    token: token,
-  })
+  BaseApi.get('notifications?type=admin&token=' + localStorage.getItem('token'))
 
 export const replyToNewUser = (id, token, ans) =>
   BaseApi.post('respond-to-user-notification', {

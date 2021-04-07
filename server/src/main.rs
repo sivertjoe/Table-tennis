@@ -7,9 +7,9 @@ use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
-    spawn_season_checker, AdminNotificationAns, AdminToken, ChangePasswordInfo, DataBase,
-    DeleteMatchInfo, EditUsersInfo, LoginInfo, MatchInfo, MatchResponse, NewEditMatchInfo,
-    RequestResetPassword, StatsUsers,
+    spawn_season_checker, AdminNotificationAns, ChangePasswordInfo, DataBase, DeleteMatchInfo,
+    EditUsersInfo, LoginInfo, MatchInfo, MatchResponse, NewEditMatchInfo, NotificationInfo,
+    NotificationType, RequestResetPassword, StatsUsers,
 };
 use server_core::{
     constants::{START_SEASON, STOP_SEASON},
@@ -229,31 +229,26 @@ async fn get_all_users(
     }
 }
 
-#[get("/notifications/{token}")]
-async fn get_notifications(
+use std::convert::TryFrom;
+#[get("/notifications")]
+fn get_notifications(
     data: web::Data<Arc<Mutex<DataBase>>>,
-    web::Path(token): web::Path<String>,
+    info: web::Query<NotificationInfo>,
 ) -> HttpResponse
 {
-    match DATABASE!(data).get_notifications(token)
-    {
-        Ok(notifications) => HttpResponse::Ok().json(response_ok_with(notifications)),
-        Err(e) => HttpResponse::Ok().json(response_error(e)),
-    }
-}
+    let _type = info.r#type.clone();
+    let token = info.token.clone();
 
-#[post("/admin-notifications")]
-async fn get_admin_notifications(
-    data: web::Data<Arc<Mutex<DataBase>>>,
-    info: String,
-) -> HttpResponse
-{
-    let info: AdminToken = serde_json::from_str(&info).unwrap();
-    match DATABASE!(data).get_admin_notifications(info.token)
-    {
-        Ok(notifications) => HttpResponse::Ok().json(response_ok_with(notifications)),
-        Err(e) => HttpResponse::Ok().json(response_error(e)),
-    }
+    NotificationType::try_from(_type).map_or(
+        HttpResponse::Ok().json(
+            json!({"status": 69, "result": format!("no notification type matching {}", token)}),
+        ),
+        |t| match DATABASE!(data).get_notifications(t, token)
+        {
+            Ok(data) => HttpResponse::Ok().json(response_ok_with(data)),
+            Err(e) => HttpResponse::Ok().json(response_error(e)),
+        },
+    )
 }
 
 #[post("/respond-to-user-notification")]
@@ -572,8 +567,6 @@ async fn main() -> std::io::Result<()>
             .service(respond_to_reset_password)
             .service(get_history)
             .service(get_edit_history)
-            .service(get_notifications)
-            .service(get_admin_notifications)
             .service(get_is_admin)
             .service(login)
             .service(change_password)
@@ -591,6 +584,7 @@ async fn main() -> std::io::Result<()>
             .service(get_variable)
             .service(set_variable)
             .service(get_season_start_date)
+            .service(get_notifications)
     });
 
     if cfg!(debug_assertions)
