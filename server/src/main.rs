@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    convert::TryFrom,
+    sync::{Arc, Mutex},
+};
 
 use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
@@ -7,9 +10,9 @@ use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
-    spawn_season_checker, AdminNotificationAns, ChangePasswordInfo, DataBase, DeleteMatchInfo,
-    EditUsersInfo, LoginInfo, MatchInfo, MatchResponse, NewEditMatchInfo, NotificationInfo,
-    NotificationType, RequestResetPassword, StatsUsers,
+    spawn_season_checker, ChangePasswordInfo, DataBase, DeleteMatchInfo, EditUsersInfo, LoginInfo,
+    MatchInfo, NewEditMatchInfo, NotificationAns, NotificationInfo, NotificationType,
+    RequestResetPassword, StatsUsers,
 };
 use server_core::{
     constants::{START_SEASON, STOP_SEASON},
@@ -150,21 +153,6 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
     }
 }
 
-#[post("respond-to-match")]
-async fn respond_to_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
-{
-    let info: MatchResponse = serde_json::from_str(&info).unwrap();
-    let id = info.match_notification_id;
-    let answer = info.ans;
-    let token = info.token.clone();
-
-    match DATABASE!(data).respond_to_match(id, answer, token)
-    {
-        Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => HttpResponse::Ok().json(response_error(e)),
-    }
-}
-
 #[post("/login")]
 async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
@@ -229,7 +217,6 @@ async fn get_all_users(
     }
 }
 
-use std::convert::TryFrom;
 #[get("/notifications")]
 fn get_notifications(
     data: web::Data<Arc<Mutex<DataBase>>>,
@@ -239,9 +226,9 @@ fn get_notifications(
     let _type = info.r#type.clone();
     let token = info.token.clone();
 
-    NotificationType::try_from(_type).map_or(
+    NotificationType::try_from(_type.clone()).map_or(
         HttpResponse::Ok().json(
-            json!({"status": 69, "result": format!("no notification type matching {}", token)}),
+            json!({"status": 69, "result": format!("no notification type matching {}", _type)}),
         ),
         |t| match DATABASE!(data).get_notifications(t, token)
         {
@@ -251,29 +238,17 @@ fn get_notifications(
     )
 }
 
-#[post("/respond-to-user-notification")]
-async fn respond_to_new_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+#[post("/notifications")]
+fn respond_to_notification(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
-    let info: AdminNotificationAns = serde_json::from_str(&info).unwrap();
-    match DATABASE!(data).respond_to_new_user(info)
-    {
-        Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => HttpResponse::Ok().json(response_error(e)),
-    }
-}
-
-#[post("/respond-to-reset-password-notification")]
-async fn respond_to_reset_password(
-    data: web::Data<Arc<Mutex<DataBase>>>,
-    info: String,
-) -> HttpResponse
-{
-    let info: AdminNotificationAns = serde_json::from_str(&info).unwrap();
-    match DATABASE!(data).respond_to_reset_password(info)
-    {
-        Ok(_) => HttpResponse::Ok().json(response_ok()),
-        Err(e) => HttpResponse::Ok().json(response_error(e)),
-    }
+    NotificationAns::try_from(info).map_or(
+        HttpResponse::Ok().json(json!({"status": 69, "result": "invalid notification type"})),
+        |notification_ans| match DATABASE!(data).respond_to_notification(notification_ans)
+        {
+            Ok(_) => HttpResponse::Ok().json(response_ok()),
+            Err(e) => HttpResponse::Ok().json(response_error(e)),
+        },
+    )
 }
 
 #[get("/history")]
@@ -562,9 +537,6 @@ async fn main() -> std::io::Result<()>
             .service(get_users)
             .service(get_all_users)
             .service(register_match)
-            .service(respond_to_match)
-            .service(respond_to_new_user)
-            .service(respond_to_reset_password)
             .service(get_history)
             .service(get_edit_history)
             .service(get_is_admin)
@@ -585,6 +557,7 @@ async fn main() -> std::io::Result<()>
             .service(set_variable)
             .service(get_season_start_date)
             .service(get_notifications)
+            .service(respond_to_notification)
     });
 
     if cfg!(debug_assertions)

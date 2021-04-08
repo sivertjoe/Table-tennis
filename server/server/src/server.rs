@@ -13,8 +13,8 @@ use super::{
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
-        AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
-        Notification, NotificationType,
+        AdminNotification, MatchNotification, MatchNotificationTable, Notification,
+        NotificationAns, NotificationType,
     },
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
@@ -450,34 +450,34 @@ impl DataBase
         Ok(map)
     }
 
-    pub fn respond_to_new_user(&self, not: AdminNotificationAns) -> ServerResult<()>
+    pub fn respond_to_new_user(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(not.token.clone())?
+        if !self.get_is_admin(token.clone())?
         {
             return Err(ServerError::Unauthorized);
         }
 
         // No match is being accepted, but the ans values are the same Xdd
-        if not.ans == ACCEPT_REQUEST
+        if ans == ACCEPT_REQUEST
         {
-            self.create_user_from_notification(not.id)?;
+            self.create_user_from_notification(id)?;
         }
-        self.delete_new_user_notification(not.id)?;
+        self.delete_new_user_notification(id)?;
         Ok(())
     }
 
-    pub fn respond_to_reset_password(&self, info: AdminNotificationAns) -> ServerResult<()>
+    pub fn respond_to_reset_password(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(info.token.clone())?
+        if !self.get_is_admin(token.clone())?
         {
             return Err(ServerError::Unauthorized);
         }
 
-        if info.ans == ACCEPT_REQUEST
+        if ans == ACCEPT_REQUEST
         {
-            self.reset_password(info.id)?;
+            self.reset_password(id)?;
         }
-        self.delete_reset_password_notification(info.id)?;
+        self.delete_reset_password_notification(id)?;
         Ok(())
     }
 
@@ -537,7 +537,23 @@ impl DataBase
             {
                 Ok(Notification::Admin(self.get_admin_notifications(token)?))
             },
-            NotificationType::Match => Ok(Notification::Match(self.get_match_notifications(token)?)),
+            NotificationType::Match =>
+            {
+                Ok(Notification::Match(self.get_match_notifications(token)?))
+            },
+        }
+    }
+
+    pub fn respond_to_notification(&self, not: NotificationAns) -> ServerResult<()>
+    {
+        match not
+        {
+            NotificationAns::Match(id, token, ans) => self.respond_to_match(id, ans, token),
+            NotificationAns::NewUser(id, token, ans) => self.respond_to_new_user(id, ans, token),
+            NotificationAns::ResetPassword(id, token, ans) =>
+            {
+                self.respond_to_reset_password(id, ans, token)
+            },
         }
     }
 }
