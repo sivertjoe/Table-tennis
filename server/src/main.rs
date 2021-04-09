@@ -218,7 +218,7 @@ async fn get_all_users(
 }
 
 #[get("/notifications")]
-fn get_notifications(
+async fn get_notifications(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: web::Query<NotificationInfo>,
 ) -> HttpResponse
@@ -239,7 +239,7 @@ fn get_notifications(
 }
 
 #[post("/notifications")]
-fn respond_to_notification(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+async fn respond_to_notification(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     NotificationAns::try_from(info).map_or(
         HttpResponse::Ok().json(json!({"status": 69, "result": "invalid notification type"})),
@@ -469,7 +469,7 @@ struct SqlCommand
 }
 
 #[post("admin/execute-sql")]
-fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+async fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: SqlCommand = serde_json::from_str(&info).unwrap();
     let s = DATABASE!(data);
