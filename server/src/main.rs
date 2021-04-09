@@ -239,7 +239,10 @@ async fn get_notifications(
 }
 
 #[post("/notifications")]
-async fn respond_to_notification(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+async fn respond_to_notification(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    info: String,
+) -> HttpResponse
 {
     NotificationAns::try_from(info).map_or(
         HttpResponse::Ok().json(json!({"status": 69, "result": "invalid notification type"})),
