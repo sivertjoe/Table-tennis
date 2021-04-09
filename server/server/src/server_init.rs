@@ -8,7 +8,7 @@ impl DataBase
     {
         let conn = match Connection::open(file)
         {
-            Err(e) => panic!(format!("Could not create connection, {}", e)),
+            Err(_) => panic!("Could not create connection"),
             Ok(c) => c,
         };
 

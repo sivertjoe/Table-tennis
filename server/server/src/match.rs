@@ -49,11 +49,3 @@ pub struct MatchInfo
     pub loser:  String,
     pub token:  String,
 }
-
-#[derive(Debug, Deserialize)]
-pub struct MatchResponse
-{
-    pub match_notification_id: i64,
-    pub ans:                   u8,
-    pub token:                 String,
-}

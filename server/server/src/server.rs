@@ -13,7 +13,8 @@ use super::{
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
-        AdminNotification, AdminNotificationAns, MatchNotification, MatchNotificationTable,
+        AdminNotification, MatchNotification, MatchNotificationTable, Notification,
+        NotificationAns, NotificationType,
     },
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
@@ -412,7 +413,7 @@ impl DataBase
         Ok(())
     }
 
-    pub fn get_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
+    pub fn get_match_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
         let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
         let sql = "select * from
@@ -449,34 +450,34 @@ impl DataBase
         Ok(map)
     }
 
-    pub fn respond_to_new_user(&self, not: AdminNotificationAns) -> ServerResult<()>
+    pub fn respond_to_new_user(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(not.token.clone())?
+        if !self.get_is_admin(token.clone())?
         {
             return Err(ServerError::Unauthorized);
         }
 
         // No match is being accepted, but the ans values are the same Xdd
-        if not.ans == ACCEPT_REQUEST
+        if ans == ACCEPT_REQUEST
         {
-            self.create_user_from_notification(not.id)?;
+            self.create_user_from_notification(id)?;
         }
-        self.delete_new_user_notification(not.id)?;
+        self.delete_new_user_notification(id)?;
         Ok(())
     }
 
-    pub fn respond_to_reset_password(&self, info: AdminNotificationAns) -> ServerResult<()>
+    pub fn respond_to_reset_password(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(info.token.clone())?
+        if !self.get_is_admin(token.clone())?
         {
             return Err(ServerError::Unauthorized);
         }
 
-        if info.ans == ACCEPT_REQUEST
+        if ans == ACCEPT_REQUEST
         {
-            self.reset_password(info.id)?;
+            self.reset_password(id)?;
         }
-        self.delete_reset_password_notification(info.id)?;
+        self.delete_reset_password_notification(id)?;
         Ok(())
     }
 
@@ -522,6 +523,38 @@ impl DataBase
             };
         }
         Ok(vec)
+    }
+
+    pub fn get_notifications(
+        &self,
+        t: NotificationType,
+        token: String,
+    ) -> ServerResult<Notification>
+    {
+        match t
+        {
+            NotificationType::Admin =>
+            {
+                Ok(Notification::Admin(self.get_admin_notifications(token)?))
+            },
+            NotificationType::Match =>
+            {
+                Ok(Notification::Match(self.get_match_notifications(token)?))
+            },
+        }
+    }
+
+    pub fn respond_to_notification(&self, not: NotificationAns) -> ServerResult<()>
+    {
+        match not
+        {
+            NotificationAns::Match(id, token, ans) => self.respond_to_match(id, ans, token),
+            NotificationAns::NewUser(id, token, ans) => self.respond_to_new_user(id, ans, token),
+            NotificationAns::ResetPassword(id, token, ans) =>
+            {
+                self.respond_to_reset_password(id, ans, token)
+            },
+        }
     }
 }
 
@@ -1117,11 +1150,8 @@ mod test
             .get("new_users")
             .unwrap()[0]
             .id;
-        let answer =
-            AdminNotificationAns {
-                id: id, token: admin_token.clone(), ans: ACCEPT_REQUEST
-            };
-        s.respond_to_new_user(answer).unwrap();
+
+        s.respond_to_new_user(id, ACCEPT_REQUEST, admin_token.clone()).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp01");
         assert_eq!(
