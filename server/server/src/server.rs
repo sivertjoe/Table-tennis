@@ -1150,11 +1150,8 @@ mod test
             .get("new_users")
             .unwrap()[0]
             .id;
-        let answer =
-            AdminNotificationAns {
-                id: id, token: admin_token.clone(), ans: ACCEPT_REQUEST
-            };
-        s.respond_to_new_user(answer).unwrap();
+
+        s.respond_to_new_user(id, ACCEPT_REQUEST, admin_token.clone()).unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file temp01");
         assert_eq!(
