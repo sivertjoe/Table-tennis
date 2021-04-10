@@ -402,7 +402,7 @@ impl DataBase
         let user_id = self.get_user_without_matches(&name)?.id;
         let params = named_params! {":id": user_id};
         let notification = SQL_TUPLE_NAMED!(self, sql, params, i64)?;
-        if notification.len() == 0
+        if notification.len() > 0
         {
             return Err(ServerError::ResetPasswordDuplicate);
         }
@@ -1639,5 +1639,41 @@ mod test
         let users = s.get_multiple_users(vec.clone()).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         users.into_iter().for_each(|u| assert!(vec.contains(&u.name)));
+    }
+
+    #[test]
+    fn test_reset_password_creates_notification()
+    {
+        let db_file = "tempJ2.db";
+        let s = DataBase::new(db_file);
+        let user = "Sivert".to_string();
+        create_user(&s, user.as_str());
+
+        let res = s.request_reset_password(user.clone());
+        let res2 = s.request_reset_password(user.clone());
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(res.is_ok());
+        assert!(res2.is_err());
+    }
+
+    #[test]
+    fn test_reset_password_can_reset()
+    {
+        let db_file = "tempJ3.db";
+        let s = DataBase::new(db_file);
+        let user = "Sivert".to_string();
+        let token = create_user(&s, user.as_str());
+        s.make_user_admin(user.clone()).unwrap();
+        s.request_reset_password(user.clone()).unwrap();
+
+        let not = NotificationAns::ResetPassword(1, token, ACCEPT_REQUEST);
+        s.respond_to_notification(not).unwrap();
+        let res = s.login(user, "@uit".to_string());
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(res.is_ok());
     }
 }
