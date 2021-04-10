@@ -1335,7 +1335,8 @@ mod test
 
         let uuid = s.login(name, password);
         std::fs::remove_file(db_file).expect("Removing file temp");
-        assert!(uuid.is_ok(), uuid.unwrap().len() == 36);
+        assert!(uuid.is_ok());
+        assert!(uuid.unwrap().len() == 36);
     }
 
     #[test]
