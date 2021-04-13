@@ -1564,6 +1564,32 @@ mod test
     }
 
     #[test]
+    fn edit_matches_in_correct_order()
+    {
+        let db_file = "tempI1.db";
+        let s = DataBase::new(db_file);
+        let uuid = create_user(&s, "Sivert");
+        s.make_user_admin("Sivert".to_string()).expect("Making admin");
+        create_user(&s, "Lars");
+
+        let winner = "Sivert".to_string();
+        let loser = "Lars".to_string();
+
+
+        s.register_match(winner.clone(), loser.clone(), uuid.clone())
+            .expect("Creating match");
+        respond_to_match(&s, "Lars", 1);
+
+        s.register_match(loser.clone(), winner.clone(), uuid.clone())
+            .expect("Creating match");
+        respond_to_match(&s, "Lars", 2);
+
+        let vec = s.get_edit_match_history().unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(vec.get(0).unwrap().winner, loser);
+    }
+
+    #[test]
     fn test_can_edit_matches()
     {
         let db_file = "tempI.db";
@@ -1579,7 +1605,6 @@ mod test
         s.register_match(winner.clone(), loser.clone(), uuid.clone())
             .expect("Creating match");
         respond_to_match(&s, "Lars", 1);
-
 
         let info = NewEditMatchInfo {
             token:  uuid,
@@ -1676,5 +1701,55 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_get_stats_between_users()
+    {
+        let db_file = "tempJ4.db";
+        let s = DataBase::new(db_file);
+        let user1 = "Sivert".to_string();
+        let user2 = "Markus".to_string();
+        let token1 = create_user(&s, user1.as_str());
+        let token2 = create_user(&s, user2.as_str());
+
+        let user1_wins = 3;
+        let user2_wins = 1;
+
+        s.start_new_season().unwrap();
+
+        s.register_match(user1.clone(), user2.clone(), token1.clone()).unwrap();
+        s.respond_to_match(1, ACCEPT_REQUEST, token2.clone()).unwrap();
+
+        s.end_season().unwrap();
+        s.start_new_season().unwrap();
+
+
+        s.register_match(user1.clone(), user2.clone(), token1.clone()).unwrap();
+        s.respond_to_match(2, ACCEPT_REQUEST, token2.clone()).unwrap();
+
+        s.register_match(user1.clone(), user2.clone(), token1.clone()).unwrap();
+        s.respond_to_match(3, ACCEPT_REQUEST, token2.clone()).unwrap();
+
+        s.register_match(user2.clone(), user1.clone(), token1.clone()).unwrap();
+        s.respond_to_match(4, ACCEPT_REQUEST, token2.clone()).unwrap();
+
+        let info = StatsUsers {
+            user1: user1.clone(), user2: user2.clone()
+        };
+
+        let stats = s.get_stats(info).unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        let current = stats.get("current").unwrap();
+        let rest = stats.get("rest").unwrap();
+
+        let mut map = HashMap::new();
+        for ma in current.into_iter().chain(rest.into_iter())
+        {
+            *map.entry(&ma.winner).or_insert(0) += 1;
+        }
+        assert_eq!(*map.get(&user1).unwrap(), user1_wins);
+        assert_eq!(*map.get(&user2).unwrap(), user2_wins);
     }
 }
