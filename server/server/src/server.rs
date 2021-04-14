@@ -368,7 +368,7 @@ impl DataBase
         let sql = "select a.name as winner, b.name as loser, epoch, m.id as id from matches as m
              inner join users as a on a.id = winner
              inner join users as b on b.id = loser
-             order by epoch;";
+             order by epoch desc;";
 
         self.sql_many(sql, None)
     }
