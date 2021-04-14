@@ -10,19 +10,6 @@ impl DataBase
 {
     pub fn roll_back(&self, time: i64) -> ServerResult<()>
     {
-        self.conn.execute("BEGIN TRANSACTION;", NO_PARAMS)?;
-        if let Err(e) = self._roll_back(time)
-        {
-            self.conn.execute("ROLLBACK;", NO_PARAMS)?;
-            return Err(e);
-        }
-
-        self.conn.execute("COMMIT;", NO_PARAMS)?;
-        Ok(())
-    }
-
-    fn _roll_back(&self, time: i64) -> ServerResult<()>
-    {
         let elo = EloRank {
             k: 32
         };
