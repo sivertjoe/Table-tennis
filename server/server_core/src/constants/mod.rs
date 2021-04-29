@@ -10,6 +10,7 @@ const DECLINE_REQUEST: u8 = 2;
 
 pub const STOP_SEASON: i64 = -1;
 pub const START_SEASON: i64 = -2;
+pub const CANCEL_SEASON: i64 = -3;
 
 pub const N_SEASON_ID: u32 = 1;
 pub const IS_SEASON_ID: u32 = 2;

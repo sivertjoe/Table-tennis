@@ -15,7 +15,7 @@ use server::{
     RequestResetPassword, StatsUsers,
 };
 use server_core::{
-    constants::{START_SEASON, STOP_SEASON},
+    constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
     types::ServerError,
 };
 
@@ -413,9 +413,9 @@ fn change_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String, val: i64) 
                 {
                     DATABASE!(data).start_new_season().expect("Starting new season");
                 },
-                STOP_SEASON =>
+                STOP_SEASON | CANCEL_SEASON =>
                 {
-                    DATABASE!(data).end_season().expect("Ending season");
+                    DATABASE!(data).end_season(val == STOP_SEASON).expect("Ending season");
                 },
                 _ =>
                 {},
@@ -439,6 +439,12 @@ async fn start_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
 async fn stop_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     change_season(data, info, STOP_SEASON)
+}
+
+#[post("/cancel_season")]
+async fn cancel_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    change_season(data, info, CANCEL_SEASON)
 }
 
 #[get("/leaderboard_info")]
@@ -552,6 +558,7 @@ async fn main() -> std::io::Result<()>
             .service(set_season_length)
             .service(stop_season)
             .service(start_season)
+            .service(cancel_season)
             .service(get_leaderboard_info)
             .service(get_stats)
             .service(get_multiple_users)
