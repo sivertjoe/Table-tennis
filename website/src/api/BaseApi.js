@@ -17,8 +17,12 @@ const parseResponse = (response) => {
 export const get = (url) =>
   fetch(apiUrl + url).then((res) => parseResponse(res))
 
-export const post = (url, body) =>
+const _post = (url, body) =>
   fetch(apiUrl + url, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: body,
   }).then((res) => parseResponse(res))
+
+export const post = (url, body) => _post(url, JSON.stringify(body))
+
+export const postFormData = (url, body) => _post(url, body)
