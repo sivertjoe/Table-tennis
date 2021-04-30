@@ -1,8 +1,6 @@
 export const getDateTime = (ms) => {
   const d = new Date(ms)
-  return (
-    `${d.getDate()}/${d.getMonth() + 1} ` + `${d.getHours()}:${d.getMinutes()}`
-  )
+  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d.getMinutes()}`
 }
 
 export const getShortDate = (ms) => {
