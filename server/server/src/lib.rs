@@ -12,9 +12,11 @@ mod server_season;
 mod sql_executor;
 mod test_util;
 mod user;
+mod tournament;
 
 
 pub use badge::*;
+pub use tournament::*;
 pub use r#match::*;
 pub use notification::*;
 pub use process::*;

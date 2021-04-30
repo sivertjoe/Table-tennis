@@ -142,6 +142,62 @@ impl DataBase
         )
         .expect("Create variables table");
 
+        conn.execute(
+            "create table if not exists tournaments (
+                id              integer primary key,
+                name            varchar(36),
+                prize           integer,
+                state           smallint,
+                player_count    integer,
+                organizer       integer
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_lists (
+                id                      integer primary key,
+                player                  integer,
+                tournament              integer,
+                foreign key(player)     references users(id),
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_games (
+                id                      integer primary key,
+                bucket                   integer,
+                player1                  integer,
+                player2                  integer,
+                tournament              integer,
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_matchs (
+                id                      integer primary key,
+                winner                  integer,
+                loser                  integer,
+                tournament_game              integer,
+                foreign key(winner)     references users(id),
+                foreign key(loser)     references users(id),
+                foreign key(tournament_game) references tournament_games(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+
+
+
+
         DataBase {
             conn: conn
         }
