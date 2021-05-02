@@ -46,7 +46,7 @@ pub struct TournamentList
     pub player:    i64,
 }
 
-#[derive(Debug, Sql)]
+#[derive(Debug, Sql, PartialEq)]
 pub struct TournamentGame
 {
     pub id:        i64,
@@ -68,6 +68,28 @@ impl TournamentGame
             bucket: bucket
         }
     }
+
+    fn players(tid: i64, bucket: i64, p1: i64, p2: i64) -> Self
+    {
+        TournamentGame {
+            id: -1, // Will be initialized by sqlite
+            tournament: tid,
+            player1: p1,
+            player2: p2,
+            bucket: bucket
+        }
+    }
+
+    fn is_empty(&self) -> bool
+    {
+        self.player1 == -1 && self.player2 == -1
+    }
+
+    fn is_single(&self) -> bool
+    {
+        (self.player1 == -1 && self.player2 != -1) ||
+            (self.player1 != -1 && self.player2 == -1)
+    }
 }
 
 #[derive(Debug, Sql)]
@@ -79,6 +101,24 @@ pub struct TournamentMatch
     pub tournament_game: i64
 }
 
+// Helper functions when creating the matchups
+fn parent_index(i: usize) -> usize
+{
+    (i - 1) / 2
+}
+
+fn get_neighbour(i: usize) -> usize
+{
+    if i & 1 == 1
+    {
+        i + 1
+    }
+    else
+    {
+        i - 1
+    }
+
+}
 
 impl DataBase
 {
@@ -150,14 +190,72 @@ impl DataBase
     fn find_first_empty_bucke<'a>(&self, games: &'a mut Vec<TournamentGame>) -> Option<&'a mut TournamentGame>
     {
             games.iter_mut()
+                .rev()
                 .find(|g| g.player1 == -1 && g.player2 == -1)
     }
-    fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
-    {
-        let biggest_power_of_two = ((people.len() as f32).ln() / 2.0_f32.ln()).ceil() as u32;
-        let n_buckets = 2_usize.pow(biggest_power_of_two) - 1;
 
-        let mut games = (0..n_buckets).map(|i| TournamentGame::empty(tournament.id, i as i64)).collect();
+    fn swap_game_matchups(&self, vec: &mut Vec<TournamentGame>, index1: usize, index2: usize)
+    {
+        let temp = (vec[index1].player1, vec[index1].player2);
+
+        vec[index1].player1 = vec[index2].player1;
+        vec[index1].player2 = vec[index2].player2;
+
+        vec[index2].player1 = temp.0;
+        vec[index2].player2 = temp.1;
+    }
+
+    fn forward_player(&self, vec: &mut Vec<TournamentGame>, index: usize)
+    {
+        let parent = parent_index(index);
+        let player = if vec[index].player1 == -1 { vec[index].player2 } else { vec[index].player1 };
+        vec[index].player1 = -1;
+        vec[index].player2 = -1;
+
+        if vec[parent].player1 == -1
+        {
+            vec[parent].player1 = player;
+        }
+        else
+        {
+            vec[parent].player2 = player;
+        }
+    }
+    fn advance_game(&self, vec: &mut Vec<TournamentGame>, index: usize)
+    {
+        if index == 0
+        {
+            return;
+        }
+
+        let parent = parent_index(index);
+        if vec[parent].is_empty()
+        {
+            self.swap_game_matchups(vec, index, parent);
+        }
+        else
+        {
+            self.forward_player(vec, index);
+        }
+    }
+
+    fn spread_game(&self, games: &mut Vec<TournamentGame>, index: usize)
+    {
+        games[index + 1].player2 = games[index].player2;
+        games[index].player2 = -1;
+    }
+
+    fn find_first_index_of_single_bucket(&self, games: &Vec<TournamentGame>) -> Option<usize>
+    {
+        games.iter()
+            .enumerate()
+            .rev()
+            .find(|(_i, g)| g.is_single())
+            .map(|(i, _t)| i)
+    }
+
+    fn fill_buckets(&self, games: &mut Vec<TournamentGame>, people: &Vec<i64>)
+    {
         for users in people.chunks(2)
         {
             if users.len() != 2
@@ -165,23 +263,95 @@ impl DataBase
                 break;
             }
             let (u1, u2) = (&users[0], &users[1]);
-            let bucket = self.find_first_empty_bucke(&mut games).expect("Could not find empty bucket");
+            let bucket = self.find_first_empty_bucke(games).expect("Could not find empty bucket");
             bucket.player1 = *u1;
             bucket.player2 = *u2;
         }
 
         if (people.len() & 1) == 1
         {
-            let bucket = self.find_first_empty_bucke(&mut games).expect("Could not find empty bucket");
+            let bucket = self.find_first_empty_bucke(games).expect("Could not find empty bucket");
             let last = people.last().expect("No last, ???");
             bucket.player1 = *last;
         }
+
+    }
+    fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
+    {
+        let biggest_power_of_two = ((people.len() as f32).ln() / 2.0_f32.ln()).ceil() as u32;
+        let n_buckets = 2_usize.pow(biggest_power_of_two) - 1;
+
+        let mut games = (0..n_buckets).map(|i| TournamentGame::empty(tournament.id, i as i64)).collect();
+        self.fill_buckets(&mut games, people);
+
+        if people.len() == n_buckets + 1 as usize
+        {
+            // Greate! we're done
+            return games;
+        }
+
+        // Ok, now we have generate the tournament structure, problem is that it's kind of shit,
+        // for example, suppose a tournament of 5, it would look like this:
+        //  (x denote player, o empty spot)
+        //
+        // x                x
+        //  --|         |--
+        // x                o
+        //    o         o
+        //     -- o o --
+        //    o         o
+        // x                o
+        //  --|         |--
+        // x                o
+        //
+        // Basically a four man tournament + 1 guy automatically in the final. This is boring, a
+        // better structure would be something like this:
+        //
+        // x                x
+        //  --|         |--
+        // x                x
+        //    o         o
+        //     -- o o --
+        //    o         o
+        // x                o
+        //  --|         |--
+        // o                o
+        //
+        // This way, one guy is not automatically in the final.
+
+        // If it's even it's fine
+        if let Some(index) = self.find_first_index_of_single_bucket(&games)
+        {
+            let neighbour = get_neighbour(index);
+
+            let first_index = n_buckets - 1;
+            self.swap_game_matchups(&mut games, first_index, index);
+            if games[neighbour].is_empty()
+            {
+                let next = index + 1;
+                self.swap_game_matchups(&mut games, next, neighbour);
+                self.spread_game(&mut games, index);
+            }
+        }
+
+        // Forward players that 'skips' a round
+        let lim = ((n_buckets + 2) / 2) - 1;
+        for i in (lim..n_buckets).rev()
+        {
+            let parent = parent_index(i);
+            let neighbour = get_neighbour(i);
+            if games[i].is_single() || (games[neighbour].is_empty() && !games[i].is_empty() && games[parent].is_empty())
+            {
+                self.advance_game(&mut games, i);
+            }
+        }
+
         games
+
     }
 
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>) -> ServerResult<()>
     {
-        //@TODO: How to generate??
         let games = self.generate_buckets(&tournament, &people);
 
         for bucket in games
@@ -305,7 +475,6 @@ mod test
         let res = s.join_tournament(token, tid);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        println!("{:?}", res);
 
         assert!(res.is_ok() && !res.unwrap());
     }
@@ -389,6 +558,7 @@ mod test
     {
         let db_file = "tempT10.db";
         let s = DataBase::new(db_file);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
 
         let vec4: Vec<i64> = (0..4).collect();
         let vec8: Vec<i64> = (0..8).collect();
@@ -396,7 +566,7 @@ mod test
         let vec = vec![vec4, vec8, vec16];
         let tournament = Tournament { id: 0, state: 0, player_count: 0, name: String::new(), prize: 0, organizer: 0 };
 
-        let vec_ok = |vec| s.generate_buckets(&tournament, &vec).into_iter().take(vec.len() / 2).all(|g| g.player1 != -1 && g.player2 != -1);
+        let vec_ok = |vec| s.generate_buckets(&tournament, &vec).into_iter().rev().take(vec.len() / 2).all(|g| g.player1 != -1 && g.player2 != -1);
 
         assert!(vec.into_iter().all(vec_ok));
     }
@@ -406,25 +576,83 @@ mod test
     {
         let db_file = "tempT11.db";
         let s = DataBase::new(db_file);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        let vec5: Vec<i64> = (0..5).collect();
-        let vec12: Vec<i64> = (0..13).collect();
-        let vec25: Vec<i64> = (0..25).collect();
-        let vec = vec![vec5, vec12, vec25];
         let tournament = Tournament { id: 0, state: 0, player_count: 0, name: String::new(), prize: 0, organizer: 0 };
+        let tid = tournament.id;
 
-        let vec_ok = |vec: Vec<_>|
+
+
+        // First check vec5
+        let vec5: Vec<i64> = (0..5).collect();
+        let vec5_ans = vec![
+            //final
+            TournamentGame::players(tid, 0, -1, -1),
+            // Semis
+            TournamentGame::players(tid, 1, 0, -1),
+            TournamentGame::players(tid, 2, 4, 1),
+
+            // playoffs
+            //
+            TournamentGame::players(tid, 3, 2, 3),
+            TournamentGame::players(tid, 4, -1, -1),
+            TournamentGame::players(tid, 5, -1, -1),
+            TournamentGame::players(tid, 6, -1, -1),
+        ];
+        let gen5 = s.generate_buckets(&tournament, &vec5);
+        assert_eq!(gen5, vec5_ans);
+
+        // Check vec13
+        let vec13: Vec<i64> = (0..13).collect();
+        let vec13_ans = vec![
+            TournamentGame::players(tid, 0, -1, -1),
+            TournamentGame::players(tid, 1, -1, -1),
+            TournamentGame::players(tid, 2, -1, -1),
+            TournamentGame::players(tid, 3, 0, -1),
+            TournamentGame::players(tid, 4, -1, 1),
+            TournamentGame::players(tid, 5, -1, -1),
+            TournamentGame::players(tid, 6, 12, -1),
+            TournamentGame::players(tid, 7, 10, 11),
+            TournamentGame::players(tid, 8, -1, -1),
+            TournamentGame::players(tid, 9, -1, -1),
+            TournamentGame::players(tid, 10, 8, 9),
+            TournamentGame::players(tid, 11, 6, 7),
+            TournamentGame::players(tid, 12, 4, 5),
+            TournamentGame::players(tid, 13, 2, 3),
+            TournamentGame::players(tid, 14, -1, -1),
+        ];
+
+        let gen13 = s.generate_buckets(&tournament, &vec13);
+
+        /*vec13_ans.iter().zip(gen13.iter()).for_each(|(v, g)|
         {
-            let take_amount = (vec.len() as f32 / 2.0).ceil() as usize -1;
-            let buckets = s.generate_buckets(&tournament, &vec).into_iter();
-            let first = buckets.take(take_amount).all(|g| g.player1 != -1 && g.player2 != -1);
-            let buckets = s.generate_buckets(&tournament, &vec).into_iter();
-            let second = buckets.skip(take_amount).take(1).all(|g| g.player1 != g.player2);
+            println!("predict: {:?}, generate: {:?}", (v.bucket, v.player1, v.player2), (g.bucket, g.player1, g.player2));
+        });*/
+        assert_eq!(gen13, vec13_ans);
 
-            first && second
-        };
 
-        assert!(vec.into_iter().all(vec_ok));
+        // Check vec6
+        let vec6: Vec<i64> = (0..6).collect();
+        let vec6_ans = vec![
+            //final
+            TournamentGame::players(tid, 0, -1, -1),
+            // Semis
+            TournamentGame::players(tid, 1, 4, 5),
+            TournamentGame::players(tid, 2, -1, -1),
+
+            // playoffs
+            //
+            TournamentGame::players(tid, 3, -1, -1),
+            TournamentGame::players(tid, 4, -1, -1),
+            TournamentGame::players(tid, 5, 2, 3),
+            TournamentGame::players(tid, 6, 0, 1),
+        ];
+        let gen6 = s.generate_buckets(&tournament, &vec6);
+        vec6_ans.iter().zip(gen6.iter()).for_each(|(v, g)|
+        {
+            println!("predict: {:?}, generate: {:?}", (v.bucket, v.player1, v.player2), (g.bucket, g.player1, g.player2));
+        });
+        assert_eq!(gen6, vec6_ans);
     }
 
     #[test]
