@@ -20,9 +20,17 @@ export const get = (url) =>
 const _post = (url, body) =>
   fetch(apiUrl + url, {
     method: 'POST',
-    body: body,
+    body: JSON.stringify(body),
   }).then((res) => parseResponse(res))
 
-export const post = (url, body) => _post(url, JSON.stringify(body))
+export const post = (url, body) => _post(url, body)
 
-export const postFormData = (url, body) => _post(url, body)
+const convertImage = (image) =>
+  new Promise((resolve, _) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.readAsBinaryString(image)
+  })
+
+export const postImage = (url, body) =>
+  convertImage(body.image).then((img) => _post(url, { ...body, image: img }))
