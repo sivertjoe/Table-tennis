@@ -1055,7 +1055,12 @@ impl DataBase
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
-    pub fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
+    pub fn get_user_without_matches_by(
+        &self,
+        col: &str,
+        comp: &str,
+        val: &str,
+    ) -> ServerResult<User>
     {
         let sql =
             &format!("select id, name, elo, user_role from users where {} {} :val", col, comp);

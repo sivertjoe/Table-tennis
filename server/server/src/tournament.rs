@@ -18,42 +18,42 @@ pub enum TournamentState
 enum TournamentInfoState
 {
     Started(Vec<(String, String)>),
-    Created(Vec<String>)
+    Created(Vec<String>),
 }
 
 pub struct TournamentInfo
 {
     tournament: Tournament,
-    data: TournamentInfoState
+    data:       TournamentInfoState,
 }
 
 #[derive(Sql)]
 pub struct Tournament
 {
-    id: i64,
-    name: String,
-    prize: i64,
-    state: u8,
+    id:           i64,
+    name:         String,
+    prize:        i64,
+    state:        u8,
     player_count: i64,
-    organizer: i64
+    organizer:    i64,
 }
 
 #[derive(Debug, Sql)]
 pub struct TournamentList
 {
-    pub id:        i64,
+    pub id:         i64,
     pub tournament: i64,
-    pub player:    i64,
+    pub player:     i64,
 }
 
 #[derive(Debug, Sql, PartialEq)]
 pub struct TournamentGame
 {
-    pub id:        i64,
+    pub id:         i64,
     pub tournament: i64,
-    pub player1:     i64,
-    pub player2:     i64,
-    pub bucket: i64
+    pub player1:    i64,
+    pub player2:    i64,
+    pub bucket:     i64,
 }
 
 impl TournamentGame
@@ -61,11 +61,11 @@ impl TournamentGame
     fn empty(tid: i64, bucket: i64) -> Self
     {
         TournamentGame {
-            id: -1, // Will be initialized by sqlite
+            id:         -1, // Will be initialized by sqlite
             tournament: tid,
-            player1: -1,
-            player2: -1,
-            bucket: bucket
+            player1:    -1,
+            player2:    -1,
+            bucket:     bucket,
         }
     }
 
@@ -73,30 +73,22 @@ impl TournamentGame
     fn players(tid: i64, bucket: i64, p1: i64, p2: i64) -> Self
     {
         TournamentGame {
-            id: -1, // Will be initialized by sqlite
+            id:         -1, // Will be initialized by sqlite
             tournament: tid,
-            player1: p1,
-            player2: p2,
-            bucket: bucket
+            player1:    p1,
+            player2:    p2,
+            bucket:     bucket,
         }
     }
 
     fn get_single(&self) -> i64
     {
-        if self.player1 != -1
-        {
-            self.player1
-        }
-        else
-        {
-            self.player2
-        }
+        if self.player1 != -1 { self.player1 } else { self.player2 }
     }
 
     fn is_single(&self) -> bool
     {
-        (self.player1 == -1 && self.player2 != -1) ||
-            (self.player1 != -1 && self.player2 == -1)
+        (self.player1 == -1 && self.player2 != -1) || (self.player1 != -1 && self.player2 == -1)
     }
 
     fn insert_player(&mut self, player: i64)
@@ -115,10 +107,10 @@ impl TournamentGame
 #[derive(Debug, Sql)]
 pub struct TournamentMatch
 {
-    pub id:        i64,
-    pub winner:     i64,
-    pub loser:     i64,
-    pub tournament_game: i64
+    pub id:              i64,
+    pub winner:          i64,
+    pub loser:           i64,
+    pub tournament_game: i64,
 }
 
 impl DataBase
@@ -137,8 +129,8 @@ impl DataBase
         }
 
         self.conn.execute(
-            "insert into tournaments (name, prize, state, organizer, player_count) values \
-             (?1, ?2, ?3, ?4, ?5)",
+            "insert into tournaments (name, prize, state, organizer, player_count) values (?1, \
+             ?2, ?3, ?4, ?5)",
             params![name, prize, TournamentState::Created as i64, pid, player_count],
         )?;
         self.sql_one::<Tournament, _>("select * from tournaments order by id desc limit 1", None)
@@ -153,8 +145,8 @@ impl DataBase
             _params![tid],
         )?;
 
-        let tournament =
-            self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
         if tournament.state != TournamentState::Created as u8
         {
             return Err(ServerError::Tournament(TournamentError::WrongState));
@@ -184,12 +176,10 @@ impl DataBase
 
     pub fn generate_matchups(&self, mut people: Vec<i64>) -> Vec<i64>
     {
-        //@TODO: Get some kind of match up
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         people.shuffle(&mut rng);
         people
-
     }
 
     fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
@@ -197,34 +187,27 @@ impl DataBase
         let biggest_power_of_two = ((people.len() as f32).ln() / 2.0_f32.ln()).ceil() as u32;
         let power = 2_usize.pow(biggest_power_of_two);
 
-        let mut games: Vec<TournamentGame> = (0..power-1).map(|i| TournamentGame::empty(tournament.id, i as i64)).collect();
+        let mut games: Vec<TournamentGame> =
+            (0..power - 1).map(|i| TournamentGame::empty(tournament.id, i as i64)).collect();
 
-                                            // ???
-        for (player, i) in people.iter().zip(((power/2)-1..power-1).cycle())
+        // ???
+        for (player, i) in people.iter().zip(((power / 2) - 1..power - 1).cycle())
         {
             games[i].insert_player(*player);
         }
 
-        let advance_game = |games: &mut Vec<TournamentGame>,  i: usize|
-        {
+        let advance_game = |games: &mut Vec<TournamentGame>, i: usize| {
             let parent = (i - 1) / 2;
             let player = games[i].get_single();
 
             let parent_player =
-                if i & 1 == 1
-                {
-                    &mut games[parent].player1
-                }
-                 else {
-                     &mut games[parent].player2
-                };
+                if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
 
             *parent_player = player;
             games[i].player1 = -1;
             games[i].player2 = -1;
-
         };
-        for i in power / 2 - 1..power-1
+        for i in power / 2 - 1..power - 1
         {
             if games[i].is_single()
             {
@@ -232,16 +215,21 @@ impl DataBase
             }
         }
         games
-
     }
 
-    pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>) -> ServerResult<()>
+    pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
+        -> ServerResult<()>
     {
         let games = self.generate_buckets(&tournament, &self.generate_matchups(people));
 
         for bucket in games
         {
-            self.create_tournament_game(bucket.player1, bucket.player2, bucket.bucket, bucket.tournament)?;
+            self.create_tournament_game(
+                bucket.player1,
+                bucket.player2,
+                bucket.bucket,
+                bucket.tournament,
+            )?;
         }
 
         Ok(())
@@ -250,18 +238,19 @@ impl DataBase
     fn create_tournament_game(&self, u1: i64, u2: i64, bucket: i64, tid: i64) -> ServerResult<()>
     {
         self.conn.execute(
-            "insert into tournament_games (player1, player2, bucket, tournament) values (?1, ?2, ?3, ?4)",
-            params![u1, u2, bucket, tid])?;
+            "insert into tournament_games (player1, player2, bucket, tournament) values (?1, ?2, \
+             ?3, ?4)",
+            params![u1, u2, bucket, tid],
+        )?;
         Ok(())
     }
 
-
     fn add_player_to_tournament(&self, tid: i64, pid: i64) -> ServerResult<()>
     {
-        self.conn
-            .execute("insert into tournament_lists (tournament, player) values (?1, ?2)", params![
-                tid, pid
-            ])?;
+        self.conn.execute(
+            "insert into tournament_lists (tournament, player) values (?1, ?2)",
+            params![tid, pid],
+        )?;
         Ok(())
     }
 
@@ -274,52 +263,70 @@ impl DataBase
 
     fn update_tournament_state(&self, tid: i64, state: TournamentState) -> ServerResult<()>
     {
-        self.conn
-            .execute("update tournaments set state = ?1 where id = ?2", params![state as u8, tid])?;
+        self.conn.execute("update tournaments set state = ?1 where id = ?2", params![
+            state as u8,
+            tid
+        ])?;
         Ok(())
     }
 
     pub fn get_tournaments(&self) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
-        let t_infos: Vec<TournamentInfo> = tournaments.into_iter().map(|t|
-        {
-            if t.state == TournamentState::Created as u8
-            {
-                let players: Vec<String> = self.sql_many::<TournamentList, _>("select * from tournament_lists where tournament = ?1", _params![t.id]).unwrap()
-                                            .into_iter()
-                                            .map(|t| self.get_user_without_matches_by("id", "=", &t.player.to_string()).unwrap().name)
-                                            .collect();
-                TournamentInfo {
-                    tournament: t,
-                    data: TournamentInfoState::Created(players)
-                }
-            }
-            else
-            {
-                let h = |t: TournamentGame|
+        let t_infos: Vec<TournamentInfo> = tournaments
+            .into_iter()
+            .map(|t| {
+                if t.state == TournamentState::Created as u8
                 {
-                    let f = |id: i64|
-                        match self.get_user_without_matches_by("id", "=", &id.to_string())
+                    let players: Vec<String> = self
+                        .sql_many::<TournamentList, _>(
+                            "select * from tournament_lists where tournament = ?1",
+                            _params![t.id],
+                        )
+                        .unwrap()
+                        .into_iter()
+                        .map(|t| {
+                            self.get_user_without_matches_by("id", "=", &t.player.to_string())
+                                .unwrap()
+                                .name
+                        })
+                        .collect();
+                    TournamentInfo {
+                        tournament: t,
+                        data:       TournamentInfoState::Created(players),
+                    }
+                }
+                else
+                {
+                    let h = |t: TournamentGame| {
+                        let f = |id: i64| match self.get_user_without_matches_by(
+                            "id",
+                            "=",
+                            &id.to_string(),
+                        )
                         {
                             Ok(u) => u.name,
-                            Err(_) => String::from("")
+                            Err(_) => String::from(""),
                         };
-                    (f(t.player1), f(t.player2))
-                };
+                        (f(t.player1), f(t.player2))
+                    };
 
-                let players: Vec<(String, String)> =
-                    self.sql_many::<TournamentGame, _>("select * from tournament_games where tournament = ?1", _params![t.id]).unwrap()
+                    let players: Vec<(String, String)> = self
+                        .sql_many::<TournamentGame, _>(
+                            "select * from tournament_games where tournament = ?1",
+                            _params![t.id],
+                        )
+                        .unwrap()
                         .into_iter()
                         .map(h)
                         .collect();
-                TournamentInfo {
-                    tournament: t,
-                    data: TournamentInfoState::Started(players)
+                    TournamentInfo {
+                        tournament: t,
+                        data:       TournamentInfoState::Started(players),
+                    }
                 }
-            }
-        })
-        .collect();
+            })
+            .collect();
         Ok(t_infos)
     }
 }
@@ -402,7 +409,8 @@ mod test
         let re = s.join_tournament(token_e, tid);
 
         let tournament = s.sql_one::<Tournament, _>("select * from tournaments", None).unwrap();
-        let games = s.sql_many::<TournamentGame, _>("select * from tournament_games", None).unwrap();
+        let games =
+            s.sql_many::<TournamentGame, _>("select * from tournament_games", None).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(rs.is_ok() && !rs.unwrap());
@@ -449,9 +457,22 @@ mod test
         let vec8: Vec<i64> = (0..8).collect();
         let vec16: Vec<i64> = (0..16).collect();
         let vec = vec![vec4, vec8, vec16];
-        let tournament = Tournament { id: 0, state: 0, player_count: 0, name: String::new(), prize: 0, organizer: 0 };
+        let tournament = Tournament {
+            id:           0,
+            state:        0,
+            player_count: 0,
+            name:         String::new(),
+            prize:        0,
+            organizer:    0,
+        };
 
-        let vec_ok = |vec| s.generate_buckets(&tournament, &vec).into_iter().rev().take(vec.len() / 2).all(|g| g.player1 != -1 && g.player2 != -1);
+        let vec_ok = |vec| {
+            s.generate_buckets(&tournament, &vec)
+                .into_iter()
+                .rev()
+                .take(vec.len() / 2)
+                .all(|g| g.player1 != -1 && g.player2 != -1)
+        };
 
         assert!(vec.into_iter().all(vec_ok));
     }
@@ -463,7 +484,14 @@ mod test
         let s = DataBase::new(db_file);
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        let tournament = Tournament { id: 0, state: 0, player_count: 0, name: String::new(), prize: 0, organizer: 0 };
+        let tournament = Tournament {
+            id:           0,
+            state:        0,
+            player_count: 0,
+            name:         String::new(),
+            prize:        0,
+            organizer:    0,
+        };
         let tid = tournament.id;
 
 
@@ -476,9 +504,7 @@ mod test
             // Semis
             TournamentGame::players(tid, 1, -1, 1),
             TournamentGame::players(tid, 2, 2, 3),
-
             // playoffs
-            //
             TournamentGame::players(tid, 3, 0, 4),
             TournamentGame::players(tid, 4, -1, -1),
             TournamentGame::players(tid, 5, -1, -1),
@@ -518,13 +544,11 @@ mod test
             // Semis
             TournamentGame::players(tid, 1, -1, -1),
             TournamentGame::players(tid, 2, 2, 3),
-
             // playoffs
-            //
             TournamentGame::players(tid, 3, 0, 4),
             TournamentGame::players(tid, 4, 1, 5),
             TournamentGame::players(tid, 5, -1, -1),
-            TournamentGame::players(tid, 6, -1,-1),
+            TournamentGame::players(tid, 6, -1, -1),
         ];
         let gen6 = s.generate_buckets(&tournament, &vec6);
         assert_eq!(gen6, vec6_ans);
@@ -561,19 +585,21 @@ mod test
         let last = tournaments.remove(0);
 
 
-        let assert_func = |t: TournamentInfo|
-        {
+        let assert_func = |t: TournamentInfo| {
             if t.tournament.state == TournamentState::InProgress as u8
             {
                 match t.data
                 {
                     TournamentInfoState::Started(mut vec) =>
                     {
-                        let mut dummy = vec![("Ella".to_string(), "Bernt".to_string()), ("Sivert".to_string(), "Markus".to_string())];
+                        let mut dummy = vec![
+                            ("Ella".to_string(), "Bernt".to_string()),
+                            ("Sivert".to_string(), "Markus".to_string()),
+                        ];
                         assert_eq!(t.tournament.id, tid);
                         assert_eq!(dummy.sort(), vec.sort());
                     },
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
             else
@@ -585,7 +611,7 @@ mod test
                         assert_eq!(t.tournament.id, tid2);
                         assert_eq!(vec.len(), 2);
                     },
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
         };
