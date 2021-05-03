@@ -1721,7 +1721,7 @@ mod test
         s.register_match(user1.clone(), user2.clone(), token1.clone()).unwrap();
         s.respond_to_match(1, ACCEPT_REQUEST, token2.clone()).unwrap();
 
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
         s.start_new_season().unwrap();
 
 

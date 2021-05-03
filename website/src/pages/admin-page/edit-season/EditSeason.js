@@ -55,7 +55,6 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
   }
 
   start() {
@@ -65,7 +64,15 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
+  }
+
+  cancel() {
+    AdminApi.cancelSeason()
+      .then(() => {
+        this.successLabel = 'Canceled the season'
+        this.setState({})
+      })
+      .catch((error) => console.warn(error))
   }
 
   submit() {
@@ -75,7 +82,6 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
   }
 
   render() {
@@ -96,6 +102,10 @@ class EditSeason extends Component {
               <Button placeholder="Submit" callback={() => this.submit()} />
             </div>
             <br />
+            <Button
+              placeholder="Cancel Season"
+              callback={() => this.cancel()}
+            />
             <Button placeholder="Stop Season" callback={() => this.stop()} />
             <Button placeholder="Start Season" callback={() => this.start()} />
             <br />

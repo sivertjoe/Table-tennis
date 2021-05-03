@@ -46,6 +46,11 @@ export const startSeason = () =>
     token: localStorage.getItem('token'),
   })
 
+export const cancelSeason = () =>
+    BaseApi.post('cancel_season', {
+        token: localStorage.getItem('token'),
+    })
+
 export const executeSql = (str) =>
   BaseApi.post('admin/execute-sql', {
     token: localStorage.getItem('token'),
