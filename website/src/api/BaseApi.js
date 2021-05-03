@@ -29,7 +29,7 @@ const convertImage = (image) =>
   new Promise((resolve, _) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result)
-    reader.readAsBinaryString(image)
+    reader.readAsDataURL(image)
   })
 
 export const postImage = (url, body) =>

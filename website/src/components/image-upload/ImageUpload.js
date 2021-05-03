@@ -5,7 +5,7 @@ class ImageUpload extends Component {
   constructor(args) {
     super()
     this.onUpload = args.onUpload
-    this.maxSize = args.maxSize ?? 10000
+    this.maxSize = args.maxSize ?? 1000
     this._onUpload = this._onUpload.bind(this)
   }
 
@@ -26,7 +26,7 @@ class ImageUpload extends Component {
       <>
         <input
           type="file"
-          accept="image/*"
+          accept="image/png"
           onChange={this._onUpload}
           maxLength={this.maxSize}
         />
