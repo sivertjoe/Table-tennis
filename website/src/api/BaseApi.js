@@ -17,6 +17,8 @@ const parseResponse = (response) => {
 export const get = (url) =>
   fetch(apiUrl + url).then((res) => parseResponse(res))
 
+export const getImageUrl = (url) => apiUrl + 'assets/' + url
+
 const _post = (url, body) =>
   fetch(apiUrl + url, {
     method: 'POST',
