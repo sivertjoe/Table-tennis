@@ -1,4 +1,5 @@
 use rusqlite::params;
+use serde_derive::Deserialize;
 use server_core::types::{FromSql, *};
 use server_macro::Sql;
 
@@ -6,6 +7,16 @@ use crate::{
     _params,
     server::{DataBase, ParamsType},
 };
+
+
+#[derive(Deserialize)]
+pub struct CreateTournament
+{
+    organizer_token: String,
+    name:            String,
+    image:           String,
+    player_count:    i64,
+}
 
 #[repr(u8)]
 pub enum TournamentState

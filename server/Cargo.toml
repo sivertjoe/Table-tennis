@@ -21,6 +21,7 @@ lazy_static = "1.4.0"
 regex = "1.4.3"
 server = { path = "server" }
 server_core = { path = "server_core" }
+base64 = "0.13.0"
 
 [dependencies.rusqlite]
 version = "0.24.1"

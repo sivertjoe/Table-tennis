@@ -1695,6 +1695,7 @@ version = "0.1.0"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "base64 0.13.0",
  "chrono",
  "elo",
  "lazy_static",

@@ -10,9 +10,9 @@ use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
-    spawn_season_checker, ChangePasswordInfo, DataBase, DeleteMatchInfo, EditUsersInfo, LoginInfo,
-    MatchInfo, NewEditMatchInfo, NotificationAns, NotificationInfo, NotificationType,
-    RequestResetPassword, StatsUsers,
+    spawn_season_checker, ChangePasswordInfo, CreateTournament, DataBase, DeleteMatchInfo,
+    EditUsersInfo, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns, NotificationInfo,
+    NotificationType, RequestResetPassword, StatsUsers,
 };
 use server_core::{
     constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
@@ -337,6 +337,28 @@ async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
     }
 }
 
+
+#[post("/create-tournament")]
+async fn create_tournament(info: String) -> HttpResponse
+{
+    let info: CreateTournament = serde_json::from_str(&info).unwrap();
+    // match DATABASE!(data).create_tournament(info)
+    // {
+    //     Ok(users) => HttpResponse::Ok().json(response_ok_with(users)),
+    //     Err(e) => HttpResponse::Ok().json(response_error(e)),
+    // }
+    // let mut file = std::fs::OpenOptions::new()
+    //     .append(true)
+    //     .create(true)
+    //     .open("test.png")
+    //     .expect("creating file");
+
+    // let : Vec<&str> = info.image.as_str().splitn(2, ",").collect();
+    // let  = base64::decode(bin[1]).unwrap();
+    // file.write_all(&kuk).expect("Writing into file");
+    HttpResponse::Ok().json(response_ok())
+}
+
 #[get("/is-admin/{token}")]
 async fn get_is_admin(
     data: web::Data<Arc<Mutex<DataBase>>>,
@@ -568,6 +590,7 @@ async fn main() -> std::io::Result<()>
             .service(get_season_start_date)
             .service(get_notifications)
             .service(respond_to_notification)
+            .service(create_tournament)
     });
 
     if cfg!(debug_assertions)
