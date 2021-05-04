@@ -194,7 +194,14 @@ impl DataBase
         )
         .expect("Create variables table");
 
-
+        conn.execute(
+            "create table if not exists images (
+                id              integer primary key autoincrement,
+                name            varchar(9) not null
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables images");
 
 
 

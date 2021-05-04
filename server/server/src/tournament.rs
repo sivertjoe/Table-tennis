@@ -1,6 +1,11 @@
+use std::io::prelude::*;
+
 use rusqlite::params;
-use serde_derive::Deserialize;
-use server_core::types::{FromSql, *};
+use serde_derive::{Deserialize, Serialize};
+use server_core::{
+    constants::*,
+    types::{FromSql, *},
+};
 use server_macro::Sql;
 
 use crate::{
@@ -8,6 +13,20 @@ use crate::{
     server::{DataBase, ParamsType},
 };
 
+
+#[derive(Sql)]
+struct Image
+{
+    id:   i64,
+    name: String,
+}
+
+#[derive(Deserialize)]
+pub struct JoinTournament
+{
+    pub token: String,
+    pub tid:   i64,
+}
 
 #[derive(Deserialize)]
 pub struct CreateTournament
@@ -18,6 +37,15 @@ pub struct CreateTournament
     player_count:    i64,
 }
 
+#[derive(Deserialize)]
+pub struct RegisterTournamentMatch
+{
+    organizer_token: String,
+    winner:          String,
+    loser:           String,
+    tournament_game: i64,
+}
+
 #[repr(u8)]
 pub enum TournamentState
 {
@@ -25,20 +53,33 @@ pub enum TournamentState
     InProgress,
     Done,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Serialize)]
+#[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 enum TournamentInfoState
 {
-    Started(Vec<(String, String)>),
-    Created(Vec<String>),
+    Games(Vec<TournamentGameInfo>),
+    Players(Vec<String>),
 }
 
+#[derive(Serialize)]
+#[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
+struct TournamentGameInfo
+{
+    tournament: i64,
+    player1:    String,
+    player2:    String,
+    bucket:     i64,
+}
+
+
+#[derive(Serialize)]
 pub struct TournamentInfo
 {
     tournament: Tournament,
     data:       TournamentInfoState,
 }
 
-#[derive(Sql)]
+#[derive(Sql, Serialize)]
 pub struct Tournament
 {
     id:           i64,
@@ -49,7 +90,8 @@ pub struct Tournament
     organizer:    i64,
 }
 
-#[derive(Debug, Sql)]
+#[derive(Sql)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct TournamentList
 {
     pub id:         i64,
@@ -57,7 +99,8 @@ pub struct TournamentList
     pub player:     i64,
 }
 
-#[derive(Debug, Sql, PartialEq)]
+#[derive(Sql)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct TournamentGame
 {
     pub id:         i64,
@@ -126,13 +169,63 @@ pub struct TournamentMatch
 
 impl DataBase
 {
-    pub fn create_tournament(
+    pub fn create_tournament(&self, info: CreateTournament) -> ServerResult<()>
+    {
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments order by id desc limit 1", None)
+            .map(|t| t.id + 1)
+            .unwrap_or(1);
+
+        let prize = self.create_image_prize(info.image, tournament)?;
+        let organizer_pid =
+            self.get_user_without_matches_by("uuid", "=", &info.organizer_token)?.id;
+
+        self._create_tournament(organizer_pid, info.name, prize, info.player_count)?;
+        Ok(())
+    }
+
+    fn create_fs_if_not_exists(&self)
+    {
+        use std::path::Path;
+        if !Path::new("assets").exists()
+        {
+            std::fs::create_dir("assets").unwrap();
+        }
+        if !Path::new("assets/tournament_badges").exists()
+        {
+            std::fs::create_dir("assets/tournament_badges").unwrap();
+        }
+    }
+
+    fn create_image_prize(&self, image: String, tournament: i64) -> ServerResult<i64>
+    {
+        self.create_fs_if_not_exists();
+
+        let image_name = format!("{}/{}.png", TOURNAMENT_BADGES_PATH, tournament);
+        let mut file = std::fs::File::create(&image_name).expect("creating file");
+
+        let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
+        let bin = base64::decode(bin[1]).unwrap();
+        file.write_all(&bin).expect("Writing into file");
+
+        self.create_image_prize_table(image_name)
+    }
+
+    fn create_image_prize_table(&self, image_name: String) -> ServerResult<i64>
+    {
+        self.conn
+            .execute("insert into images (name) values (?1)", params![image_name])?;
+        self.sql_one::<Image, _>("select * from images order by id desc limit 1", None)
+            .map(|t| t.id)
+    }
+
+    fn _create_tournament(
         &self,
         pid: i64,
         name: String,
         prize: i64,
         player_count: i64,
-    ) -> ServerResult<i64>
+    ) -> ServerResult<()>
     {
         if player_count < 4
         {
@@ -144,8 +237,7 @@ impl DataBase
              ?2, ?3, ?4, ?5)",
             params![name, prize, TournamentState::Created as i64, pid, player_count],
         )?;
-        self.sql_one::<Tournament, _>("select * from tournaments order by id desc limit 1", None)
-            .map(|t| t.id)
+        Ok(())
     }
 
     pub fn join_tournament(&self, token: String, tid: i64) -> ServerResult<bool>
@@ -185,12 +277,71 @@ impl DataBase
         }
     }
 
+    fn get_all_tournament_games(&self, tid: i64) -> ServerResult<Vec<TournamentGame>>
+    {
+        self.sql_many::<TournamentGame, _>(
+            "select * from tournament_games where tournament = ?1",
+            _params![tid],
+        )
+    }
+
+    pub fn register_tournament_match(
+        &self,
+        register_game: RegisterTournamentMatch,
+    ) -> ServerResult<()>
+    {
+        let game = self.sql_one::<TournamentGame, _>(
+            "select * from tournament_games where id = ?1",
+            _params![register_game.tournament_game],
+        )?;
+
+        let mut games = self.get_all_tournament_games(game.tournament)?;
+
+        // This was the last game, award some stuff
+        if game.bucket == 0
+        {
+        }
+        else
+        {
+            let game_index = games.iter().position(|g| g.bucket == game.bucket).unwrap();
+            let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
+
+            let parent = self.advance_player(&mut games, game_index, winner_id);
+            self.update_bucket(&games[parent])?;
+        }
+        Ok(())
+    }
+
     pub fn generate_matchups(&self, mut people: Vec<i64>) -> Vec<i64>
     {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         people.shuffle(&mut rng);
         people
+    }
+
+    fn advance_game(&self, games: &mut Vec<TournamentGame>, i: usize)
+    {
+        let parent = (i - 1) / 2;
+        let player = games[i].get_single();
+
+        let parent_player =
+            if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
+
+        *parent_player = player;
+        games[i].player1 = -1;
+        games[i].player2 = -1;
+    }
+
+    fn advance_player(&self, games: &mut Vec<TournamentGame>, i: usize, winner: i64) -> usize
+    {
+        let parent = (i - 1) / 2;
+
+        let parent_player =
+            if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
+
+        *parent_player = winner;
+        parent
     }
 
     fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
@@ -207,25 +358,23 @@ impl DataBase
             games[i].insert_player(*player);
         }
 
-        let advance_game = |games: &mut Vec<TournamentGame>, i: usize| {
-            let parent = (i - 1) / 2;
-            let player = games[i].get_single();
-
-            let parent_player =
-                if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
-
-            *parent_player = player;
-            games[i].player1 = -1;
-            games[i].player2 = -1;
-        };
         for i in power / 2 - 1..power - 1
         {
             if games[i].is_single()
             {
-                advance_game(&mut games, i);
+                self.advance_game(&mut games, i);
             }
         }
         games
+    }
+
+    fn update_bucket(&self, game: &TournamentGame) -> ServerResult<()>
+    {
+        self.conn.execute(
+            "update tournament_games set player1 = ?1, player2 = ?2 where id = ?3",
+            params![game.player1, game.player2, game.id],
+        )?;
+        Ok(())
     }
 
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
@@ -235,7 +384,7 @@ impl DataBase
 
         for bucket in games
         {
-            self.create_tournament_game(
+            self._create_tournament_game(
                 bucket.player1,
                 bucket.player2,
                 bucket.bucket,
@@ -246,7 +395,7 @@ impl DataBase
         Ok(())
     }
 
-    fn create_tournament_game(&self, u1: i64, u2: i64, bucket: i64, tid: i64) -> ServerResult<()>
+    fn _create_tournament_game(&self, u1: i64, u2: i64, bucket: i64, tid: i64) -> ServerResult<()>
     {
         self.conn.execute(
             "insert into tournament_games (player1, player2, bucket, tournament) values (?1, ?2, \
@@ -281,6 +430,31 @@ impl DataBase
         Ok(())
     }
 
+    fn convert(&self, tg: TournamentGame) -> TournamentGameInfo
+    {
+        let h = |id: i64| -> String {
+            if id == -1
+            {
+                String::from("")
+            }
+            else
+            {
+                match self.get_user_without_matches_by("id", "=", &id.to_string())
+                {
+                    Ok(u) => u.name,
+                    Err(_) => String::from(""),
+                }
+            }
+        };
+
+        TournamentGameInfo {
+            player1:    h(tg.player1),
+            player2:    h(tg.player2),
+            tournament: tg.tournament,
+            bucket:     tg.bucket,
+        }
+    }
+
     pub fn get_tournaments(&self) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
@@ -304,36 +478,23 @@ impl DataBase
                         .collect();
                     TournamentInfo {
                         tournament: t,
-                        data:       TournamentInfoState::Created(players),
+                        data:       TournamentInfoState::Players(players),
                     }
                 }
                 else
                 {
-                    let h = |t: TournamentGame| {
-                        let f = |id: i64| match self.get_user_without_matches_by(
-                            "id",
-                            "=",
-                            &id.to_string(),
-                        )
-                        {
-                            Ok(u) => u.name,
-                            Err(_) => String::from(""),
-                        };
-                        (f(t.player1), f(t.player2))
-                    };
-
-                    let players: Vec<(String, String)> = self
+                    let players: Vec<TournamentGameInfo> = self
                         .sql_many::<TournamentGame, _>(
                             "select * from tournament_games where tournament = ?1",
                             _params![t.id],
                         )
                         .unwrap()
                         .into_iter()
-                        .map(h)
+                        .map(|tg| self.convert(tg))
                         .collect();
                     TournamentInfo {
                         tournament: t,
-                        data:       TournamentInfoState::Started(players),
+                        data:       TournamentInfoState::Games(players),
                     }
                 }
             })
@@ -356,11 +517,11 @@ mod test
         let s = DataBase::new(db_file);
         create_user(&s, "Sivert");
 
-        let id_1 = s.create_tournament(1, "epic".to_string(), 3, 4);
-        let id_2 = s.create_tournament(1, "epic_2".to_string(), 3, 8);
+        let id_1 = s._create_tournament(1, "epic".to_string(), 3, 4);
+        let id_2 = s._create_tournament(1, "epic_2".to_string(), 3, 8);
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert!(id_1.is_ok() && id_1.unwrap() == 1);
-        assert!(id_2.is_ok() && id_2.unwrap() == 2);
+        assert!(id_1.is_ok());
+        assert!(id_2.is_ok());
     }
 
     #[test]
@@ -374,8 +535,8 @@ mod test
         create_user(&s, "Ella");
 
 
-        let tid = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let res = s.join_tournament(token, tid);
+        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let res = s.join_tournament(token, 1);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
@@ -393,9 +554,9 @@ mod test
         create_user(&s, "Ella");
 
 
-        let tid = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let _ = s.join_tournament(token.clone(), tid);
-        let res = s.join_tournament(token, tid);
+        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let _ = s.join_tournament(token.clone(), 1);
+        let res = s.join_tournament(token, 1);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
@@ -413,11 +574,11 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        let tid = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let rs = s.join_tournament(token_s, tid);
-        let rb = s.join_tournament(token_b, tid);
-        let rm = s.join_tournament(token_m, tid);
-        let re = s.join_tournament(token_e, tid);
+        let tid = s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let rs = s.join_tournament(token_s, 1);
+        let rb = s.join_tournament(token_b, 1);
+        let rm = s.join_tournament(token_m, 1);
+        let re = s.join_tournament(token_e, 1);
 
         let tournament = s.sql_one::<Tournament, _>("select * from tournaments", None).unwrap();
         let games =
@@ -444,12 +605,12 @@ mod test
         let token_l = create_user(&s, "Lars");
 
 
-        let tid = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let _ = s.join_tournament(token_s, tid);
-        let _ = s.join_tournament(token_b, tid);
-        let _ = s.join_tournament(token_m, tid);
-        let re = s.join_tournament(token_e, tid);
-        let rl = s.join_tournament(token_l, tid);
+        let tid = s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let _ = s.join_tournament(token_s, 1);
+        let _ = s.join_tournament(token_b, 1);
+        let _ = s.join_tournament(token_m, 1);
+        let re = s.join_tournament(token_e, 1);
+        let rl = s.join_tournament(token_l, 1);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
@@ -577,15 +738,15 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        let tid = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let _ = s.join_tournament(token_s.clone(), tid);
-        let _ = s.join_tournament(token_b.clone(), tid);
-        let _ = s.join_tournament(token_m, tid);
-        let _ = s.join_tournament(token_e, tid);
+        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let _ = s.join_tournament(token_s.clone(), 1);
+        let _ = s.join_tournament(token_b.clone(), 1);
+        let _ = s.join_tournament(token_m, 1);
+        let _ = s.join_tournament(token_e, 1);
 
-        let tid2 = s.create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
-        let _ = s.join_tournament(token_s, tid2);
-        let _ = s.join_tournament(token_b, tid2);
+        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let _ = s.join_tournament(token_s, 2);
+        let _ = s.join_tournament(token_b, 2);
 
         let tournaments = s.get_tournaments();
         std::fs::remove_file(db_file).expect("Removing file tempH");
@@ -601,14 +762,10 @@ mod test
             {
                 match t.data
                 {
-                    TournamentInfoState::Started(mut vec) =>
+                    TournamentInfoState::Games(vec) =>
                     {
-                        let mut dummy = vec![
-                            ("Ella".to_string(), "Bernt".to_string()),
-                            ("Sivert".to_string(), "Markus".to_string()),
-                        ];
-                        assert_eq!(t.tournament.id, tid);
-                        assert_eq!(dummy.sort(), vec.sort());
+                        assert_eq!(t.tournament.id, 1);
+                        assert_eq!(vec.len(), 3);
                     },
                     _ => unreachable!(),
                 }
@@ -617,9 +774,9 @@ mod test
             {
                 match t.data
                 {
-                    TournamentInfoState::Created(vec) =>
+                    TournamentInfoState::Players(vec) =>
                     {
-                        assert_eq!(t.tournament.id, tid2);
+                        assert_eq!(t.tournament.id, 2);
                         assert_eq!(vec.len(), 2);
                     },
                     _ => unreachable!(),
@@ -628,5 +785,66 @@ mod test
         };
         assert_func(first);
         assert_func(last);
+    }
+
+    fn reg_tournament_match_from_tournament_game(
+        s: &DataBase,
+        game: &TournamentGame,
+        token: String,
+    ) -> RegisterTournamentMatch
+    {
+        let winner_name = s
+            .get_user_without_matches_by("id", "=", &game.player1.to_string())
+            .unwrap()
+            .name;
+        let loser_name = s
+            .get_user_without_matches_by("id", "=", &game.player1.to_string())
+            .unwrap()
+            .name;
+
+        RegisterTournamentMatch {
+            tournament_game: game.id,
+            winner:          winner_name,
+            loser:           loser_name,
+            organizer_token: token,
+        }
+    }
+    #[test]
+    fn test_can_register_tournament_match()
+    {
+        let db_file = "tempT13.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+
+        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        let _ = s.join_tournament(token_s.clone(), 1);
+        let _ = s.join_tournament(token_b.clone(), 1);
+        let _ = s.join_tournament(token_m, 1);
+        let _ = s.join_tournament(token_e, 1);
+
+        let games = s.get_all_tournament_games(1).unwrap();
+        let game_one = &games[1];
+
+
+        let register_game =
+            reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+
+
+        let winner_id = game_one.player1;
+
+        let res = s.register_tournament_match(register_game);
+        let new_games = s.get_all_tournament_games(1).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(res.is_ok());
+        let mut game = TournamentGame::players(1, 0, winner_id, -1);
+        game.id = 1;
+        assert_eq!(new_games[0], game);
     }
 }

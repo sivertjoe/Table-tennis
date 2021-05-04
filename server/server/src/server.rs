@@ -1050,7 +1050,7 @@ impl DataBase
         Ok(users)
     }
 
-    fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
+    pub fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
     {
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
