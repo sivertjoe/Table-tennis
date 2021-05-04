@@ -123,6 +123,18 @@ impl DataBase
         )
         .expect("Creating badges table");
 
+        conn.execute(
+            "create table if not exists tournament_badges (
+                id              integer primary key autoincrement,
+                image           integer,
+                pid             integer,
+                foreign key(pid) references users(id),
+                foreign key(image) references images(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Creating badges table");
+
 
         conn.execute(
             "create table if not exists seasons (
@@ -144,7 +156,7 @@ impl DataBase
 
         conn.execute(
             "create table if not exists tournaments (
-                id              integer primary key,
+                id              integer primary key autoincrement,
                 name            varchar(36),
                 prize           integer,
                 state           smallint,
@@ -157,7 +169,7 @@ impl DataBase
 
         conn.execute(
             "create table if not exists tournament_lists (
-                id                      integer primary key,
+                id                      integer primary key autoincrement,
                 player                  integer,
                 tournament              integer,
                 foreign key(player)     references users(id),
@@ -169,7 +181,7 @@ impl DataBase
 
         conn.execute(
             "create table if not exists tournament_games (
-                id                      integer primary key,
+                id                      integer primary key autoincrement,
                 bucket                   integer,
                 player1                  integer,
                 player2                  integer,
@@ -181,14 +193,12 @@ impl DataBase
         .expect("Create variables table");
 
         conn.execute(
-            "create table if not exists tournament_matchs (
-                id                      integer primary key,
-                winner                  integer,
-                loser                  integer,
-                tournament_game              integer,
-                foreign key(winner)     references users(id),
-                foreign key(loser)     references users(id),
-                foreign key(tournament_game) references tournament_games(id)
+            "create table if not exists tournament_winners (
+                id                      integer primary key autoincrement,
+                player                  integer,
+                tournament              integer,
+                foreign key(player)     references users(id),
+                foreign key(tournament) references tournaments(id)
             )",
             NO_PARAMS,
         )

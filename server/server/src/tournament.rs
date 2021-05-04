@@ -15,10 +15,18 @@ use crate::{
 
 
 #[derive(Sql)]
-struct Image
+pub struct Image
 {
-    id:   i64,
-    name: String,
+    pub id:   i64,
+    pub name: String,
+}
+
+#[derive(Sql)]
+pub struct TournamentBadge
+{
+    pub id:   i64,
+    pub image: i64,
+    pub pid: i64,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +77,14 @@ struct TournamentGameInfo
     player1:    String,
     player2:    String,
     bucket:     i64,
+}
+
+#[derive(Sql)]
+struct TournamentWinner
+{
+    id: i64,
+    player: i64,
+    tournament: i64
 }
 
 
@@ -123,7 +139,6 @@ impl TournamentGame
         }
     }
 
-    #[cfg(test)]
     fn players(tid: i64, bucket: i64, p1: i64, p2: i64) -> Self
     {
         TournamentGame {
@@ -295,20 +310,52 @@ impl DataBase
             _params![register_game.tournament_game],
         )?;
 
+        let tournament = self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![game.tournament])?;
+        let organizer_id = self.get_user_without_matches_by("uuid", "=", &register_game.organizer_token)?.id;
+
+        if tournament.state != TournamentState::InProgress as u8
+        {
+            return Err(ServerError::Tournament(TournamentError::WrongState));
+        }
+
+        if organizer_id != tournament.organizer
+        {
+            return Err(ServerError::Tournament(TournamentError::NotOrganizer));
+        }
+
         let mut games = self.get_all_tournament_games(game.tournament)?;
+        let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
 
         // This was the last game, award some stuff
         if game.bucket == 0
         {
+            self.create_tournament_winner(tournament.id, winner_id)?;
+            self.update_tournament_state(tournament.id, TournamentState::Done)?;
+            self.award_winner_with_prize(tournament.prize, winner_id)?;
         }
         else
         {
             let game_index = games.iter().position(|g| g.bucket == game.bucket).unwrap();
-            let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
 
             let parent = self.advance_player(&mut games, game_index, winner_id);
             self.update_bucket(&games[parent])?;
         }
+        Ok(())
+    }
+
+    fn award_winner_with_prize(&self, prize: i64, pid: i64) -> ServerResult<()>
+    {
+        self.conn.execute(
+            "insert into tournament_badges (image, pid) values (?1, ?2)",
+            params![prize, pid])?;
+        Ok(())
+    }
+
+    fn create_tournament_winner(&self, tid: i64, pid: i64) -> ServerResult<()>
+    {
+        self.conn.execute(
+            "insert into tournament_winners (tournament, player) values (?1, ?2)",
+            params![tid, pid])?;
         Ok(())
     }
 
@@ -483,7 +530,7 @@ impl DataBase
                 }
                 else
                 {
-                    let players: Vec<TournamentGameInfo> = self
+                    let mut players: Vec<TournamentGameInfo> = self
                         .sql_many::<TournamentGame, _>(
                             "select * from tournament_games where tournament = ?1",
                             _params![t.id],
@@ -492,6 +539,10 @@ impl DataBase
                         .into_iter()
                         .map(|tg| self.convert(tg))
                         .collect();
+                    if let Ok(winner) = self.sql_one::<TournamentWinner, _>("select * from tournament_winners where tournament = ?1", _params![t.id])
+                    {
+                        players.push(self.convert(TournamentGame::players(t.id, -1, winner.player, -1)));
+                    }
                     TournamentInfo {
                         tournament: t,
                         data:       TournamentInfoState::Games(players),
@@ -650,7 +701,7 @@ mod test
     }
 
     #[test]
-    fn test_gemerate_bucket_not_of_power_of_two()
+    fn test_generate_bucket_not_of_power_of_two()
     {
         let db_file = "tempT11.db";
         let s = DataBase::new(db_file);
@@ -846,5 +897,64 @@ mod test
         let mut game = TournamentGame::players(1, 0, winner_id, -1);
         game.id = 1;
         assert_eq!(new_games[0], game);
+    }
+
+    #[test]
+    fn test_can_finish_tournament()
+    {
+        let db_file = "tempT14.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        create_tournament_image(&s);
+        let _ = s.join_tournament(token_s.clone(), 1);
+        let _ = s.join_tournament(token_b.clone(), 1);
+        let _ = s.join_tournament(token_m, 1);
+        let _ = s.join_tournament(token_e, 1);
+
+        let games = s.get_all_tournament_games(1).unwrap();
+
+        let first_game =
+            reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+
+        let second_game =
+            reg_tournament_match_from_tournament_game(&s, &games[2], token_s.clone());
+
+        let winner = first_game.winner.clone();
+
+        let _final = RegisterTournamentMatch {
+            tournament_game: games[0].id,
+            winner:          first_game.winner.clone(),
+            loser:           second_game.winner.clone(),
+            organizer_token: token_s.clone(),
+        };
+
+        let res1 = s.register_tournament_match(first_game);
+        let res2 = s.register_tournament_match(second_game);
+        let res3 = s.register_tournament_match(_final);
+
+
+        let winner = s.get_user(&winner);
+        let tournaments = s.get_tournaments();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(res1.is_ok());
+        assert!(res2.is_ok());
+        assert!(res3.is_ok());
+        assert!(tournaments.is_ok());
+
+        assert!(winner.is_ok());
+        let tournament = &tournaments.unwrap()[0];
+        let winner = winner.unwrap();
+
+        assert_eq!(winner.badges.len(), 1);
+        assert_eq!(tournament.tournament.state, TournamentState::Done as u8);
     }
 }
