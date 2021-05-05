@@ -7,9 +7,3 @@ export const createTournament = (name, playerCount, image) =>
     player_count: playerCount,
     image: image,
   })
-
-export const uploadAward = (tournamentId, image) =>
-  BaseApi.postImage('upload-award', {
-    tournamentId: tournamentId,
-    image: image,
-  })

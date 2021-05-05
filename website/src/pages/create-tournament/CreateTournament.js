@@ -1,28 +1,17 @@
 import React, { useState } from 'react'
 import '../../index.css'
 import './CreateTournament.css'
-import * as TournamentApi from '../../api/TournamentApi'
+import * as Api from '../../api/TournamentApi'
 import Button from '../../components/button/Button'
+import ImageUpload from '../../components/image-upload/ImageUpload'
 
 const maxSize = 256 * 256
-
-function UploadImage(event, setImage, setError) {
-  if (event.target.files[0]) {
-    if (event.target.files[0].size > maxSize) {
-      setError('Image is too large: max size is ' + maxSize)
-    } else {
-      setImage(event.target.files[0])
-      setError('')
-    }
-  }
-}
 
 export default function CreateTournament() {
   const [name, setName] = useState('')
   const [numPlayers, setNumPlayers] = useState(0)
   const [image, setImage] = useState('')
-  const [error, setError] = useState('')
-    console.log(image)
+  // console.log(image)
 
   return (
     <div className="container">
@@ -42,21 +31,19 @@ export default function CreateTournament() {
           placeholder="Number of players"
           onChange={(e) => setNumPlayers(e.target.value)}
         />
-          <br />
-          <br />
-        <input
-          type="file"
-          accept="image/png"
-          onChange={(e) => UploadImage(e, setImage, setError)}
-          maxLength={maxSize}
-        />
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <br />
+        <br />
+        <ImageUpload onUpload={setImage} maxSize={maxSize} />
         <p>
           (Note: by creating a tournament <i>only you</i> can register games.
+          <br />
+          To do so, press and hold on the winner in each bracket)
         </p>
-        <p>To do so, press and hold on the winner in each bracket)</p>
         <div className="button">
-            <Button placeholder="Create Tournament" callback={() => TournamentApi.createTournament(name, numPlayers, image)}/>
+          <Button
+            placeholder="Create Tournament"
+            callback={Api.createTournament(name, numPlayers, image)}
+          />
         </div>
       </div>
     </div>
