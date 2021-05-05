@@ -1,6 +1,6 @@
 pub type ServerResult<T> = Result<T, ServerError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TournamentError
 {
     WrongState,
@@ -10,9 +10,10 @@ pub enum TournamentError
     AlreadyPlayed,
     WrongTournamentCount,
     AlreadyJoined,
+    GameAlreadyPlayed,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ServerError
 {
     Rusqlite(rusqlite::Error),

@@ -24,9 +24,9 @@ pub struct Image
 #[derive(Sql)]
 pub struct TournamentBadge
 {
-    pub id:   i64,
+    pub id:    i64,
     pub image: i64,
-    pub pid: i64,
+    pub pid:   i64,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +46,7 @@ pub struct CreateTournament
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(Clone))]
 pub struct RegisterTournamentMatch
 {
     organizer_token: String,
@@ -82,9 +83,9 @@ struct TournamentGameInfo
 #[derive(Sql)]
 struct TournamentWinner
 {
-    id: i64,
-    player: i64,
-    tournament: i64
+    id:         i64,
+    player:     i64,
+    tournament: i64,
 }
 
 
@@ -124,6 +125,17 @@ pub struct TournamentGame
     pub player1:    i64,
     pub player2:    i64,
     pub bucket:     i64,
+}
+
+// This struct is the result of a game
+#[derive(Sql)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+pub struct TournamentMatch
+{
+    pub id:     i64,
+    pub game:   i64,
+    pub winner: i64,
+    pub loser:  i64,
 }
 
 impl TournamentGame
@@ -171,15 +183,6 @@ impl TournamentGame
             self.player2 = player;
         }
     }
-}
-
-#[derive(Debug, Sql)]
-pub struct TournamentMatch
-{
-    pub id:              i64,
-    pub winner:          i64,
-    pub loser:           i64,
-    pub tournament_game: i64,
 }
 
 impl DataBase
@@ -310,8 +313,13 @@ impl DataBase
             _params![register_game.tournament_game],
         )?;
 
-        let tournament = self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![game.tournament])?;
-        let organizer_id = self.get_user_without_matches_by("uuid", "=", &register_game.organizer_token)?.id;
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![
+                game.tournament
+            ])?;
+        let organizer_id = self
+            .get_user_without_matches_by("uuid", "=", &register_game.organizer_token)?
+            .id;
 
         if tournament.state != TournamentState::InProgress as u8
         {
@@ -323,9 +331,26 @@ impl DataBase
             return Err(ServerError::Tournament(TournamentError::NotOrganizer));
         }
 
+        if game.player1 == -1 || game.player2 == -1
+        {
+            return Err(ServerError::Tournament(TournamentError::InvalidGame));
+        }
+
+        if self
+            .sql_one::<TournamentMatch, _>(
+                "select * from tournament_matches where game = ?1",
+                _params![game.id],
+            )
+            .is_ok()
+        {
+            return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
+        }
+
         let mut games = self.get_all_tournament_games(game.tournament)?;
         let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
+        let loser_id = self.get_user_without_matches(&register_game.winner)?.id;
 
+        self.create_match_from_game(winner_id, loser_id, game.id)?;
         // This was the last game, award some stuff
         if game.bucket == 0
         {
@@ -343,11 +368,26 @@ impl DataBase
         Ok(())
     }
 
-    fn award_winner_with_prize(&self, prize: i64, pid: i64) -> ServerResult<()>
+    fn create_match_from_game(
+        &self,
+        winner_id: i64,
+        loser_id: i64,
+        game_id: i64,
+    ) -> ServerResult<()>
     {
         self.conn.execute(
-            "insert into tournament_badges (image, pid) values (?1, ?2)",
-            params![prize, pid])?;
+            "insert into tournament_matches (game, winner, loser) values (?1, ?2, ?3)",
+            params![game_id, winner_id, loser_id],
+        )?;
+        Ok(())
+    }
+
+    fn award_winner_with_prize(&self, prize: i64, pid: i64) -> ServerResult<()>
+    {
+        self.conn
+            .execute("insert into tournament_badges (image, pid) values (?1, ?2)", params![
+                prize, pid
+            ])?;
         Ok(())
     }
 
@@ -355,7 +395,8 @@ impl DataBase
     {
         self.conn.execute(
             "insert into tournament_winners (tournament, player) values (?1, ?2)",
-            params![tid, pid])?;
+            params![tid, pid],
+        )?;
         Ok(())
     }
 
@@ -539,9 +580,17 @@ impl DataBase
                         .into_iter()
                         .map(|tg| self.convert(tg))
                         .collect();
-                    if let Ok(winner) = self.sql_one::<TournamentWinner, _>("select * from tournament_winners where tournament = ?1", _params![t.id])
+                    if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
+                        "select * from tournament_winners where tournament = ?1",
+                        _params![t.id],
+                    )
                     {
-                        players.push(self.convert(TournamentGame::players(t.id, -1, winner.player, -1)));
+                        players.push(self.convert(TournamentGame::players(
+                            t.id,
+                            -1,
+                            winner.player,
+                            -1,
+                        )));
                     }
                     TournamentInfo {
                         tournament: t,
@@ -920,11 +969,9 @@ mod test
 
         let games = s.get_all_tournament_games(1).unwrap();
 
-        let first_game =
-            reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+        let first_game = reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
 
-        let second_game =
-            reg_tournament_match_from_tournament_game(&s, &games[2], token_s.clone());
+        let second_game = reg_tournament_match_from_tournament_game(&s, &games[2], token_s.clone());
 
         let winner = first_game.winner.clone();
 
@@ -956,5 +1003,76 @@ mod test
 
         assert_eq!(winner.badges.len(), 1);
         assert_eq!(tournament.tournament.state, TournamentState::Done as u8);
+    }
+
+    #[test]
+    fn test_cannot_register_same_game_twice()
+    {
+        let db_file = "tempT15.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        let _ = s.join_tournament(token_s.clone(), 1);
+        let _ = s.join_tournament(token_b.clone(), 1);
+        let _ = s.join_tournament(token_m, 1);
+        let _ = s.join_tournament(token_e, 1);
+
+        let games = s.get_all_tournament_games(1).unwrap();
+
+        let first_game = reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+
+        let res1 = s.register_tournament_match(first_game.clone());
+        let res2 = s.register_tournament_match(first_game);
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(res1.is_ok());
+        assert!(
+            res2.is_err()
+                && res2.unwrap_err() == ServerError::Tournament(TournamentError::GameAlreadyPlayed)
+        );
+    }
+
+    #[test]
+    fn test_cannot_register_invalid_game()
+    {
+        let db_file = "tempT16.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        let _ = s.join_tournament(token_s.clone(), 1);
+        let _ = s.join_tournament(token_b.clone(), 1);
+        let _ = s.join_tournament(token_m, 1);
+        let _ = s.join_tournament(token_e, 1);
+
+        let games = s.get_all_tournament_games(1).unwrap();
+
+        let invalid = RegisterTournamentMatch {
+            tournament_game: games[0].id,
+            winner:          String::from(""),
+            loser:           String::from(""),
+            organizer_token: token_s.clone(),
+        };
+
+        let res1 = s.register_tournament_match(invalid.clone());
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(
+            res1.is_err()
+                && res1.unwrap_err() == ServerError::Tournament(TournamentError::InvalidGame)
+        );
     }
 }

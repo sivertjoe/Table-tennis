@@ -192,6 +192,19 @@ impl DataBase
         )
         .expect("Create variables table");
 
+        // This is the result of a tournament_game
+        conn.execute(
+            "create table if not exists tournament_matches (
+                id                      integer primary key autoincrement,
+                game                    integer,
+                winner                  integer,
+                loser                   integer,
+                foreign key(game) references tournament_games(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
         conn.execute(
             "create table if not exists tournament_winners (
                 id                      integer primary key autoincrement,
