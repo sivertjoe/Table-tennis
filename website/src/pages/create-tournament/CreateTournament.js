@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import '../../index.css'
 import './CreateTournament.css'
 import * as Api from '../../api/TournamentApi'
@@ -7,11 +7,18 @@ import ImageUpload from '../../components/image-upload/ImageUpload'
 
 const maxSize = 256 * 256
 
+function storeImage(file, image, setImage) {
+  setImage(file)
+}
+
+function _print(image) {
+    console.log(image)
+}
+
 export default function CreateTournament() {
   const [name, setName] = useState('')
   const [numPlayers, setNumPlayers] = useState(0)
-  const [image, setImage] = useState('')
-  // console.log(image)
+  const [image, setImage] = useState([])
 
   return (
     <div className="container">
@@ -33,7 +40,10 @@ export default function CreateTournament() {
         />
         <br />
         <br />
-        <ImageUpload onUpload={setImage} maxSize={maxSize} />
+        <ImageUpload
+          onUpload={(e) => storeImage(e, image, setImage)}
+          maxSize={maxSize}
+        />
         <p>
           (Note: by creating a tournament <i>only you</i> can register games.
           <br />
@@ -42,7 +52,8 @@ export default function CreateTournament() {
         <div className="button">
           <Button
             placeholder="Create Tournament"
-            callback={Api.createTournament(name, numPlayers, image)}
+            //callback={() => Api.createTournament(name, numPlayers, image)}
+            callback={() => _print(image)}
           />
         </div>
       </div>
