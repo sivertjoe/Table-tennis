@@ -92,11 +92,11 @@ struct TournamentWinner
 #[derive(Serialize)]
 pub struct TournamentInfo
 {
-    tournament: Tournament,
+    tournament: SendTournament,
     data:       TournamentInfoState,
 }
 
-#[derive(Sql, Serialize)]
+#[derive(Sql)]
 pub struct Tournament
 {
     id:           i64,
@@ -105,6 +105,15 @@ pub struct Tournament
     state:        u8,
     player_count: i64,
     organizer:    i64,
+}
+
+#[derive(Serialize)]
+pub struct SendTournament
+{
+    name:         String,
+    prize:        String,
+    player_count: i64,
+    state:        u8,
 }
 
 #[derive(Sql)]
@@ -543,6 +552,22 @@ impl DataBase
         }
     }
 
+    fn get_image_name(&self, image: i64) -> ServerResult<String>
+    {
+        self.sql_one::<Image, _>("select * from images where id = ?1", _params![image])
+            .map(|i| i.name)
+    }
+
+    fn convert_tournament(&self, tournament: Tournament) -> ServerResult<SendTournament>
+    {
+        Ok(SendTournament {
+            name:         tournament.name,
+            prize:        self.get_image_name(tournament.prize)?,
+            player_count: tournament.player_count,
+            state:        tournament.state,
+        })
+    }
+
     pub fn get_tournaments(&self) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
@@ -565,7 +590,7 @@ impl DataBase
                         })
                         .collect();
                     TournamentInfo {
-                        tournament: t,
+                        tournament: self.convert_tournament(t).unwrap(),
                         data:       TournamentInfoState::Players(players),
                     }
                 }
@@ -593,7 +618,7 @@ impl DataBase
                         )));
                     }
                     TournamentInfo {
-                        tournament: t,
+                        tournament: self.convert_tournament(t).unwrap(),
                         data:       TournamentInfoState::Games(players),
                     }
                 }
@@ -838,13 +863,14 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        create_tournament_image(&s);
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
         let _ = s.join_tournament(token_m, 1);
         let _ = s.join_tournament(token_e, 1);
 
-        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
         let _ = s.join_tournament(token_s, 2);
         let _ = s.join_tournament(token_b, 2);
 
@@ -858,30 +884,20 @@ mod test
 
 
         let assert_func = |t: TournamentInfo| {
-            if t.tournament.state == TournamentState::InProgress as u8
+            match t.data
             {
-                match t.data
+                TournamentInfoState::Games(vec) =>
                 {
-                    TournamentInfoState::Games(vec) =>
-                    {
-                        assert_eq!(t.tournament.id, 1);
-                        assert_eq!(vec.len(), 3);
-                    },
-                    _ => unreachable!(),
-                }
-            }
-            else
-            {
-                match t.data
+                    assert_eq!(t.tournament.name, "Epic");
+                    assert_eq!(vec.len(), 3);
+                },
+                TournamentInfoState::Players(vec) =>
                 {
-                    TournamentInfoState::Players(vec) =>
-                    {
-                        assert_eq!(t.tournament.id, 2);
-                        assert_eq!(vec.len(), 2);
-                    },
-                    _ => unreachable!(),
-                }
-            }
+                    assert_eq!(t.tournament.name, "Epic");
+                    assert_eq!(vec.len(), 2);
+                },
+                _ => unreachable!(),
+            };
         };
         assert_func(first);
         assert_func(last);

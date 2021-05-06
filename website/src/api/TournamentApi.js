@@ -7,3 +7,6 @@ export const createTournament = (name, playerCount, image) =>
     player_count: parseInt(playerCount),
     image: image,
   })
+
+export const getTournaments = () =>
+  BaseApi.get('tournaments')

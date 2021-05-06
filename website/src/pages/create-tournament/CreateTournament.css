@@ -22,3 +22,26 @@ h1 {
   width: fit-content;
   margin: 2rem auto;
 }
+
+.big-button {
+  height: fit-content;
+  min-height: 3rem;
+  width: fit-content;
+  min-width: 10rem;
+  border-radius: 1rem;
+  font-size: 1.5rem;
+  background-size: 100% 200%;
+  background-image: linear-gradient(
+    to top,
+    var(--background-color) 50%,
+    var(--primary-color) 0
+  );
+  transition: background-position 200ms, color 200ms;
+}
+
+button:hover {
+  background-position: bottom;
+  border: solid 2px var(--primary-color);
+  color: var(--primary-color);
+  cursor: pointer;
+}
