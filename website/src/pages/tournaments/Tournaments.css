@@ -1,0 +1,13 @@
+.container {
+  margin: unset;
+  width: 100%;
+  max-width: unset;
+  box-sizing: border-box;
+}
+
+.page {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
