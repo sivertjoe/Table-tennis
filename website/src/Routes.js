@@ -19,6 +19,7 @@ const EditSeason = lazy(() =>
 )
 const StatsPage = lazy(() => import('./pages/stats-page/StatsPage.js'))
 const Terminal = lazy(() => import('./pages/admin-page/terminal/Terminal.js'))
+const AdminGuard = lazy(() => import('./components/admin-guard/AdminGuard.js'))
 
 const Routes = () => (
   <Switch>
@@ -32,7 +33,11 @@ const Routes = () => (
     <Route exact path="/change-password" component={ChangePasswordPage} />
     <Route exact path="/admin" component={Admin} />
     <Route exact path="/admin/edit-match" component={EditMatches} />
-    <Route exact path="/admin/edit-season" component={EditSeason} />
+    <Route
+      exact
+      path="/admin/edit-season"
+      render={() => <AdminGuard component={EditSeason} />}
+    />
     <Route exact path="/stats" component={StatsPage} />
     <Route exact path="/admin/terminal" component={Terminal} />
     <Redirect to="/" />
