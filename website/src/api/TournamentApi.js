@@ -22,3 +22,13 @@ export const leaveTournament = (id) =>
     tid: id,
     token: localStorage.getItem('token') ?? '',
   })
+
+export const registerTournamentMatch = (winner, loser, tournament_game) =>
+  BaseApi.post('register-tournament-match', {
+    organizer_token: localStorage.getItem('token') ?? '',
+    winner: winner,
+    loser: loser,
+    tournament_game: tournament_game,
+  })
+
+export const getTournaments = () => BaseApi.get('tournaments')
