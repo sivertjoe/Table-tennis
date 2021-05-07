@@ -31,8 +31,14 @@ class Tournaments extends Component {
   render() {
     return (
       <div className="page">
-        {Menu(this.page === Pages.Menu, this.selectTournament)}
-        {Tournament(this.page === Pages.Tournament, this.goBack)}
+        <Menu
+          show={this.page === Pages.Menu}
+          selectTournament={this.selectTournament}
+        />
+        <Tournament
+          show={this.page === Pages.Tournament}
+          goBack={this.goBack}
+        />
       </div>
     )
   }

@@ -1,13 +1,12 @@
 .side-menu {
-  min-width: 300px;
-  max-width: 300px;
+  width: 600px;
   margin: 0 1rem auto 2rem;
+  text-align: center;
 }
 
 @media only screen and (max-width: 1024px) {
   .side-menu {
     width: 100%;
-    max-width: unset;
     margin: auto 2rem;
   }
 
