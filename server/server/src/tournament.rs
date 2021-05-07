@@ -74,7 +74,7 @@ enum TournamentInfoState
 #[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 struct TournamentGameInfo
 {
-    tournament: i64,
+    id: i64,
     player1:    String,
     player2:    String,
     bucket:     i64,
@@ -272,7 +272,7 @@ impl DataBase
         player_count: i64,
     ) -> ServerResult<()>
     {
-        if player_count < 4
+        if player_count < 4 || player_count > 64
         {
             return Err(ServerError::Tournament(TournamentError::WrongTournamentCount));
         }
@@ -338,6 +338,7 @@ impl DataBase
             Ok(false)
         }
     }
+
 
     fn get_all_tournament_games(&self, tid: i64) -> ServerResult<Vec<TournamentGame>>
     {
@@ -582,7 +583,7 @@ impl DataBase
         TournamentGameInfo {
             player1:    h(tg.player1),
             player2:    h(tg.player2),
-            tournament: tg.tournament,
+            id: tg.id,
             bucket:     tg.bucket,
         }
     }

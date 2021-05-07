@@ -13,7 +13,7 @@ use serde_json::json;
 use server::{
     spawn_season_checker, ChangePasswordInfo, CreateTournament, DataBase, DeleteMatchInfo,
     EditUsersInfo, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns,
-    NotificationInfo, NotificationType, RequestResetPassword, StatsUsers,
+    NotificationInfo, NotificationType, RequestResetPassword, StatsUsers, RegisterTournamentMatch
 };
 use server_core::{
     constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
@@ -36,6 +36,7 @@ macro_rules! DATABASE {
 
 fn response_code(e: ServerError) -> u8
 {
+    println!("{:?}",e);
     match e
     {
         ServerError::Critical(_) => 1,
@@ -375,6 +376,17 @@ async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
+#[post("/register-tournament-match")]
+async fn register_tournament_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: RegisterTournamentMatch = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).register_tournament_match(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
 
 #[post("/leave-tournament")]
 async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
@@ -633,6 +645,7 @@ async fn main() -> std::io::Result<()>
             .service(create_tournament)
             .service(join_tournament)
             .service(leave_tournament)
+            .service(register_tournament_match)
             .service(get_tournaments)
     });
 
