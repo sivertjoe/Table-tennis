@@ -10,7 +10,6 @@ class EditSeason extends Component {
   successLabel = ''
   constructor() {
     super()
-    const token = localStorage.getItem('token')
     MatchApi.getSeasonLength()
       .then((len) => (this.seasonLength = len))
       .catch((error) => console.warn(error.message))
