@@ -120,6 +120,7 @@ pub struct SendTournament
     prize:        String,
     player_count: i64,
     state:        u8,
+    organizer_name: String,
 }
 
 #[derive(Sql)]
@@ -490,7 +491,6 @@ impl DataBase
         let mut games: Vec<TournamentGame> =
             (0..power - 1).map(|i| TournamentGame::empty(tournament.id, i as i64)).collect();
 
-        // ???
         for (player, i) in people.iter().zip(((power / 2) - 1..power - 1).cycle())
         {
             games[i].insert_player(*player);
@@ -607,11 +607,22 @@ impl DataBase
             player_count: tournament.player_count,
             state:        tournament.state,
             id:           tournament.id,
+            organizer_name: self.get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?.name,
         })
     }
 
-    fn map_tournament_info(&self, t: Tournament, info: &GetTournamentOptions) -> TournamentInfo
+    fn map_tournament_info(&self, t: Tournament) -> TournamentInfo
     {
+        /* @Optimization:
+        *  Get all the users necessary, E.g select * from ... where id in (<all users ids>)
+        *  and pass all users to the map function here and
+        *  self.conver(tg, users), this will (probabably) be more
+        *  efficient
+        *
+        *  Another Optimization: 
+        *  create a get_user_without_matches_by_id function, this way we won't allocate the string
+        *  for the id all the time, this is such a wasted allocation
+        */
         if t.state == TournamentState::Created as u8
         {
             let players: Vec<String> = self
@@ -643,18 +654,21 @@ impl DataBase
                 .into_iter()
                 .map(|tg| self.convert(tg))
                 .collect();
-            if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
-                "select * from tournament_winners where tournament = ?1",
-                _params![t.id],
-            )
+            if t.state == TournamentState::Done as u8
             {
-                players.push(self.convert(TournamentGame::players(
-                    t.id,
-                    -1,
-                    winner.player,
-                    -1,
-                )));
+                if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
+                    "select * from tournament_winners where tournament = ?1",
+                    _params![t.id])
+                {
+                    players.push(self.convert(TournamentGame::players(
+                        t.id,
+                        -1,
+                        winner.player,
+                        -1,
+                    )));
+                }
             }
+
             TournamentInfo {
                 tournament: self.convert_tournament(t).unwrap(),
                 data:       TournamentInfoState::Games(players),
@@ -669,8 +683,8 @@ impl DataBase
             match s.as_str()
             {
                 "old" => t.state == TournamentState::Done as u8,
-                "active" => true,
-                _  => t.state != TournamentState::Done as u8,
+                "active"  => t.state != TournamentState::Done as u8,
+                _ => true,
             }
         }
         else
@@ -685,7 +699,7 @@ impl DataBase
         let t_infos: Vec<TournamentInfo> = tournaments
             .into_iter()
             .filter(|t| self.filter_tournaments(t, &info))
-            .map(|t| self.map_tournament_info(t, &info))
+            .map(|t| self.map_tournament_info(t))
             .collect();
         Ok(t_infos)
     }
@@ -937,7 +951,8 @@ mod test
         let _ = s.join_tournament(token_s, 2);
         let _ = s.join_tournament(token_b, 2);
 
-        let tournaments = s.get_tournaments();
+        let info = GetTournamentOptions { query: None };
+        let tournaments = s.get_tournaments(info);
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(tournaments.is_ok());
@@ -1067,7 +1082,8 @@ mod test
 
 
         let winner = s.get_user(&winner);
-        let tournaments = s.get_tournaments();
+        let info = GetTournamentOptions { query: None };
+        let tournaments = s.get_tournaments(info);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
