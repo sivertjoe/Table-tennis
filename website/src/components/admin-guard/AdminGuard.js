@@ -4,10 +4,8 @@ import '../../index.css'
 
 class AdminGuard extends Component {
   isAdmin = 0
-  component = undefined
-  constructor(args) {
+  constructor() {
     super()
-    this.component = args.component
     const token = localStorage.getItem('token')
     if (token) {
       AdminApi.isAdmin(token)
@@ -25,7 +23,7 @@ class AdminGuard extends Component {
 
   render() {
     if (this.isAdmin === 1) {
-      return <>{this.component}</>
+      return this.props.children
     } else if (this.isAdmin === -1)
       return (
         <div>

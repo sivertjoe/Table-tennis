@@ -31,23 +31,27 @@ const Routes = () => (
     <Route exact path="/history" component={History} />
     <Route exact path="/login" component={LoginPage} />
     <Route exact path="/change-password" component={ChangePasswordPage} />
-    <Route exact path="/admin" component={Admin} />
-    <Route
-      exact
-      path="/admin/edit-match"
-      render={() => <AdminGuard component={EditMatches} />}
-    />
-    <Route
-      exact
-      path="/admin/edit-season"
-      render={() => <AdminGuard component={EditSeason} />}
-    />
     <Route exact path="/stats" component={StatsPage} />
-    <Route
-      exact
-      path="/admin/terminal"
-      render={() => <AdminGuard component={Terminal} />}
-    />
+    <Route exact path="/admin">
+      <AdminGuard>
+        <Admin />
+      </AdminGuard>
+    </Route>
+    <Route exact path="/admin/edit-match">
+      <AdminGuard>
+        <EditMatches />
+      </AdminGuard>
+    </Route>
+    <Route exact path="/admin/edit-season">
+      <AdminGuard>
+        <EditSeason />
+      </AdminGuard>
+    </Route>
+    <Route exact path="/admin/terminal">
+      <AdminGuard>
+        <Terminal />
+      </AdminGuard>
+    </Route>
     <Redirect to="/" />
   </Switch>
 )
