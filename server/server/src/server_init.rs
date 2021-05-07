@@ -220,7 +220,7 @@ impl DataBase
         conn.execute(
             "create table if not exists images (
                 id              integer primary key autoincrement,
-                name            varchar(9) not null
+                name            varchar(10) not null
             )",
             NO_PARAMS,
         )

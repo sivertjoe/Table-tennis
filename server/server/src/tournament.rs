@@ -194,6 +194,8 @@ impl TournamentGame
     }
 }
 
+const DEFAULT_PICTURE: &str = "assets/tournament_badges/default.png";
+
 impl DataBase
 {
     pub fn create_tournament(&self, info: CreateTournament) -> ServerResult<()>
@@ -203,12 +205,27 @@ impl DataBase
             .map(|t| t.id + 1)
             .unwrap_or(1);
 
-        let prize = self.create_image_prize(info.image, tournament)?;
+        // Use default picture
+        let prize = if info.image == ""
+        {
+            self.get_default_prize()?
+        }
+        else
+        {
+            self.create_image_prize(info.image, tournament)?
+        };
+
         let organizer_pid =
             self.get_user_without_matches_by("uuid", "=", &info.organizer_token)?.id;
 
         self._create_tournament(organizer_pid, info.name, prize, info.player_count)?;
         Ok(())
+    }
+
+    fn get_default_prize(&self) -> ServerResult<i64>
+    {
+        self.sql_one::<Image, _>("select * from image where name = ?1", _params![DEFAULT_PICTURE])
+            .map(|image| image.id)
     }
 
     fn create_fs_if_not_exists(&self)
