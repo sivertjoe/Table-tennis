@@ -35,4 +35,8 @@ const convertImage = (image) =>
   })
 
 export const postImage = (url, body) =>
-  convertImage(body.image).then((img) => _post(url, { ...body, image: img }))
+  body.image
+    ? convertImage(body.image).then((img) =>
+        _post(url, { ...body, image: img }),
+      )
+    : _post(url, { ...body, image: '' })
