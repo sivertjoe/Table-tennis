@@ -5,7 +5,7 @@ import './ProfilePage.css'
 import '../../index.css'
 import { MatchHistory } from '../../components/match-history/MatchHistory'
 import { Notifications } from '../../components/notifications/Notifications'
-import SearchBar from '../../components/search-bar/SearchBar'
+import Input from '../../components/input/Input'
 import Button from '../../components/button/Button'
 import EloGraph from '../../components/elo-graph/EloGraph'
 import Medals from '../../components/medals/Medals'
@@ -115,7 +115,9 @@ class Profiles extends Component {
   }
 
   searchUsers = (search) => {
-    this.filtered = this.users.filter((u) => u.name.includes(search))
+    this.filtered = this.users.filter((u) =>
+      u.name.toLowerCase().includes(search),
+    )
     this.setState({})
   }
 
@@ -123,7 +125,7 @@ class Profiles extends Component {
     return (
       <div className="container">
         <h1>Profiles</h1>
-        <SearchBar callback={this.searchUsers} />
+        <Input placeholder="Search" onChange={this.searchUsers} />
         <ul className="table-container">
           {this.filtered.map((user, i) => (
             <li key={i}>

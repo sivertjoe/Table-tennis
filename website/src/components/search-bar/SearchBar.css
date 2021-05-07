@@ -1,9 +1,0 @@
-input {
-  width: 100%;
-  height: 3rem;
-  background-color: var(--background-color);
-  border: solid 1px var(--primary-color);
-  border-radius: 0.5rem;
-  color: var(--primary-color);
-  text-indent: 1rem;
-}
