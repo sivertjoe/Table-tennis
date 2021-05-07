@@ -12,7 +12,7 @@ use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
     spawn_season_checker, ChangePasswordInfo, CreateTournament, DataBase, DeleteMatchInfo,
-    EditUsersInfo, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns,
+    EditUsersInfo, GetTournamentOptions, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns,
     NotificationInfo, NotificationType, RequestResetPassword, StatsUsers, RegisterTournamentMatch
 };
 use server_core::{
@@ -400,10 +400,14 @@ async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     }
 }
 
+
+
+
 #[get("/tournaments")]
-async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<GetTournamentOptions>) -> HttpResponse
 {
-    match DATABASE!(data).get_tournaments()
+    let info: GetTournamentOptions = info.into_inner();
+    match DATABASE!(data).get_tournaments(info)
     {
         Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),

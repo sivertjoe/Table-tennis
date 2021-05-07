@@ -13,6 +13,11 @@ use crate::{
     server::{DataBase, ParamsType},
 };
 
+#[derive(Deserialize)]
+pub struct GetTournamentOptions
+{
+    pub query: Option<String>
+}
 
 #[derive(Sql)]
 pub struct Image
@@ -605,61 +610,82 @@ impl DataBase
         })
     }
 
-    pub fn get_tournaments(&self) -> ServerResult<Vec<TournamentInfo>>
+    fn map_tournament_info(&self, t: Tournament, info: &GetTournamentOptions) -> TournamentInfo
+    {
+        if t.state == TournamentState::Created as u8
+        {
+            let players: Vec<String> = self
+                .sql_many::<TournamentList, _>(
+                    "select * from tournament_lists where tournament = ?1",
+                    _params![t.id],
+                )
+                .unwrap()
+                .into_iter()
+                .map(|t| {
+                    self.get_user_without_matches_by("id", "=", &t.player.to_string())
+                        .unwrap()
+                        .name
+                })
+                .collect();
+            TournamentInfo {
+                tournament: self.convert_tournament(t).unwrap(),
+                data:       TournamentInfoState::Players(players),
+            }
+        }
+        else
+        {
+            let mut players: Vec<TournamentGameInfo> = self
+                .sql_many::<TournamentGame, _>(
+                    "select * from tournament_games where tournament = ?1",
+                    _params![t.id],
+                )
+                .unwrap()
+                .into_iter()
+                .map(|tg| self.convert(tg))
+                .collect();
+            if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
+                "select * from tournament_winners where tournament = ?1",
+                _params![t.id],
+            )
+            {
+                players.push(self.convert(TournamentGame::players(
+                    t.id,
+                    -1,
+                    winner.player,
+                    -1,
+                )));
+            }
+            TournamentInfo {
+                tournament: self.convert_tournament(t).unwrap(),
+                data:       TournamentInfoState::Games(players),
+            }
+        }
+    }
+
+    fn filter_tournaments(&self, t: &Tournament, info: &GetTournamentOptions) -> bool
+    {
+        if let Some(s) = &info.query
+        {
+            match s.as_str()
+            {
+                "old" => t.state == TournamentState::Done as u8,
+                "active" => true,
+                _  => t.state != TournamentState::Done as u8,
+            }
+        }
+        else
+        {
+            true
+        }
+    }
+
+    pub fn get_tournaments(&self, info: GetTournamentOptions) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
         let t_infos: Vec<TournamentInfo> = tournaments
             .into_iter()
-            .map(|t| {
-                if t.state == TournamentState::Created as u8
-                {
-                    let players: Vec<String> = self
-                        .sql_many::<TournamentList, _>(
-                            "select * from tournament_lists where tournament = ?1",
-                            _params![t.id],
-                        )
-                        .unwrap()
-                        .into_iter()
-                        .map(|t| {
-                            self.get_user_without_matches_by("id", "=", &t.player.to_string())
-                                .unwrap()
-                                .name
-                        })
-                        .collect();
-                    TournamentInfo {
-                        tournament: self.convert_tournament(t).unwrap(),
-                        data:       TournamentInfoState::Players(players),
-                    }
-                }
-                else
-                {
-                    let mut players: Vec<TournamentGameInfo> = self
-                        .sql_many::<TournamentGame, _>(
-                            "select * from tournament_games where tournament = ?1",
-                            _params![t.id],
-                        )
-                        .unwrap()
-                        .into_iter()
-                        .map(|tg| self.convert(tg))
-                        .collect();
-                    if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
-                        "select * from tournament_winners where tournament = ?1",
-                        _params![t.id],
-                    )
-                    {
-                        players.push(self.convert(TournamentGame::players(
-                            t.id,
-                            -1,
-                            winner.player,
-                            -1,
-                        )));
-                    }
-                    TournamentInfo {
-                        tournament: self.convert_tournament(t).unwrap(),
-                        data:       TournamentInfoState::Games(players),
-                    }
-                }
-            })
+            .filter(|t| self.filter_tournaments(t, &info))
+            .map(|t| self.map_tournament_info(t, &info))
             .collect();
         Ok(t_infos)
     }
