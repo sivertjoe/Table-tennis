@@ -17,7 +17,7 @@ use server::{
 };
 use server_core::{
     constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
-    types::ServerError,
+    types::{ServerError, TournamentError::*},
 };
 
 const PORT: u32 = 58642;
@@ -48,6 +48,16 @@ fn response_code(e: ServerError) -> u8
         ServerError::InactiveUser => 8,
         ServerError::ResetPasswordDuplicate => 9,
         ServerError::InvalidUsername => 10,
+        ServerError::Tournament(t) => match t
+        {
+            WrongState => 11,
+            NoTournament => 12,
+            NotOrganizer => 13,
+            InvalidGame => 14,
+            WrongTournamentCount => 15,
+            AlreadyJoined => 17,
+            GameAlreadyPlayed => 17,
+        },
         _ => 69,
     }
 }
@@ -366,8 +376,20 @@ async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
     }
 }
 
+#[post("/leave-tournament")]
+async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: JoinTournament = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).leave_tournament(info.token, info.tid)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 #[get("/tournaments")]
-async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_tournaments()
     {
@@ -610,6 +632,7 @@ async fn main() -> std::io::Result<()>
             .service(respond_to_notification)
             .service(create_tournament)
             .service(join_tournament)
+            .service(leave_tournament)
             .service(get_tournaments)
     });
 

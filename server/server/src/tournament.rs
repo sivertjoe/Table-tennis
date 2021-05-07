@@ -110,6 +110,7 @@ pub struct Tournament
 #[derive(Serialize)]
 pub struct SendTournament
 {
+    id:           i64,
     name:         String,
     prize:        String,
     player_count: i64,
@@ -280,6 +281,23 @@ impl DataBase
             "insert into tournaments (name, prize, state, organizer, player_count) values (?1, \
              ?2, ?3, ?4, ?5)",
             params![name, prize, TournamentState::Created as i64, pid, player_count],
+        )?;
+        Ok(())
+    }
+
+    pub fn leave_tournament(&self, token: String, tid: i64) -> ServerResult<()>
+    {
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+        if tournament.state != TournamentState::Created as u8
+        {
+            return Err(ServerError::Tournament(TournamentError::WrongState));
+        }
+        let pid = self.get_user_without_matches_by("uuid", "=", &token)?.id;
+
+        self.conn.execute(
+            "delete from tournament_lists where tournament = ?1 and player = ?2",
+            params![tid, pid],
         )?;
         Ok(())
     }
@@ -582,6 +600,7 @@ impl DataBase
             prize:        self.get_image_name(tournament.prize)?,
             player_count: tournament.player_count,
             state:        tournament.state,
+            id:           tournament.id,
         })
     }
 

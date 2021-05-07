@@ -7,7 +7,6 @@ pub enum TournamentError
     NoTournament,
     NotOrganizer,
     InvalidGame,
-    AlreadyPlayed,
     WrongTournamentCount,
     AlreadyJoined,
     GameAlreadyPlayed,
