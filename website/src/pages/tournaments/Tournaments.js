@@ -10,34 +10,23 @@ const Pages = {
 }
 
 class Tournaments extends Component {
-  page = Pages.Menu
-
   constructor() {
     super()
-    this.goBack = this.goBack.bind(this)
-    this.selectTournament = this.selectTournament.bind(this)
-  }
-
-  goBack() {
-    this.page = Pages.Menu
-    this.setState({})
-  }
-
-  selectTournament() {
-    this.page = Pages.Tournament
-    this.setState({})
+    this.state = {
+      page: Pages.Menu,
+    }
   }
 
   render() {
     return (
       <div className="page">
         <Menu
-          show={this.page === Pages.Menu}
-          selectTournament={this.selectTournament}
+          show={this.state.page === Pages.Menu}
+          onSelectTournament={() => this.setState({ page: Pages.Tournament })}
         />
         <Tournament
-          show={this.page === Pages.Tournament}
-          goBack={this.goBack}
+          show={this.state.page === Pages.Tournament}
+          goBack={() => this.setState({ page: Pages.Menu })}
         />
       </div>
     )
