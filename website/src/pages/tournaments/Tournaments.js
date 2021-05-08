@@ -14,6 +14,7 @@ class Tournaments extends Component {
     super()
     this.state = {
       page: Pages.Menu,
+      selectedTournament: null,
     }
   }
 
@@ -22,10 +23,16 @@ class Tournaments extends Component {
       <div className="page">
         <Menu
           show={this.state.page === Pages.Menu}
-          onSelectTournament={() => this.setState({ page: Pages.Tournament })}
+          onSelectTournament={(tournament) =>
+            this.setState({
+              page: Pages.Tournament,
+              selectedTournament: tournament,
+            })
+          }
         />
         <Tournament
           show={this.state.page === Pages.Tournament}
+          tournament={this.state.selectedTournament}
           goBack={() => this.setState({ page: Pages.Menu })}
         />
       </div>

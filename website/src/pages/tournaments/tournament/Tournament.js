@@ -2,8 +2,7 @@ import { React, Component } from 'react'
 import '../../../index.css'
 import '../Tournaments.css'
 import './Tournament.css'
-// import * as Api from '../../../api/TournamentApi'
-// import Button from '../../../components/button/Button'
+import TournamentList from '../../../components/tournament-list/TournamentList'
 
 class Tournament extends Component {
   constructor(args) {
@@ -11,6 +10,7 @@ class Tournament extends Component {
     this.state = {
       show: args.show,
       goBack: args.goBack,
+      tournament: args.tournament,
     }
   }
 
@@ -25,7 +25,11 @@ class Tournament extends Component {
           &#10229;
         </span>
         <div className="container ">
-          <h1>Testing</h1>
+          {this.state.tournament ? (
+            <TournamentList tournament={this.state.tournament} />
+          ) : (
+            <h1>No tournament selected...</h1>
+          )}
         </div>
       </div>
     )
