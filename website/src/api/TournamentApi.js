@@ -13,12 +13,12 @@ export const getTournaments = (arg = '') =>
 
 export const joinTournament = (id) =>
   BaseApi.post('join-tournament', {
-    id: id,
+    tid: id,
     token: localStorage.getItem('token') ?? '',
   })
 
 export const leaveTournament = (id) =>
   BaseApi.post('leave-tournament', {
-    id: id,
+    tid: id,
     token: localStorage.getItem('token') ?? '',
   })
