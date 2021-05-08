@@ -4,6 +4,27 @@
   text-align: center;
 }
 
+table {
+  width: 100%;
+  height: 100%;
+  margin: auto auto;
+  text-align: center;
+  font-size: 1.25rem;
+  line-height: 2rem;
+}
+
+tr {
+  cursor: pointer;
+}
+
+.orange {
+  color: var(--orange);
+}
+
+.table-container {
+  margin: 2rem auto;
+}
+
 @media only screen and (max-width: 1024px) {
   .side-menu {
     width: 100%;

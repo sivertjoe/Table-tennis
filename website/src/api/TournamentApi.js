@@ -8,7 +8,8 @@ export const createTournament = (name, playerCount, image) =>
     image: image,
   })
 
-export const getTournaments = () => BaseApi.get('tournaments')
+export const getTournaments = (arg = '') =>
+  BaseApi.get('tournaments?query=' + arg)
 
 export const joinTournament = (id) =>
   BaseApi.post('join-tournament', {
