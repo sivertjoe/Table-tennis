@@ -12,6 +12,7 @@ class TournamentList extends Component {
       color: 'green',
       tournament: args.tournament,
       users: args.tournament.data.Players,
+      username: localStorage.getItem('username'),
     }
 
     this.join = this.join.bind(this)
@@ -19,9 +20,21 @@ class TournamentList extends Component {
     this.removeUser = this.removeUser.bind(this)
   }
 
+  static getDerivedStateFromProps(props, state) {
+    return state.tournament.tournament.id === props.tournament.tournament.id
+      ? {
+          ...props,
+          users: state.users,
+        }
+      : {
+          ...props,
+          info: '',
+          users: props.tournament.data.Players,
+        }
+  }
+
   removeUser() {
-    const name = localStorage.getItem('username')
-    const index = this.state.users.indexOf(name)
+    const index = this.state.users.indexOf(this.state.username)
     if (index < 0) {
       this.setState({ color: 'red', info: 'User not in tournament' })
     } else {
@@ -38,14 +51,13 @@ class TournamentList extends Component {
 
   join(id) {
     Api.joinTournament(id)
-      .then(() => {
-        const name = localStorage.getItem('username')
+      .then(() =>
         this.setState({
-          users: [...this.state.users, name],
+          users: [...this.state.users, this.state.username],
           color: 'green',
           info: 'Joined tournament!',
-        })
-      })
+        }),
+      )
       .catch((e) => this.setState({ color: 'red', info: e.toString() }))
   }
 
@@ -53,6 +65,7 @@ class TournamentList extends Component {
     const id = this.state.tournament.tournament.id
     const tournamentName = this.state.tournament.tournament.name
     const numPlayers = this.state.tournament.tournament.player_count
+    const joined = this.state.users.some((user) => user === this.state.username)
 
     const list = this.state.users.map((name, index) => (
       <tr key={name}>
@@ -79,11 +92,17 @@ class TournamentList extends Component {
         </div>
         <br />
 
-        <div className="center" onClick={() => this.join(id)}>
-          <Button placeholder="Join" />
-        </div>
-        <div className="center" onClick={() => this.leave(id)}>
+        <div
+          className={'center' + (joined ? ' vis' : ' hid')}
+          onClick={() => this.leave(id)}
+        >
           <Button placeholder="Leave" />
+        </div>
+        <div
+          className={'center' + (joined ? ' hid' : ' vis')}
+          onClick={() => this.join(id)}
+        >
+          <Button placeholder="Join" />
         </div>
         <div className="center">
           {this.state.info && (

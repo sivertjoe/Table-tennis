@@ -8,3 +8,11 @@ table {
 h1 {
   text-align: center;
 }
+
+.vis {
+  display: block;
+}
+
+.hid {
+  display: none;
+}
