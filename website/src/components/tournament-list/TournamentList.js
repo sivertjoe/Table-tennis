@@ -93,13 +93,13 @@ class TournamentList extends Component {
         <br />
 
         <div
-          className={'center' + (joined ? ' vis' : ' hid')}
+          className={'center' + (joined ? '' : ' hide')}
           onClick={() => this.leave(id)}
         >
           <Button placeholder="Leave" />
         </div>
         <div
-          className={'center' + (joined ? ' hid' : ' vis')}
+          className={'center' + (joined ? ' hide' : '')}
           onClick={() => this.join(id)}
         >
           <Button placeholder="Join" />

@@ -52,10 +52,7 @@ class Menu extends Component {
   render() {
     return (
       <div
-        className={
-          'container side-menu' +
-          (this.state.show ? ' menu-visible' : ' hidden')
-        }
+        className={'container side-menu' + (this.state.show ? '' : ' hidden')}
       >
         <TabsComponent
           tabs={['In progress', 'Old']}

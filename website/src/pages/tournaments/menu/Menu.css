@@ -31,10 +31,6 @@ tr {
     margin: auto 2rem;
   }
 
-  .menu-visible {
-    display: block;
-  }
-
   .hidden {
     display: none;
   }

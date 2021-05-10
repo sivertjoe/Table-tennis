@@ -20,7 +20,7 @@ class Tournament extends Component {
 
   render() {
     return (
-      <div className={'body' + (this.state.show ? ' visible' : ' hidden')}>
+      <div className={'body' + (this.state.show ? '' : ' hidden')}>
         <span className="arrow" onClick={this.state.goBack}>
           &#10229;
         </span>
