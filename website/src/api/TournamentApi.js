@@ -30,5 +30,3 @@ export const registerTournamentMatch = (winner, loser, tournament_game) =>
     loser: loser,
     tournament_game: tournament_game,
   })
-
-export const getTournaments = () => BaseApi.get('tournaments')

@@ -12,6 +12,7 @@ function TournamentMatch(props) {
   const [selectedClient, setSelectedClient] = React.useState(undefined)
   const [modalIsOpen, setIsOpen] = React.useState(false)
   function openModal() {
+    if (props.match === undefined) return //ouch
     setIsOpen(true)
   }
   function afterOpenModal() {
@@ -27,7 +28,6 @@ function TournamentMatch(props) {
     winner = selectedClient
     loser =
       props.match.player1 === winner ? props.match.player2 : props.match.player1
-    console.log(winner, loser)
     Api.registerTournamentMatch(winner, loser, props.match.id)
       .then(() => {
         closeModal()
@@ -35,7 +35,6 @@ function TournamentMatch(props) {
       .catch((e) => console.warn('Jaha' + e))
   }
   function _handleChange(event) {
-    console.log(event)
     setSelectedClient(event.value)
   }
 
@@ -58,17 +57,16 @@ function TournamentMatch(props) {
     },
   }
   const options = [
-    { value: props.match.player1, label: props.match.player1 },
-    { value: props.match.player2, label: props.match.player2 },
+    { value: props.match?.player1, label: props.match?.player1 },
+    { value: props.match?.player2, label: props.match?.player2 },
   ]
   let winner,
     loser = undefined
-
   return (
-    <div>
+    <div className="match-info">
       {/* <button onClick={openModal}>Open Modal</button> */}
       <p onClick={openModal}>
-        {props.match.player1}, {props.match.player2}
+        {props.match?.player1}, {props.match?.player2}
       </p>
       <Modal
         isOpen={modalIsOpen}
@@ -77,10 +75,9 @@ function TournamentMatch(props) {
         style={customStyles}
         ariaHideApp={false}
       >
-        {/* <h2 ref={(_subtitle) => (subtitle = _subtitle)}>Hello</h2> */}
         <div>
-          Editing match. Who won between {props.match.player1},{' '}
-          {props.match.player2}
+          Editing match. Who won between {props.match?.player1},{' '}
+          {props.match?.player2}
           <Select
             // value={selectedClient}
             options={options}
@@ -90,41 +87,50 @@ function TournamentMatch(props) {
         </div>
         <button onClick={commitMatch}>Commit</button>
       </Modal>
+      {/* {(props.match.player1 = 'kåre')} */}
     </div>
   )
 }
 
 function TournamentBracket(props) {
-  console.log(props.b)
   let ret = []
-  props.b.forEach((match) => {
+  const l = props.matches?.length
+
+  //   for-loop, cause match can be undefined
+  for (let i = 0; i < props.nMatches; i++) {
+    let match = l > i ? props.matches[i] : undefined
+    console.log(match)
     ret.push(
-      <div className="flex-item">
+      <div className="match">
         <TournamentMatch match={match} />
       </div>,
     )
-  })
+  }
 
-  return <div className="flex-container">{ret}</div>
+  return <div className="bracket">{ret}</div>
 }
 
 export const Tournament = (props) => {
+  console.log(props.info)
   if (props.info === undefined) {
     return <div>Loading..</div>
   }
   console.log(props.info)
+  //   const [matches, setMatches] = React.useState(props.)
 
   let tournament = props.info
-  let games = tournament.data.Games.reverse()
-
+  let games = tournament.data.Games?.reverse()
   let numBrackets = Math.ceil(Math.log2(tournament.tournament.player_count))
 
   let power = Math.pow(2, numBrackets)
   let tournamentBrackets = []
   for (let i = 0; i < numBrackets; i++) {
     power /= 2
-    tournamentBrackets.push(<TournamentBracket b={games.splice(0, power)} />)
+    tournamentBrackets.push(
+      <TournamentBracket matches={games?.splice(0, power)} nMatches={power} />,
+    )
   }
+  console.log(props.info)
 
   return <div className="tournament">{tournamentBrackets}</div>
 }

@@ -231,8 +231,15 @@ impl DataBase
 
     fn get_default_prize(&self) -> ServerResult<i64>
     {
-        self.sql_one::<Image, _>("select * from image where name = ?1", _params![DEFAULT_PICTURE])
-            .map(|image| image.id)
+        if let Ok(image) = self.sql_one::<Image, _>("select * from images where name = ?1", _params![DEFAULT_PICTURE])
+        {
+            Ok(image.id)
+        }
+        else
+        {
+            self.conn.execute("insert into images (name) values (?1)", params!(DEFAULT_PICTURE))?; 
+            Ok(self.sql_one::<Image, _>("select * from images where name = ?1", _params![DEFAULT_PICTURE]).unwrap().id)
+        }
     }
 
     fn create_fs_if_not_exists(&self)
