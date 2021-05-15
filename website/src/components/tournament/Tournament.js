@@ -111,14 +111,14 @@ function TournamentBracket(props) {
 }
 
 export const Tournament = (props) => {
-  console.log(props.info)
-  if (props.info === undefined) {
+  console.log(props.tournament)
+  if (props.tournament === undefined) {
     return <div>Loading..</div>
   }
-  console.log(props.info)
+  console.log(props.tournament)
   //   const [matches, setMatches] = React.useState(props.)
 
-  let tournament = props.info
+  let tournament = props.tournament
   let games = tournament.data.Games?.reverse()
   let numBrackets = Math.ceil(Math.log2(tournament.tournament.player_count))
 
@@ -130,7 +130,7 @@ export const Tournament = (props) => {
       <TournamentBracket matches={games?.splice(0, power)} nMatches={power} />,
     )
   }
-  console.log(props.info)
+  console.log(props.tournament)
 
   return <div className="tournament">{tournamentBrackets}</div>
 }

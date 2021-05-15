@@ -3,6 +3,7 @@ import '../../../index.css'
 import '../Tournaments.css'
 import './Tournament.css'
 import TournamentList from '../../../components/tournament-list/TournamentList'
+import { default as TournamentComponenet } from '../../../components/tournament/Tournament'
 
 class Tournament extends Component {
   constructor(args) {
@@ -26,7 +27,11 @@ class Tournament extends Component {
         </span>
         <div className="container ">
           {this.state.tournament ? (
-            <TournamentList tournament={this.state.tournament} />
+            this.state.tournament.tournament.state > 0 ? (
+              <TournamentComponenet tournament={this.state.tournament} />
+            ) : (
+              <TournamentList tournament={this.state.tournament} />
+            )
           ) : (
             <h1>No tournament selected...</h1>
           )}
