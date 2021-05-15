@@ -38,7 +38,7 @@ impl DataBase
 
     pub fn get_is_season(&self) -> ServerResult<bool>
     {
-        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1).map(|num| num == 1)
+        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 0).map(|num| num == 1)
     }
 
     pub fn set_is_season(&self, val: bool) -> ServerResult<()>
@@ -235,12 +235,12 @@ mod test
         let s = DataBase::new(db_file);
         let default = s.get_is_season().unwrap(); // Create it
 
-        s.set_is_season(false).unwrap();
+        s.set_is_season(true).unwrap();
         let next = s.get_is_season().unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(default, true);
-        assert_eq!(next, false);
+        assert_eq!(default, false);
+        assert_eq!(next, true);
     }
 
     #[test]

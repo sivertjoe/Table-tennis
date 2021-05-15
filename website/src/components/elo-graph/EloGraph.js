@@ -87,15 +87,20 @@ class EloGraph extends Component {
 
     UserApi.getActiveUsers()
       .then((users) => (this.userList = users))
-
+      .catch((e) => console.warn(e))
       .finally(() => {
         this.setState({})
       })
 
-    MatchApi.getSeasonStart().then((date) => {
-      const start = new Date(date)
-      this.periods[2].date = start
-    })
+    MatchApi.getSeasonStart()
+      .then((date) => {
+        const start = new Date(date)
+        this.periods[2].date = start
+      })
+      .catch((e) => {
+        const start = new Date(0)
+        this.periods[2].date = start
+      })
   }
 
   changePeriod(e) {
