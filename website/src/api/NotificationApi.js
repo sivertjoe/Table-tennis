@@ -3,7 +3,7 @@ import * as BaseApi from './BaseApi'
 export const getNotifications = () =>
   BaseApi.get('notifications?type=match&token=' + localStorage.getItem('token'))
 
-export const getAdminNotifications = (token) =>
+export const getAdminNotifications = () =>
   BaseApi.get('notifications?type=admin&token=' + localStorage.getItem('token'))
 
 export const registerMatch = (winner, loser, token) =>

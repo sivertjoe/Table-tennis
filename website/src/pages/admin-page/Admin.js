@@ -7,7 +7,6 @@ import './Admin.css'
 import Button from '../../components/button/Button'
 
 class Admin extends Component {
-  isAdmin = 0
   newUserNotifications = []
   resetPasswordNotifications = []
   users = []
@@ -24,34 +23,23 @@ class Admin extends Component {
 
   constructor() {
     super()
-    const token = localStorage.getItem('token')
-    if (token) {
-      AdminApi.isAdmin(token).then((isAdmin) => {
-        if (isAdmin) {
-          this.isAdmin = 1
-          NotificationApi.getAdminNotifications(token)
-            .then((res) => {
-              this.newUserNotifications = res.new_users
-              this.resetPasswordNotifications = res.reset_password
-            })
-            .catch((error) => console.warn(error.message))
-            .finally(() => this.setState({}))
-        } else {
-          this.isAdmin = -1
-          this.setState({})
-        }
+    NotificationApi.getAdminNotifications()
+      .then((res) => {
+        this.newUserNotifications = res.new_users
+        this.resetPasswordNotifications = res.reset_password
       })
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
 
-      AdminApi.getAllUsers()
-        .then((users) => {
-          this.users = users.map((u) => ({
-            value: u.name,
-            label: u.name,
-          }))
-        })
-        .catch((error) => console.warn(error.message))
-        .finally(() => this.setState({}))
-    } else this.isAdmin = -1
+    AdminApi.getAllUsers()
+      .then((users) => {
+        this.users = users.map((u) => ({
+          value: u.name,
+          label: u.name,
+        }))
+      })
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
 
     this.selectUser = this.selectUser.bind(this)
     this.selectOption = this.selectOption.bind(this)
@@ -139,67 +127,59 @@ class Admin extends Component {
   }
 
   render() {
-    if (this.isAdmin === 1) {
-      return (
-        <div>
-          <h1>Hello Admin &#128526;</h1>
-          <div className="container">
-            {this.notification_table(
-              this.newUserNotifications,
-              'New users',
-              this.newUserButton,
-            )}
-            {this.notification_table(
-              this.resetPasswordNotifications,
-              'Password resets',
-              this.resetPasswordButton,
-            )}
-            <div>
-              <h2>Edit users</h2>
-              <h3>Select users</h3>
-              <Select
-                isMulti
-                className="selector"
-                options={this.users}
-                closeMenuOnSelect={false}
-                onChange={this.selectUser}
-                placeholder="Select the users to edit..."
-              />
-              <h3>Select action</h3>
-              <Select
-                className="selector"
-                options={this.editOptions}
-                onChange={this.selectOption}
-                placeholder="Select the action to perform..."
-              />
-              {this.success && <h2 className="success">{this.success}</h2>}
-              <div className="button">
-                <Button placeholder="Submit" callback={this.editUsersButton} />
-              </div>
+    return (
+      <div>
+        <h1>Hello Admin &#128526;</h1>
+        <div className="container">
+          {this.notification_table(
+            this.newUserNotifications,
+            'New users',
+            this.newUserButton,
+          )}
+          {this.notification_table(
+            this.resetPasswordNotifications,
+            'Password resets',
+            this.resetPasswordButton,
+          )}
+          <div>
+            <h2>Edit users</h2>
+            <h3>Select users</h3>
+            <Select
+              isMulti
+              className="selector"
+              options={this.users}
+              closeMenuOnSelect={false}
+              onChange={this.selectUser}
+              placeholder="Select the users to edit..."
+            />
+            <h3>Select action</h3>
+            <Select
+              className="selector"
+              options={this.editOptions}
+              onChange={this.selectOption}
+              placeholder="Select the action to perform..."
+            />
+            {this.success && <h2 className="success">{this.success}</h2>}
+            <div className="button">
+              <Button placeholder="Submit" callback={this.editUsersButton} />
             </div>
-            <Button placeholder="Rollback" callback={this.rollBack} />
           </div>
-          <div className="container">
-            <h2>Other Admin pages</h2>
-            <a href="/admin/edit-match">
-              <Button placeholder="Edit Match" />
-            </a>
-            <a className="adminButton" href="/admin/edit-season">
-              <Button placeholder="Edit Season" />
-            </a>
-            <a className="adminButton" href="/admin/terminal">
-              <Button placeholder="Terminal" />
-            </a>
-          </div>
+          <Button placeholder="Rollback" callback={this.rollBack} />
         </div>
-      )
-    } else if (this.isAdmin === -1)
-      return (
-        <div>
-          <img className="arnold" alt="STOP!!!" src={'unauth.png'} />
+        <div className="container">
+          <h2>Other Admin pages</h2>
+          <a href="/admin/edit-match">
+            <Button placeholder="Edit Match" />
+          </a>
+          <a className="adminButton" href="/admin/edit-season">
+            <Button placeholder="Edit Season" />
+          </a>
+          <a className="adminButton" href="/admin/terminal">
+            <Button placeholder="Terminal" />
+          </a>
         </div>
-      )
-    else return <h1 style={{ textAlign: 'center' }}>Loading...</h1>
+      </div>
+    )
   }
 }
 
