@@ -235,12 +235,12 @@ mod test
         let s = DataBase::new(db_file);
         let default = s.get_is_season().unwrap(); // Create it
 
-        s.set_is_season(false).unwrap();
+        s.set_is_season(true).unwrap();
         let next = s.get_is_season().unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(default, true);
-        assert_eq!(next, false);
+        assert_eq!(default, false);
+        assert_eq!(next, true);
     }
 
     #[test]
