@@ -13,6 +13,7 @@ body {
   --red: #f03b00;
   --orange: #f8a532;
   --purple: #52207e;
+  --olive: #0f3f3f;
 
   color: var(--primary-color);
   background-color: var(--background-color);

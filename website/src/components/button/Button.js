@@ -14,7 +14,11 @@ class Button extends Component {
 
   render() {
     return (
-      <button className="big-button" onClick={this.onClick}>
+      <button
+        className={'big-button' + (this.args.className ?? '')}
+        style={this.args.style ?? {}}
+        onClick={this.onClick}
+      >
         {this.args.placeholder ?? 'Click'}
       </button>
     )

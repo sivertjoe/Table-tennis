@@ -28,7 +28,10 @@ class Tournament extends Component {
         <div className="container ">
           {this.state.tournament ? (
             this.state.tournament.tournament.state > 0 ? (
-              <TournamentComponenet tournament={this.state.tournament} />
+              <TournamentComponenet
+                matches={this.state.tournament.data.Games}
+                info={this.state.tournament.tournament}
+              />
             ) : (
               <TournamentList tournament={this.state.tournament} />
             )
