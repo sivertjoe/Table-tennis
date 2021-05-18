@@ -121,7 +121,7 @@ pub struct SendTournament
     player_count:   i64,
     state:          u8,
     organizer_name: String,
-    winner:         i64,
+    winner:         String,
 }
 
 #[derive(Sql)]
@@ -616,7 +616,7 @@ impl DataBase
     fn convert_tournament(
         &self,
         tournament: Tournament,
-        tw: Option<i64>,
+        tw: Option<String>,
     ) -> ServerResult<SendTournament>
     {
         Ok(SendTournament {
@@ -628,7 +628,7 @@ impl DataBase
             organizer_name: self
                 .get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
                 .name,
-            winner:         tw.unwrap_or(-1),
+            winner:         tw.unwrap_or(String::from("")),
         })
     }
 
@@ -675,7 +675,7 @@ impl DataBase
                 .map(|tg| self.convert(tg))
                 .collect();
 
-            let mut tournament_winner: Option<i64> = None;
+            let mut tournament_winner = None;
             if t.state == TournamentState::Done as u8
             {
                 if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
@@ -683,7 +683,8 @@ impl DataBase
                     _params![t.id],
                 )
                 {
-                    tournament_winner = Some(winner.id);
+                     let winner = self.get_user_without_matches_by("id", "=", &winner.player.to_string()).unwrap();
+                     tournament_winner = Some(winner.name);
                 }
             }
 
