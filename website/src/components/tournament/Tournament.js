@@ -4,7 +4,7 @@ import './Tournament.css'
 import * as Api from '../../api/TournamentApi'
 
 import Button from '../button/Button'
-import Modal from 'react-modal'
+import Modal, { prototype } from 'react-modal'
 import Select from 'react-select'
 // Modal.setAppElement('.tournament')
 
@@ -13,6 +13,8 @@ function TournamentMatch(props) {
   const [selectedClient, setSelectedClient] = React.useState(undefined)
   const [modalIsOpen, setIsOpen] = React.useState(false)
   function openModal() {
+    console.log(props.organizer)
+    console.log(localStorage.getItem('username'))
     if (
       props.match.player1 !== '' &&
       props.match.player2 !== '' &&

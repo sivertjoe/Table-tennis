@@ -654,7 +654,7 @@ impl DataBase
         {
             let mut players: Vec<TournamentGameInfo> = self
                 .sql_many::<TournamentGame, _>(
-                    "select * from tournament_games where tournament = ?1",
+                    "select * from tournament_games where tournament = ?1 order by bucket desc",
                     _params![t.id],
                 )
                 .unwrap()
