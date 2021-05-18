@@ -8,17 +8,31 @@ import Modal, { prototype } from 'react-modal'
 import Select from 'react-select'
 // Modal.setAppElement('.tournament')
 
+
+function parentNotPlayed(match, matches) {
+    let parentIndex = (match.bucket - 1) / 2
+    let parent = match[parentIndex]
+
+    if (match.bucket & 1 === 1) {
+        return parent.player1 !== ''
+    }
+    else {
+        return parent.player2 !== ''
+    }
+}
+
+
 function TournamentMatch(props) {
   //   var subtitle
   const [selectedClient, setSelectedClient] = React.useState(undefined)
   const [modalIsOpen, setIsOpen] = React.useState(false)
   function openModal() {
-    console.log(props.organizer)
-    console.log(localStorage.getItem('username'))
     if (
       props.match.player1 !== '' &&
       props.match.player2 !== '' &&
-      props.organizer === localStorage.getItem('username')
+      props.organizer === localStorage.getItem('username') &&
+      parentNotPlayed(props.match, props.matches)
+
     )
       setIsOpen(true)
   }
@@ -99,6 +113,7 @@ function TournamentBracket(props) {
       <div className="match" key={'match-div-' + i}>
         <TournamentMatch
           match={matches[i]}
+          matches={matches}
           key={'match' + { i }}
           callback={props.callback}
           organizer={props.organizer}
