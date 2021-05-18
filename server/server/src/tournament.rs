@@ -16,7 +16,7 @@ use crate::{
 #[derive(Deserialize)]
 pub struct GetTournamentOptions
 {
-    pub query: Option<String>
+    pub query: Option<String>,
 }
 
 #[derive(Sql)]
@@ -79,10 +79,10 @@ enum TournamentInfoState
 #[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 struct TournamentGameInfo
 {
-    id: i64,
-    player1:    String,
-    player2:    String,
-    bucket:     i64,
+    id:      i64,
+    player1: String,
+    player2: String,
+    bucket:  i64,
 }
 
 #[derive(Sql)]
@@ -115,12 +115,13 @@ pub struct Tournament
 #[derive(Serialize)]
 pub struct SendTournament
 {
-    id:           i64,
-    name:         String,
-    prize:        String,
-    player_count: i64,
-    state:        u8,
+    id:             i64,
+    name:           String,
+    prize:          String,
+    player_count:   i64,
+    state:          u8,
     organizer_name: String,
+    winner:         i64,
 }
 
 #[derive(Sql)]
@@ -231,14 +232,21 @@ impl DataBase
 
     fn get_default_prize(&self) -> ServerResult<i64>
     {
-        if let Ok(image) = self.sql_one::<Image, _>("select * from images where name = ?1", _params![DEFAULT_PICTURE])
+        if let Ok(image) = self
+            .sql_one::<Image, _>("select * from images where name = ?1", _params![DEFAULT_PICTURE])
         {
             Ok(image.id)
         }
         else
         {
-            self.conn.execute("insert into images (name) values (?1)", params!(DEFAULT_PICTURE))?; 
-            Ok(self.sql_one::<Image, _>("select * from images where name = ?1", _params![DEFAULT_PICTURE]).unwrap().id)
+            self.conn
+                .execute("insert into images (name) values (?1)", params!(DEFAULT_PICTURE))?;
+            Ok(self
+                .sql_one::<Image, _>("select * from images where name = ?1", _params![
+                    DEFAULT_PICTURE
+                ])
+                .unwrap()
+                .id)
         }
     }
 
@@ -351,7 +359,6 @@ impl DataBase
             Ok(false)
         }
     }
-
 
     fn get_all_tournament_games(&self, tid: i64) -> ServerResult<Vec<TournamentGame>>
     {
@@ -593,10 +600,10 @@ impl DataBase
         };
 
         TournamentGameInfo {
-            player1:    h(tg.player1),
-            player2:    h(tg.player2),
-            id: tg.id,
-            bucket:     tg.bucket,
+            player1: h(tg.player1),
+            player2: h(tg.player2),
+            id:      tg.id,
+            bucket:  tg.bucket,
         }
     }
 
@@ -606,30 +613,38 @@ impl DataBase
             .map(|i| i.name)
     }
 
-    fn convert_tournament(&self, tournament: Tournament) -> ServerResult<SendTournament>
+    fn convert_tournament(
+        &self,
+        tournament: Tournament,
+        tw: Option<i64>,
+    ) -> ServerResult<SendTournament>
     {
         Ok(SendTournament {
-            name:         tournament.name,
-            prize:        self.get_image_name(tournament.prize)?,
-            player_count: tournament.player_count,
-            state:        tournament.state,
-            id:           tournament.id,
-            organizer_name: self.get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?.name,
+            name:           tournament.name,
+            prize:          self.get_image_name(tournament.prize)?,
+            player_count:   tournament.player_count,
+            state:          tournament.state,
+            id:             tournament.id,
+            organizer_name: self
+                .get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
+                .name,
+            winner:         tw.unwrap_or(-1),
         })
     }
 
     fn map_tournament_info(&self, t: Tournament) -> TournamentInfo
     {
         /* @Optimization:
-        *  Get all the users necessary, E.g select * from ... where id in (<all users ids>)
-        *  and pass all users to the map function here and
-        *  self.conver(tg, users), this will (probabably) be more
-        *  efficient
-        *
-        *  Another Optimization: 
-        *  create a get_user_without_matches_by_id function, this way we won't allocate the string
-        *  for the id all the time, this is such a wasted allocation
-        */
+         *  Get all the users necessary, E.g select * from ... where id in (<all
+         * users ids>)  and pass all users to the map function here and
+         *  self.conver(tg, users), this will (probabably) be more
+         *  efficient
+         *
+         *  Another Optimization:
+         *  create a get_user_without_matches_by_id function, this way we won't
+         * allocate the string  for the id all the time, this is such a
+         * wasted allocation
+         */
         if t.state == TournamentState::Created as u8
         {
             let players: Vec<String> = self
@@ -640,19 +655,17 @@ impl DataBase
                 .unwrap()
                 .into_iter()
                 .map(|t| {
-                    self.get_user_without_matches_by("id", "=", &t.player.to_string())
-                        .unwrap()
-                        .name
+                    self.get_user_without_matches_by("id", "=", &t.player.to_string()).unwrap().name
                 })
                 .collect();
             TournamentInfo {
-                tournament: self.convert_tournament(t).unwrap(),
+                tournament: self.convert_tournament(t, None).unwrap(),
                 data:       TournamentInfoState::Players(players),
             }
         }
         else
         {
-            let mut players: Vec<TournamentGameInfo> = self
+            let players: Vec<TournamentGameInfo> = self
                 .sql_many::<TournamentGame, _>(
                     "select * from tournament_games where tournament = ?1 order by bucket desc",
                     _params![t.id],
@@ -661,23 +674,21 @@ impl DataBase
                 .into_iter()
                 .map(|tg| self.convert(tg))
                 .collect();
+
+            let mut tournament_winner: Option<i64> = None;
             if t.state == TournamentState::Done as u8
             {
                 if let Ok(winner) = self.sql_one::<TournamentWinner, _>(
                     "select * from tournament_winners where tournament = ?1",
-                    _params![t.id])
+                    _params![t.id],
+                )
                 {
-                    players.push(self.convert(TournamentGame::players(
-                        t.id,
-                        -1,
-                        winner.player,
-                        -1,
-                    )));
+                    tournament_winner = Some(winner.id);
                 }
             }
 
             TournamentInfo {
-                tournament: self.convert_tournament(t).unwrap(),
+                tournament: self.convert_tournament(t, tournament_winner).unwrap(),
                 data:       TournamentInfoState::Games(players),
             }
         }
@@ -690,7 +701,7 @@ impl DataBase
             match s.as_str()
             {
                 "old" => t.state == TournamentState::Done as u8,
-                "active"  => t.state != TournamentState::Done as u8,
+                "active" => t.state != TournamentState::Done as u8,
                 _ => true,
             }
         }
@@ -958,7 +969,9 @@ mod test
         let _ = s.join_tournament(token_s, 2);
         let _ = s.join_tournament(token_b, 2);
 
-        let info = GetTournamentOptions { query: None };
+        let info = GetTournamentOptions {
+            query: None
+        };
         let tournaments = s.get_tournaments(info);
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
@@ -1089,7 +1102,9 @@ mod test
 
 
         let winner = s.get_user(&winner);
-        let info = GetTournamentOptions { query: None };
+        let info = GetTournamentOptions {
+            query: None
+        };
         let tournaments = s.get_tournaments(info);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
