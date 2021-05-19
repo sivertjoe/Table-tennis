@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import '../../index.css'
 import './Tournament.css'
 import * as Api from '../../api/TournamentApi'
@@ -8,37 +8,46 @@ import Modal, { prototype } from 'react-modal'
 import Select from 'react-select'
 // Modal.setAppElement('.tournament')
 
-
-function parentNotPlayed(match, matches) {
-    let parentIndex = (match.bucket - 1) / 2
-    let parent = match[parentIndex]
-
-    if (match.bucket & 1 === 1) {
-        return parent.player1 !== ''
-    }
-    else {
-        return parent.player2 !== ''
-    }
+const finals = {
+  2: 'Final',
+  4: 'Semifinals',
+  8: 'Quarterfinals',
+  16: 'Eighth-finals',
+  32: '16th-finals',
+  64: '32nd-finals',
 }
 
-
 function TournamentMatch(props) {
-  //   var subtitle
   const [selectedClient, setSelectedClient] = React.useState(undefined)
   const [modalIsOpen, setIsOpen] = React.useState(false)
+  const options = [
+    { value: props.match.player1, label: props.match.player1 },
+    { value: props.match.player2, label: props.match.player2 },
+  ]
+
+  function parentNotPlayed(match, matches) {
+    if (match.bucket === 0) {
+      return true
+    }
+
+    let parentIndex = Math.trunc((match.bucket - 1) / 2)
+    let parent = matches.find((m) => {
+      return parentIndex === m.bucket
+    })
+
+    return ![parent.player1, parent.player2].filter((m) =>
+      [match.player1, match.player2].includes(m),
+    ).length
+  }
   function openModal() {
     if (
+      props.winner === '' &&
       props.match.player1 !== '' &&
       props.match.player2 !== '' &&
       props.organizer === localStorage.getItem('username') &&
       parentNotPlayed(props.match, props.matches)
-
     )
       setIsOpen(true)
-  }
-  function afterOpenModal() {
-    // references are now sync'd and can be accessed.
-    // subtitle.style.color = '#f00'
   }
   function closeModal() {
     setIsOpen(false)
@@ -46,43 +55,65 @@ function TournamentMatch(props) {
   function commitMatch() {
     if (!selectedClient) return
 
-    winner = selectedClient
-    loser =
+    let winner = selectedClient
+    let loser =
       props.match.player1 === winner ? props.match.player2 : props.match.player1
-    Api.registerTournamentMatch(winner, loser, props.match.id)
-      .then(() => closeModal())
-      .catch((e) => console.warn('Jaha' + e))
+    // Api.registerTournamentMatch(winner, loser, props.match.id)
+    //   .then(() => closeModal())
+    //   .catch((e) => console.warn('Jaha' + e))
     props.callback(props.match, winner)
+    closeModal()
   }
+
   function _handleChange(event) {
     setSelectedClient(event.value)
   }
 
-  const options = [
-    { value: props.match?.player1, label: props.match?.player1 },
-    { value: props.match?.player2, label: props.match?.player2 },
-  ]
-  let winner,
-    loser = undefined
+  let winner = props.winner
+  if (props.match.bucket !== 0) {
+    let parentIndex = Math.trunc((props.match.bucket - 1) / 2)
+    let parent = props.matches.find((m) => {
+      return parentIndex === m.bucket
+    })
+
+    winner = [parent?.player1, parent?.player2].filter((m) =>
+      [props.match.player1, props.match.player2].includes(m),
+    )[0]
+  }
+
   return (
-    <div key={'match-info-' + props.match.id}>
+    <>
       <div className="match-info" onClick={openModal}>
-        <span style={{ gridColumn: 1 }}>{props.match?.player1}</span>
+        <span
+          style={{
+            gridColumn: 1,
+            color: winner === props.match.player1 ? 'var(--orange)' : '',
+          }}
+        >
+          {props.match.player1}
+        </span>
         <span style={{ gridColumn: 2 }}>|</span>
-        <span style={{ gridColumn: 3 }}>{props.match?.player2}</span>
+        <span
+          style={{
+            gridColumn: 3,
+            color: winner === props.match.player2 ? 'var(--orange)' : '',
+          }}
+        >
+          {props.match.player2}
+        </span>
       </div>
+
       <Modal
         className="Modal"
         overlayClassName="Overlay"
         isOpen={modalIsOpen}
-        onAfterOpen={afterOpenModal}
         onRequestClose={closeModal}
         ariaHideApp={false}
       >
         <div className="modal-body">
-          <h3 style={{ marginBottom: '2rem' }}>
-            Editing match. Who won between {props.match?.player1} &{' '}
-            {props.match?.player2}
+          <h3>
+            Editing match. Who won between {props.match.player1} &{' '}
+            {props.match.player2}
           </h3>
           <Select
             className="black"
@@ -95,8 +126,7 @@ function TournamentMatch(props) {
           </div>
         </div>
       </Modal>
-      {/* {(props.match.player1 = 'kåre')} */}
-    </div>
+    </>
   )
 }
 
@@ -108,7 +138,6 @@ function TournamentBracket(props) {
   const l = matches.length
   //   for-loop, cause match can be undefined
   for (let i = start; i < stop; i++) {
-    // let match = l > i ? props.matches[i] : undefined
     ret.push(
       <div className="match" key={'match-div-' + i}>
         <TournamentMatch
@@ -117,6 +146,7 @@ function TournamentBracket(props) {
           key={'match' + { i }}
           callback={props.callback}
           organizer={props.organizer}
+          winner={props.winner}
         />
       </div>,
     )
@@ -127,7 +157,7 @@ function TournamentBracket(props) {
       <h2>{props.title}</h2>
       <div
         className={'bracket' + (stop === l ? '' : ' border-right')}
-        key={'btacket-' + props.start}
+        key={'bracket-' + props.start}
       >
         {ret}
       </div>
@@ -136,10 +166,12 @@ function TournamentBracket(props) {
 }
 
 export const Tournament = (props) => {
-  const [matches, setMatches] = React.useState(props.matches)
+  const [matches, setMatches] = React.useState([...props.matches])
+  const [tournament, setInfo] = React.useState(props.info)
 
   //matches would not rerender when parent rerender (:
-  if (matches.length !== props.matches.length) {
+  if (tournament.id !== props.info.id) {
+    setInfo(props.info)
     setMatches([...props.matches])
   }
   if (!matches) {
@@ -147,37 +179,55 @@ export const Tournament = (props) => {
   }
 
   function handleInputChange(match, winner) {
-    let parent = Math.trunc((match.bucket - 1) / 2)
-    const index = matches.findIndex((m) => m.bucket === parent)
-
-    if ((match.bucket & 1) === 1) {
-      matches[index].player2 = winner
+    if (match.bucket === 0) {
+      tournament.winner = winner
     } else {
-      matches[index].player1 = winner
+      let parent = Math.trunc((match.bucket - 1) / 2)
+      const index = matches.findIndex((m) => m.bucket === parent)
+
+      if ((match.bucket & 1) === 1) {
+        matches[index].player1 = winner
+      } else {
+        matches[index].player2 = winner
+      }
     }
 
     setMatches([...matches]) // Ouch.
   }
-
-  let games = matches
-  let numBrackets = Math.ceil(Math.log2(props.info.player_count))
-  let power = Math.pow(2, numBrackets)
+  let numBrackets = Math.ceil(Math.log2(tournament.player_count))
+  let n_matches = Math.pow(2, numBrackets)
   let tournamentBrackets = []
-  let iter = 0
+  let start_match = 0
+  let competitors = n_matches
   for (let i = 0; i < numBrackets; i++) {
-    power /= 2
+    n_matches /= 2
     tournamentBrackets.push(
       <TournamentBracket
-        start={iter}
-        stop={iter + power}
-        matches={games}
+        start={start_match}
+        stop={start_match + n_matches}
+        matches={matches}
         callback={handleInputChange}
-        organizer={props.info.organizer_name}
-        title={'Bracket ' + (i + 1)}
-        key={i + ' bracket'}
+        organizer={tournament.organizer_name}
+        title={finals[competitors]}
+        key={' bracket' + i}
+        winner={tournament.winner}
       />,
     )
-    iter += power
+    competitors /= 2
+    start_match += n_matches
+  }
+  //   if (tournament.winner) {
+  if (tournament.winner !== '') {
+    tournamentBrackets.push(
+      <div className="bracket-container" key="winner-bracket">
+        <h2>Winner</h2>
+        <div className="bracket">
+          <div className="match">
+            <div className="winner">{tournament.winner}</div>
+          </div>
+        </div>
+      </div>,
+    )
   }
 
   return (
