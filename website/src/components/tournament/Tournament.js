@@ -58,9 +58,9 @@ function TournamentMatch(props) {
     let winner = selectedClient
     let loser =
       props.match.player1 === winner ? props.match.player2 : props.match.player1
-    // Api.registerTournamentMatch(winner, loser, props.match.id)
-    //   .then(() => closeModal())
-    //   .catch((e) => console.warn('Jaha' + e))
+    Api.registerTournamentMatch(winner, loser, props.match.id)
+      .then(() => closeModal())
+      .catch((e) => console.warn('Jaha' + e))
     props.callback(props.match, winner)
     closeModal()
   }
