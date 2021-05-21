@@ -87,7 +87,7 @@ class EloGraph extends Component {
 
     UserApi.getActiveUsers()
       .then((users) => (this.userList = users))
-      .catch((e) => console.warn(e))
+      .catch((err) => console.warn(err))
       .finally(() => {
         this.setState({})
       })
@@ -117,6 +117,7 @@ class EloGraph extends Component {
         .then((users) => {
           this.users = users
         })
+        .catch((err) => console.warn(err))
         .finally(() => this.setState({}))
     }
   }

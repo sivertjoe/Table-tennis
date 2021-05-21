@@ -1,0 +1,13 @@
+.center {
+  text-align: center;
+}
+
+.inputs {
+  margin: auto;
+  max-width: 30rem;
+}
+
+.button {
+  width: fit-content;
+  margin: 4rem auto 0 auto;
+}

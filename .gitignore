@@ -3,5 +3,6 @@
 /server/server_core/target
 /server/server_macro/target
 /server/src/default_password.txt
+/server/assets
 **/*.db
 **/*.pem

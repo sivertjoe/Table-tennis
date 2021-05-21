@@ -4,19 +4,20 @@ use std::{
 };
 
 use actix_cors::Cors;
+use actix_files::Files;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
-    spawn_season_checker, ChangePasswordInfo, DataBase, DeleteMatchInfo, EditUsersInfo, LoginInfo,
-    MatchInfo, NewEditMatchInfo, NotificationAns, NotificationInfo, NotificationType,
-    RequestResetPassword, StatsUsers,
+    spawn_season_checker, ChangePasswordInfo, CreateTournament, DataBase, DeleteMatchInfo,
+    EditUsersInfo, GetTournamentOptions, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns,
+    NotificationInfo, NotificationType, RequestResetPassword, StatsUsers, RegisterTournamentMatch
 };
 use server_core::{
     constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
-    types::ServerError,
+    types::{ServerError, TournamentError::*},
 };
 
 const PORT: u32 = 58642;
@@ -25,12 +26,17 @@ pub const DATABASE_FILE: &'static str = "db.db";
 
 macro_rules! DATABASE {
     ($data:expr) => {
-        &*$data.get_ref().lock().expect("Could not get  database lock");
+        match $data.get_ref().lock()
+        {
+            Ok(guard) => guard,
+            Err(p_err) => p_err.into_inner(),
+        }
     };
 }
 
 fn response_code(e: ServerError) -> u8
 {
+    println!("{:?}",e);
     match e
     {
         ServerError::Critical(_) => 1,
@@ -43,6 +49,16 @@ fn response_code(e: ServerError) -> u8
         ServerError::InactiveUser => 8,
         ServerError::ResetPasswordDuplicate => 9,
         ServerError::InvalidUsername => 10,
+        ServerError::Tournament(t) => match t
+        {
+            WrongState => 11,
+            NoTournament => 12,
+            NotOrganizer => 13,
+            InvalidGame => 14,
+            WrongTournamentCount => 15,
+            AlreadyJoined => 17,
+            GameAlreadyPlayed => 17,
+        },
         _ => 69,
     }
 }
@@ -337,6 +353,67 @@ async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
     }
 }
 
+
+#[post("/create-tournament")]
+async fn create_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: CreateTournament = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).create_tournament(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
+#[post("/join-tournament")]
+async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: JoinTournament = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).join_tournament(info.token, info.tid)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+#[post("/register-tournament-match")]
+async fn register_tournament_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: RegisterTournamentMatch = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).register_tournament_match(info)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
+#[post("/leave-tournament")]
+async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    let info: JoinTournament = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).leave_tournament(info.token, info.tid)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
+
+
+
+#[get("/tournaments")]
+async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<GetTournamentOptions>) -> HttpResponse
+{
+    let info: GetTournamentOptions = info.into_inner();
+    match DATABASE!(data).get_tournaments(info)
+    {
+        Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 #[get("/is-admin/{token}")]
 async fn get_is_admin(
     data: web::Data<Arc<Mutex<DataBase>>>,
@@ -538,6 +615,7 @@ async fn main() -> std::io::Result<()>
         App::new()
             .data(data.clone())
             .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
+            .service(Files::new("/assets", "./assets").show_files_listing())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
@@ -568,6 +646,11 @@ async fn main() -> std::io::Result<()>
             .service(get_season_start_date)
             .service(get_notifications)
             .service(respond_to_notification)
+            .service(create_tournament)
+            .service(join_tournament)
+            .service(leave_tournament)
+            .service(register_tournament_match)
+            .service(get_tournaments)
     });
 
     if cfg!(debug_assertions)

@@ -19,3 +19,5 @@ regex = "1.4.3"
 rusqlite = { version = "0.24.1", features = ["bundled"] }
 server_core = { path = "../server_core" }
 server_macro= { path = "../server_macro" }
+rand = "0.8.3"
+base64 = "0.13.0"

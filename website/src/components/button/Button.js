@@ -4,19 +4,22 @@ import './Button.css'
 class Button extends Component {
   constructor(args) {
     super()
-    this.callback = args.callback
+    this.args = args
     this.onClick = this.onClick.bind(this)
-    this.placeholder = args.placeholder ?? 'Click'
   }
 
   onClick() {
-    if (this.callback) this.callback()
+    if (this.args.callback) this.args.callback()
   }
 
   render() {
     return (
-      <button className="big-button" onClick={this.onClick}>
-        {this.placeholder}
+      <button
+        className={'big-button' + (this.args.className ?? '')}
+        style={this.args.style ?? {}}
+        onClick={this.onClick}
+      >
+        {this.args.placeholder ?? 'Click'}
       </button>
     )
   }

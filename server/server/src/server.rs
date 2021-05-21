@@ -9,7 +9,8 @@ use server_core::{constants::*, types::*};
 use uuid::Uuid;
 
 use super::{
-    _named_params,
+    _named_params, _params,
+    tournament::*,
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
@@ -1033,6 +1034,17 @@ impl DataBase
                 vec.push(b);
             }
         }
+
+        let tournament_badges: Vec<TournamentBadge> = self.sql_many("select * from tournament_badges where pid = ?1", _params![pid])?;
+        for badge in tournament_badges
+        {
+            let image: Image = self.sql_one::<Image, _>("select * from images where id = ?1", _params![badge.image])?;
+            vec.push( Badge {
+                id: image.id,
+                season: -1,
+                name: image.name
+            });
+        }
         return Ok(vec);
     }
 
@@ -1050,12 +1062,17 @@ impl DataBase
         Ok(users)
     }
 
-    fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
+    pub fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
     {
         self.get_user_without_matches_by("name", "=", name.as_str())
     }
 
-    fn get_user_without_matches_by(&self, col: &str, comp: &str, val: &str) -> ServerResult<User>
+    pub fn get_user_without_matches_by(
+        &self,
+        col: &str,
+        comp: &str,
+        val: &str,
+    ) -> ServerResult<User>
     {
         let sql =
             &format!("select id, name, elo, user_role from users where {} {} :val", col, comp);

@@ -11,6 +11,7 @@ mod server_rollback;
 mod server_season;
 mod sql_executor;
 mod test_util;
+mod tournament;
 mod user;
 
 
@@ -24,6 +25,7 @@ pub use server_rollback::*;
 pub use server_season::*;
 pub use sql_executor::*;
 pub use test_util::*;
+pub use tournament::*;
 pub use user::*;
 
 pub use crate::server::*;
