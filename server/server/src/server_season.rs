@@ -439,8 +439,8 @@ mod test
             .enumerate()
             .for_each(|(i, (u1, u2))| {
                 assert_eq!(u1.badges[0].name, BADGES[i]);
-                assert_eq!(u2.badges[0].season, 1);
-                assert_eq!(u2.badges[1].season, 2);
+                assert_eq!(u2.badges[0].tooltip, 1.to_string());
+                assert_eq!(u2.badges[1].tooltip, 2.to_string());
             });
     }
 

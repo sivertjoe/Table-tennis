@@ -18,7 +18,7 @@ class Medals extends Component {
         i={i}
         src={images[badge.name]}
         size={this.size}
-        placeholder={'Season ' + badge.season}
+        placeholder={badge.tooltip}
       />
     ))
   }

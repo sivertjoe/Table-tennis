@@ -32,6 +32,7 @@ pub struct TournamentBadge
     pub id:    i64,
     pub image: i64,
     pub pid:   i64,
+    pub tid:   i64,
 }
 
 #[derive(Deserialize)]
@@ -104,12 +105,12 @@ pub struct TournamentInfo
 #[derive(Sql)]
 pub struct Tournament
 {
-    id:           i64,
-    name:         String,
-    prize:        i64,
-    state:        u8,
-    player_count: i64,
-    organizer:    i64,
+    pub id:           i64,
+    pub name:         String,
+    pub prize:        i64,
+    pub state:        u8,
+    pub player_count: i64,
+    pub organizer:    i64,
 }
 
 #[derive(Serialize)]
@@ -202,7 +203,7 @@ impl TournamentGame
     }
 }
 
-const DEFAULT_PICTURE: &str = "assets/tournament_badges/default.png";
+const DEFAULT_PICTURE: &str = "db/assets/tournament_badges/default.png";
 
 impl DataBase
 {
@@ -421,7 +422,7 @@ impl DataBase
         {
             self.create_tournament_winner(tournament.id, winner_id)?;
             self.update_tournament_state(tournament.id, TournamentState::Done)?;
-            self.award_winner_with_prize(tournament.prize, winner_id)?;
+            self.award_winner_with_prize(tournament.prize, winner_id, tournament.id)?;
         }
         else
         {
@@ -447,12 +448,12 @@ impl DataBase
         Ok(())
     }
 
-    fn award_winner_with_prize(&self, prize: i64, pid: i64) -> ServerResult<()>
+    fn award_winner_with_prize(&self, prize: i64, pid: i64, tid: i64) -> ServerResult<()>
     {
-        self.conn
-            .execute("insert into tournament_badges (image, pid) values (?1, ?2)", params![
-                prize, pid
-            ])?;
+        self.conn.execute(
+            "insert into tournament_badges (image, pid, tid) values (?1, ?2, ?3)",
+            params![prize, pid, tid],
+        )?;
         Ok(())
     }
 
@@ -683,8 +684,10 @@ impl DataBase
                     _params![t.id],
                 )
                 {
-                     let winner = self.get_user_without_matches_by("id", "=", &winner.player.to_string()).unwrap();
-                     tournament_winner = Some(winner.name);
+                    let winner = self
+                        .get_user_without_matches_by("id", "=", &winner.player.to_string())
+                        .unwrap();
+                    tournament_winner = Some(winner.name);
                 }
             }
 

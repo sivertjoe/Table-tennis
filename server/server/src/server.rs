@@ -10,13 +10,13 @@ use uuid::Uuid;
 
 use super::{
     _named_params, _params,
-    tournament::*,
     badge::*,
     r#match::{DeleteMatchInfo, EditMatchInfo, Match, NewEditMatchInfo},
     notification::{
         AdminNotification, MatchNotification, MatchNotificationTable, Notification,
         NotificationAns, NotificationType,
     },
+    tournament::*,
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
 };
@@ -1019,10 +1019,10 @@ impl DataBase
             let index: u32 = row.get(2)?;
             let index = index as usize;
 
+            let season: i64 = row.get(1)?;
+            let tooltip = format!("Season: {}", season);
             Ok(Badge {
-                id:     row.get(0)?,
-                season: row.get(1)?,
-                name:   BADGES[index].to_string(),
+                id: row.get(0)?, tooltip: tooltip, name: BADGES[index].to_string()
             })
         })?;
 
@@ -1035,17 +1035,24 @@ impl DataBase
             }
         }
 
-        let tournament_badges: Vec<TournamentBadge> = self.sql_many("select * from tournament_badges where pid = ?1", _params![pid])?;
+        let tournament_badges: Vec<TournamentBadge> =
+            self.sql_many("select * from tournament_badges where pid = ?1", _params![pid])?;
         for badge in tournament_badges
         {
-            let image: Image = self.sql_one::<Image, _>("select * from images where id = ?1", _params![badge.image])?;
-            vec.push( Badge {
-                id: image.id,
-                season: -1,
-                name: image.name
+            let image: Image = self
+                .sql_one::<Image, _>("select * from images where id = ?1", _params![badge.image])?;
+            let tournament_name = self.get_tournament_name(badge.tid)?;
+            vec.push(Badge {
+                id: image.id, tooltip: tournament_name, name: image.name
             });
         }
         return Ok(vec);
+    }
+
+    fn get_tournament_name(&self, tid: i64) -> ServerResult<String>
+    {
+        self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])
+            .map(|t| t.name)
     }
 
     fn get_users_with_user_role(&self, user_role: u8, val: u8) -> ServerResult<Vec<User>>

@@ -128,6 +128,8 @@ impl DataBase
                 id              integer primary key autoincrement,
                 image           integer,
                 pid             integer,
+                tid             integer,
+                foreign key(tid) references tournaments(id),
                 foreign key(pid) references users(id),
                 foreign key(image) references images(id)
             )",
