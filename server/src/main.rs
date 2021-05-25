@@ -12,8 +12,9 @@ use serde_derive::Deserialize;
 use serde_json::json;
 use server::{
     spawn_season_checker, ChangePasswordInfo, CreateTournament, DataBase, DeleteMatchInfo,
-    EditUsersInfo, GetTournamentOptions, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo, NotificationAns,
-    NotificationInfo, NotificationType, RequestResetPassword, StatsUsers, RegisterTournamentMatch
+    EditUsersInfo, GetTournamentOptions, JoinTournament, LoginInfo, MatchInfo, NewEditMatchInfo,
+    NotificationAns, NotificationInfo, NotificationType, RegisterTournamentMatch,
+    RequestResetPassword, StatsUsers,
 };
 use server_core::{
     constants::{CANCEL_SEASON, START_SEASON, STOP_SEASON},
@@ -36,7 +37,7 @@ macro_rules! DATABASE {
 
 fn response_code(e: ServerError) -> u8
 {
-    println!("{:?}",e);
+    println!("{:?}", e);
     match e
     {
         ServerError::Critical(_) => 1,
@@ -377,7 +378,10 @@ async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
     }
 }
 #[post("/register-tournament-match")]
-async fn register_tournament_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+async fn register_tournament_match(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    info: String,
+) -> HttpResponse
 {
     let info: RegisterTournamentMatch = serde_json::from_str(&info).unwrap();
 
@@ -401,10 +405,11 @@ async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
 }
 
 
-
-
 #[get("/tournaments")]
-async fn get_tournaments(data: web::Data<Arc<Mutex<DataBase>>>, info: web::Query<GetTournamentOptions>) -> HttpResponse
+async fn get_tournaments(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    info: web::Query<GetTournamentOptions>,
+) -> HttpResponse
 {
     let info: GetTournamentOptions = info.into_inner();
     match DATABASE!(data).get_tournaments(info)
@@ -615,7 +620,7 @@ async fn main() -> std::io::Result<()>
         App::new()
             .data(data.clone())
             .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
-            .service(Files::new("/assets", "./assets").show_files_listing())
+            .service(Files::new("/assets", "./db/assets").show_files_listing())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
