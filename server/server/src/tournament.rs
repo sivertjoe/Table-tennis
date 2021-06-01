@@ -725,6 +725,27 @@ impl DataBase
             .collect();
         Ok(t_infos)
     }
+
+    pub fn delete_tournament(&self, tid: i64) -> ServerResult<()>
+    {
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+        let delete_tournament = |tid: i64| -> ServerResult<()> {
+            self.conn.execute("delete from tournaments where id = ?1", params![tid])?;
+            Ok(())
+        };
+        // Can't delete finished tournament maybe?
+        if tournament.state == TournamentState::Done as u8
+        {
+            return Err(ServerError::Tournament(TournamentError::WrongState));
+        }
+        if tournament.state == TournamentState::Created as u8
+        {
+            self.delete_tourament_list(tid)?;
+        }
+        delete_tournament(tid)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1195,5 +1216,30 @@ mod test
             res1.is_err()
                 && res1.unwrap_err() == ServerError::Tournament(TournamentError::InvalidGame)
         );
+    }
+    #[test]
+    fn can_delete_tournament()
+    {
+        let db_file = "tempT17.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s.join_tournament(token_s.clone(), 1);
+        s.join_tournament(token_b.clone(), 1);
+        s.join_tournament(token_m, 1);
+        s.join_tournament(token_e, 1);
+
+        reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+
+        s.register_tournament_match(first_game.clone());
+
+        s.delete_tournament(1).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 }
