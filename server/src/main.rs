@@ -616,11 +616,13 @@ async fn main() -> std::io::Result<()>
 
     spawn_season_checker(data.clone());
 
+    let assets_path = if cfg!(debug_assertions) { "assets" } else { "./db/assets" };
+
     let server = HttpServer::new(move || {
         App::new()
             .data(data.clone())
             .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
-            .service(Files::new("/assets", "./db/assets").show_files_listing())
+            .service(Files::new("/assets", assets_path).show_files_listing())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
