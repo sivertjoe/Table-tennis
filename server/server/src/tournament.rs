@@ -203,7 +203,7 @@ impl TournamentGame
     }
 }
 
-const DEFAULT_PICTURE: &str = "db/assets/tournament_badges/default.png";
+const DEFAULT_PICTURE: &str = "assets/tournament_badges/default.png";
 
 impl DataBase
 {
