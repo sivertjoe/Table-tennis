@@ -203,7 +203,7 @@ impl TournamentGame
     }
 }
 
-const DEFAULT_PICTURE: &str = "assets/tournament_badges/default.png";
+const DEFAULT_PICTURE: &str = "tournament_badges/default.png";
 
 impl DataBase
 {
@@ -251,25 +251,11 @@ impl DataBase
         }
     }
 
-    fn create_fs_if_not_exists(&self)
-    {
-        use std::path::Path;
-        if !Path::new("assets").exists()
-        {
-            std::fs::create_dir("assets").unwrap();
-        }
-        if !Path::new("assets/tournament_badges").exists()
-        {
-            std::fs::create_dir("assets/tournament_badges").unwrap();
-        }
-    }
-
     fn create_image_prize(&self, image: String, tournament: i64) -> ServerResult<i64>
     {
-        self.create_fs_if_not_exists();
-
         let image_name = format!("{}/{}.png", TOURNAMENT_BADGES_PATH, tournament);
-        let mut file = std::fs::File::create(&image_name).expect("creating file");
+        let mut file =
+            std::fs::File::create(&format!("assets/{}", image_name)).expect("creating file");
 
         let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
         let bin = base64::decode(bin[1]).unwrap();
