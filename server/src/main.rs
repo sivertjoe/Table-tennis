@@ -392,6 +392,24 @@ async fn register_tournament_match(
     }
 }
 
+#[post("/delete-tournament")]
+async fn delete_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    #[derive(Deserialize)]
+    struct DeleteTournament
+    {
+        tid:   i64,
+        token: String,
+    }
+
+    let info: DeleteTournament = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).delete_tournament(info.token, info.tid)
+    {
+        Ok(_) => HttpResponse::Ok().json(response_ok()),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 #[post("/leave-tournament")]
 async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
@@ -616,11 +634,13 @@ async fn main() -> std::io::Result<()>
 
     spawn_season_checker(data.clone());
 
+    let assets_path = if cfg!(debug_assertions) { "assets" } else { "./db/assets" };
+
     let server = HttpServer::new(move || {
         App::new()
             .data(data.clone())
             .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
-            .service(Files::new("/assets", "./db/assets").show_files_listing())
+            .service(Files::new("/assets", assets_path).show_files_listing())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
@@ -656,6 +676,7 @@ async fn main() -> std::io::Result<()>
             .service(leave_tournament)
             .service(register_tournament_match)
             .service(get_tournaments)
+            .service(delete_tournament)
     });
 
     if cfg!(debug_assertions)

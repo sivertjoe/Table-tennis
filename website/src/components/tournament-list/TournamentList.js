@@ -18,6 +18,7 @@ class TournamentList extends Component {
     this.join = this.join.bind(this)
     this.leave = this.leave.bind(this)
     this.removeUser = this.removeUser.bind(this)
+    this.delete = this.delete.bind(this)
   }
 
   static getDerivedStateFromProps(props, state) {
@@ -61,11 +62,21 @@ class TournamentList extends Component {
       .catch((e) => this.setState({ color: 'red', info: e.toString() }))
   }
 
+  delete(id) {
+    Api.deleteTournament(id)
+      .then(() => {
+        window.location.href = '/tournaments'
+      })
+      .catch((e) => this.setState({ color: 'red', info: e.toString() }))
+  }
+
   render() {
     const id = this.state.tournament.tournament.id
     const tournamentName = this.state.tournament.tournament.name
     const numPlayers = this.state.tournament.tournament.player_count
     const joined = this.state.users.some((user) => user === this.state.username)
+    const organizerName = this.state.tournament.tournament.organizer_name
+    const name = localStorage.getItem('username')
 
     const list = this.state.users.map((name, index) => (
       <tr key={name}>
@@ -78,6 +89,11 @@ class TournamentList extends Component {
 
     return (
       <>
+        {name === organizerName && (
+          <div onClick={() => this.delete(id)}>
+            <Button placeholder="Delete tournament" />
+          </div>
+        )}
         <h1>'{tournamentName}' Participants:</h1>
         <div className="table-container">
           <table>

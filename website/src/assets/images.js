@@ -12,10 +12,6 @@ const images = {
   'second_place.png': SecondPlace,
   'third_place.png': ThirdPlace,
   'poop.png': Poop,
-  'tournament.png': Tournament,
-  'assets/tournament_badges/default.png': Api.getImageUrl(
-    'tournament_badges/default.png',
-  ),
 }
 
 export default images

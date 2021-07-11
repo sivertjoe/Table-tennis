@@ -203,7 +203,7 @@ impl TournamentGame
     }
 }
 
-const DEFAULT_PICTURE: &str = "db/assets/tournament_badges/default.png";
+const DEFAULT_PICTURE: &str = "tournament_badges/default.png";
 
 impl DataBase
 {
@@ -251,25 +251,11 @@ impl DataBase
         }
     }
 
-    fn create_fs_if_not_exists(&self)
-    {
-        use std::path::Path;
-        if !Path::new("assets").exists()
-        {
-            std::fs::create_dir("assets").unwrap();
-        }
-        if !Path::new("assets/tournament_badges").exists()
-        {
-            std::fs::create_dir("assets/tournament_badges").unwrap();
-        }
-    }
-
     fn create_image_prize(&self, image: String, tournament: i64) -> ServerResult<i64>
     {
-        self.create_fs_if_not_exists();
-
         let image_name = format!("{}/{}.png", TOURNAMENT_BADGES_PATH, tournament);
-        let mut file = std::fs::File::create(&image_name).expect("creating file");
+        let mut file =
+            std::fs::File::create(&format!("assets/{}", image_name)).expect("creating file");
 
         let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
         let bin = base64::decode(bin[1]).unwrap();
@@ -724,6 +710,61 @@ impl DataBase
             .map(|t| self.map_tournament_info(t))
             .collect();
         Ok(t_infos)
+    }
+
+    fn get_is_organizer(&self, token: String, tid: i64) -> ServerResult<bool>
+    {
+        let pid = self.get_user_without_matches_by("uuid", "=", &token)?.id;
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+        Ok(pid == tournament.organizer)
+    }
+
+    pub fn delete_tournament(&self, token: String, tid: i64) -> ServerResult<()>
+    {
+        if !self.get_is_organizer(token, tid)?
+        {
+            return Err(ServerError::Unauthorized);
+        }
+
+        self._delete_tournament(tid)
+    }
+
+    fn _delete_tournament(&self, tid: i64) -> ServerResult<()>
+    {
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+
+        let delete_tournament = |tid: i64| -> ServerResult<()> {
+            self.conn.execute("delete from tournaments where id = ?1", params![tid])?;
+            Ok(())
+        };
+
+        // Can't delete finished tournament maybe?
+        if tournament.state == TournamentState::Done as u8
+        {
+            return Err(ServerError::Tournament(TournamentError::WrongState));
+        }
+        else if tournament.state == TournamentState::Created as u8
+        {
+            self.delete_tourament_list(tid)?;
+        }
+        else
+        {
+            let games = self.sql_many::<TournamentGame, _>(
+                "select * from tournament_games where tournament = ?1",
+                _params![tid],
+            )?;
+            for game in games
+            {
+                self.conn
+                    .execute("delete from tournament_matches where game = ?1", params![game.id])?;
+            }
+            self.conn
+                .execute("delete from tournament_games where tournament = ?1", params![tid])?;
+        }
+        delete_tournament(tid)?;
+        Ok(())
     }
 }
 
@@ -1195,5 +1236,56 @@ mod test
             res1.is_err()
                 && res1.unwrap_err() == ServerError::Tournament(TournamentError::InvalidGame)
         );
+    }
+    #[test]
+    fn can_delete_tournament()
+    {
+        let db_file = "tempT17.db";
+        let s = DataBase::new(db_file);
+
+        let token_s = create_user(&s, "Sivert");
+        let token_b = create_user(&s, "Bernt");
+        let token_m = create_user(&s, "Markus");
+        let token_e = create_user(&s, "Ella");
+
+        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s.join_tournament(token_s.clone(), 1);
+        s.join_tournament(token_b.clone(), 1);
+        s.join_tournament(token_m, 1);
+        s.join_tournament(token_e, 1);
+        let tid = 1;
+
+        let games = s.get_all_tournament_games(1).unwrap();
+        let first_game = reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
+
+        s.register_tournament_match(first_game.clone());
+
+        s._delete_tournament(1).unwrap();
+
+        let games = s
+            .sql_many::<TournamentGame, _>(
+                "select * from tournament_games where tournament = ?1",
+                _params![tid],
+            )
+            .unwrap();
+
+        let mut matches = Vec::new();
+        for game in &games
+        {
+            if let Ok(ma) = s.sql_one::<TournamentMatch, _>(
+                "select * from tournament_matches where id = ?1",
+                _params![game.id],
+            )
+            {
+                matches.push(ma);
+            }
+        }
+        let tournament =
+            s.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid]);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(tournament.is_err());
+        assert_eq!(games.len(), 0);
+        assert_eq!(matches.len(), 0);
     }
 }

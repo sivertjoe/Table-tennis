@@ -23,4 +23,4 @@ pub const USER_ROLE_SOFT_INACTIVE: u8 = 1 << 4;
 
 pub const DATABASE_FILE: &'static str = "db.db";
 
-pub const TOURNAMENT_BADGES_PATH: &'static str = "assets/tournament_badges";
+pub const TOURNAMENT_BADGES_PATH: &'static str = "tournament_badges";
