@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import '../../index.css'
 import './CreateTournament.css'
 import * as Api from '../../api/TournamentApi'
@@ -30,16 +30,6 @@ export default function CreateTournament() {
   const [image, setImage] = useState(false)
   const [info, setInfo] = useState('')
   const [color, setColor] = useState('red')
-  const [t, setT] = useState([])
-  useEffect(() => {
-    let mounted = true
-    Api.getTournaments().then((items) => {
-      if (mounted) {
-        setT(items)
-      }
-    })
-    return () => (mounted = false)
-  }, [])
 
   return (
     <div className="container center">

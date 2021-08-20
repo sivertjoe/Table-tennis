@@ -1,10 +1,10 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import '../../index.css'
 import './Tournament.css'
 import * as Api from '../../api/TournamentApi'
 
 import Button from '../button/Button'
-import Modal, { prototype } from 'react-modal'
+import Modal from 'react-modal'
 import Select from 'react-select'
 // Modal.setAppElement('.tournament')
 
