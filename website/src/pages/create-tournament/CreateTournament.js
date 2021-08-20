@@ -20,6 +20,11 @@ const createTournament = (image, name, numPlayers, setInfo, setColor) => {
     .then(() => {
       setColor('green')
       setInfo('Success!')
+
+      // redirect after success
+      window.setTimeout(function () {
+        window.location.href = 'tournaments'
+      }, 2000)
     })
     .catch((e) => setInfo(e.toString()))
 }
