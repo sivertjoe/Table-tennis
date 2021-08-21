@@ -3,6 +3,7 @@ import '../../index.css'
 import * as Api from '../../api/TournamentApi'
 import './TournamentList.css'
 import Button from '../../components/button/Button'
+import DeleteTournament from '../../components/delete-tournament/DeleteTournament'
 
 class TournamentList extends Component {
   constructor(args) {
@@ -18,7 +19,6 @@ class TournamentList extends Component {
     this.join = this.join.bind(this)
     this.leave = this.leave.bind(this)
     this.removeUser = this.removeUser.bind(this)
-    this.delete = this.delete.bind(this)
   }
 
   static getDerivedStateFromProps(props, state) {
@@ -62,14 +62,6 @@ class TournamentList extends Component {
       .catch((e) => this.setState({ color: 'red', info: e.toString() }))
   }
 
-  delete(id) {
-    Api.deleteTournament(id)
-      .then(() => {
-        window.location.href = '/tournaments'
-      })
-      .catch((e) => this.setState({ color: 'red', info: e.toString() }))
-  }
-
   render() {
     const id = this.state.tournament.tournament.id
     const tournamentName = this.state.tournament.tournament.name
@@ -89,11 +81,9 @@ class TournamentList extends Component {
 
     return (
       <>
-        {name === organizerName && (
-          <div onClick={() => this.delete(id)}>
-            <Button placeholder="Delete tournament" />
-          </div>
-        )}
+        <div className="center">
+          {name === organizerName && <DeleteTournament id={id} />}
+        </div>
         <h1>'{tournamentName}' Participants:</h1>
         <div className="table-container">
           <table>

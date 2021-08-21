@@ -1,12 +1,12 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import '../../index.css'
 import './Tournament.css'
 import * as Api from '../../api/TournamentApi'
 
 import Button from '../button/Button'
-import Modal, { prototype } from 'react-modal'
+import Modal from 'react-modal'
 import Select from 'react-select'
-// Modal.setAppElement('.tournament')
+import DeleteTournament from '../../components/delete-tournament/DeleteTournament'
 
 const finals = {
   2: 'Final',
@@ -199,6 +199,11 @@ export const Tournament = (props) => {
   let tournamentBrackets = []
   let start_match = 0
   let competitors = n_matches
+
+  const id = tournament.id
+  const organizerName = tournament.organizer_name
+  const name = localStorage.getItem('username')
+
   for (let i = 0; i < numBrackets; i++) {
     n_matches /= 2
     tournamentBrackets.push(
@@ -231,9 +236,14 @@ export const Tournament = (props) => {
   }
 
   return (
-    <div key="tournament" className="tournament">
-      {tournamentBrackets}
-    </div>
+    <>
+      <div className="center">
+        {name === organizerName && <DeleteTournament id={id} />}
+      </div>
+      <div key="tournament" className="tournament">
+        {tournamentBrackets}
+      </div>
+    </>
   )
 }
 
