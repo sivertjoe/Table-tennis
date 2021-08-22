@@ -13,6 +13,7 @@ mod sql_executor;
 mod test_util;
 mod tournament;
 mod user;
+mod tokens_logic;
 
 
 pub use badge::*;
@@ -27,5 +28,6 @@ pub use sql_executor::*;
 pub use test_util::*;
 pub use tournament::*;
 pub use user::*;
+pub use tokens_logic::*;
 
 pub use crate::server::*;

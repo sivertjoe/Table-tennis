@@ -179,7 +179,7 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match DATABASE!(data).login(name, password)
     {
-        Ok(uuid) => HttpResponse::Ok().json(response_ok_with(uuid)),
+        Ok(tokens) => HttpResponse::Ok().json(response_ok_with((tokens.access_token, tokens.refresh_token))),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }

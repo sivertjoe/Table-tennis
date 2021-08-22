@@ -27,6 +27,7 @@ pub enum ServerError
     ResetPasswordDuplicate,
     InvalidUsername,
     Tournament(TournamentError),
+    InvalidToken,
 }
 
 impl From<rusqlite::Error> for ServerError

@@ -228,8 +228,7 @@ impl DataBase
             self.create_image_prize(info.image, tournament)?
         };
 
-        let organizer_pid =
-            self.get_user_without_matches_by("uuid", "=", &info.organizer_token)?.id;
+        let organizer_pid = self.get_user_from_token(&info.organizer_token)?.id;
 
         self._create_tournament(organizer_pid, info.name, prize, info.player_count)?;
         Ok(())
@@ -305,7 +304,7 @@ impl DataBase
         {
             return Err(ServerError::Tournament(TournamentError::WrongState));
         }
-        let pid = self.get_user_without_matches_by("uuid", "=", &token)?.id;
+        let pid = self.get_user_from_token(&token)?.id;
 
         self.conn.execute(
             "delete from tournament_lists where tournament = ?1 and player = ?2",
@@ -316,7 +315,7 @@ impl DataBase
 
     pub fn join_tournament(&self, token: String, tid: i64) -> ServerResult<bool>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let user = self.get_user_from_token(&token)?;
         let list = self.sql_many::<TournamentList, _>(
             "select * from tournament_lists where tournament = ?1",
             _params![tid],
@@ -374,7 +373,7 @@ impl DataBase
                 game.tournament
             ])?;
         let organizer_id = self
-            .get_user_without_matches_by("uuid", "=", &register_game.organizer_token)?
+            .get_user_from_token(&register_game.organizer_token)?
             .id;
 
         if tournament.state != TournamentState::InProgress as u8
@@ -718,7 +717,7 @@ impl DataBase
 
     fn get_is_organizer(&self, token: String, tid: i64) -> ServerResult<bool>
     {
-        let pid = self.get_user_without_matches_by("uuid", "=", &token)?.id;
+        let pid = self.get_user_from_token(&token)?.id;
         let tournament = self
             .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
         Ok(pid == tournament.organizer)

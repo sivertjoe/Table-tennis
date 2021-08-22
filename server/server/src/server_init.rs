@@ -18,8 +18,9 @@ impl DataBase
                 name            VARCHAR(20) not null unique,
                 elo             float  default 1500.0,
                 password_hash   varchar(64) not null,
-                uuid            varchar(36) not null,
-                user_role       smallint
+                token_id            integer,
+                user_role       smallint,
+                foreign key(token_id) references tokens(id)
                 )",
             NO_PARAMS,
         )
@@ -228,6 +229,15 @@ impl DataBase
         )
         .expect("Create variables images");
 
+        conn.execute(
+            "create table if not exists tokens (
+                id                      integer primary key autoincrement,
+                access_token            varchar(36) not null,
+                refresh_token           varchar(36) not null,
+                valid                   integer
+            )",
+            NO_PARAMS,
+        ).expect("create table tokens");
 
 
         DataBase {

@@ -8,7 +8,6 @@ use server_core::constants::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_RO
 
 #[cfg(test)] use super::DataBase;
 
-
 #[cfg(test)]
 pub fn get_table_size(s: &DataBase, table: &str) -> i64
 {
@@ -26,18 +25,20 @@ pub fn get_table_size(s: &DataBase, table: &str) -> i64
 pub fn create_user(s: &DataBase, name: &str) -> String
 {
     let uuid = format!("{}", Uuid::new_v4());
+    let tokens = s.generate_tokens();
+    let id = s.insert_tokens_in_db(&tokens).unwrap();
     s.conn
         .execute(
-            "insert into users (name, password_hash, uuid, user_role) values (?1, ?2, ?3, ?4)",
+            "insert into users (name, password_hash, token_id, user_role) values (?1, ?2, ?3, ?4)",
             params![
                 name,
                 hash(&"password".to_string()),
-                uuid,
+                id,
                 USER_ROLE_REGULAR | USER_ROLE_SOFT_INACTIVE,
             ],
         )
         .unwrap();
-    uuid
+    tokens.0
 }
 
 #[cfg(test)]
@@ -53,9 +54,11 @@ pub fn hash(word: &String) -> String
 #[cfg(test)]
 pub fn respond_to_match(s: &DataBase, name: &str, id: i64)
 {
+    let user =  s.get_user_without_matches_by("name", "=", name).unwrap();
+
     let mut stmt = s
         .conn
-        .prepare("select uuid from users where name = :name")
+        .prepare("select t.access_token from users as u inner join tokens as t on u.token_id = t.id where u.name = :name")
         .expect("Creating query");
     let token: String = stmt
         .query_map_named(named_params! {":name": name}, |row| {

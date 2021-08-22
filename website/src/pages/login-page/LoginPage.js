@@ -22,8 +22,9 @@ class LoginPage extends Component {
     if (!this.password) return this.setError('Password cannot be empty')
 
     UserApi.login(this.username, this.password)
-      .then((token) => {
-        localStorage.setItem('token', token)
+      .then((tokens) => {
+        localStorage.setItem('token', tokens[0])
+        localStorage.setItem('refreshToken', tokens[1])
         localStorage.setItem('username', this.username)
         window.location.href = '/profiles/' + this.username
       })

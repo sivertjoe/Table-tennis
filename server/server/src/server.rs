@@ -7,6 +7,7 @@ use regex::Regex;
 use rusqlite::{named_params, params, Connection, ToSql, NO_PARAMS};
 use server_core::{constants::*, types::*};
 use uuid::Uuid;
+use crate::tokens_logic::*;
 
 use super::{
     _named_params, _params,
@@ -65,8 +66,14 @@ impl DataBase
 
     pub fn get_is_admin(&self, token: String) -> ServerResult<bool>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", &token)?;
-        Ok(user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER)
+        self.get_user_from_token(&token)
+            .map(|user| user.user_role & USER_ROLE_SUPERUSER == USER_ROLE_SUPERUSER)
+    }
+
+    pub fn get_user_from_token(&self, token: &String) -> ServerResult<User>
+    {
+        let tokens = self.sql_one::<Tokens, _>("select * from tokens where access_token = ?1", _params![token])?;
+        self.sql_one::<User, _>("select * from users where token_id = ?1", _params![tokens.id])
     }
 
     pub fn admin_rollback(&self, token: String) -> ServerResult<()>
@@ -102,12 +109,14 @@ impl DataBase
         Ok(())
     }
 
-    pub fn login(&self, name: String, password: String) -> ServerResult<String> // String = Uuid
+    pub fn login(&self, name: String, password: String) -> ServerResult<Tokens> // String = Uuid
     {
         let mut info = SQL_TUPLE_NAMED!(
             self,
-            "select password_hash, uuid, user_role from users where name = :name;",
+            "select password_hash, access_token, refresh_token, user_role from users as u
+            inner join tokens as t on u.token_id = t.id where name = :name;",
             named_params! {":name" : name},
+            String,
             String,
             String,
             u8
@@ -132,7 +141,7 @@ impl DataBase
             return Err(ServerError::UserNotExist);
         }
 
-        let (p, u, r) = info.pop().expect("Getting user stuff");
+        let (p, access, refresh, r) = info.pop().expect("Getting user stuff");
 
         if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
         {
@@ -141,7 +150,9 @@ impl DataBase
 
         if self.hash(&password) == p
         {
-            return Ok(u);
+            return Ok(
+                Tokens { valid: 1, id: -1, access_token: access, refresh_token: refresh });
+
         }
 
         return Err(ServerError::WrongUsernameOrPassword);
@@ -149,7 +160,7 @@ impl DataBase
 
     pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let user = self.get_user_from_token(&token)?;
         let sql = "select id, winner_accept, loser_accept, epoch, winner, loser
                   from match_notification where id = :id";
 
@@ -292,7 +303,7 @@ impl DataBase
         token: String,
     ) -> ServerResult<()>
     {
-        if self.get_user_without_matches_by("uuid", "=", &token).is_err()
+        if self.get_user_from_token(&token).is_err()
         {
             return Err(ServerError::UserNotExist);
         };
@@ -416,7 +427,7 @@ impl DataBase
 
     pub fn get_match_notifications(&self, token: String) -> ServerResult<Vec<MatchNotification>>
     {
-        let user = self.get_user_without_matches_by("uuid", "=", token.as_str())?;
+        let user = self.get_user_from_token(&token)?;
         let sql = "select * from
             (select m.id, u1.name as winner, u2.name as loser, epoch from match_notification m
             join users u1 on m.winner = u1.id
@@ -763,7 +774,7 @@ impl DataBase
         Ok(0)
     }
 
-    fn create_user_from_notification(&self, id: i64) -> ServerResult<String>
+    fn create_user_from_notification(&self, id: i64) -> ServerResult<Tokens>
     {
         let user = SQL_TUPLE_NAMED!(
             self,
@@ -784,14 +795,17 @@ impl DataBase
         &self,
         new_user: String,
         password_hash: String,
-    ) -> ServerResult<String>
+    ) -> ServerResult<Tokens>
     {
-        let uuid = format!("{}", Uuid::new_v4());
+
+        let tokens = self.generate_tokens();
+        let token_id = self.insert_tokens_in_db(&tokens)?;
+
         self.conn.execute(
-            "insert into users (name, password_hash, uuid, user_role) values (?1, ?2, ?3, ?4)",
-            params![new_user, password_hash, uuid, USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR],
+            "insert into users (name, password_hash, token_id, user_role) values (?1, ?2, ?3, ?4)",
+            params![new_user, password_hash, token_id, USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR],
         )?;
-        Ok(uuid)
+        Ok( Tokens { id: -1, valid: 1, access_token: tokens.0, refresh_token: tokens.1 } )
     }
 
     fn try_get_new_user_notifications(&self) -> ServerResult<Vec<AdminNotification>>
@@ -946,9 +960,9 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let sql = "select count(*) from users where id = :id and uuid = :token";
-        let c = SQL_TUPLE_NAMED!(self, sql, named_params! {":id": user_id, ":token": token}, i64)?;
-        Ok(c[0].0 == 1)
+        let sql = "select access_token from users as u inner join tokens as t on u.token_id = t.id where u.id = :id";
+        let c = SQL_TUPLE_NAMED!(self, sql, named_params!{":id": user_id }, String)?;
+        Ok(&c[0].0 == token)
     }
 
     fn update_password(&self, id: i64, new_password: String) -> ServerResult<()>
@@ -1357,10 +1371,10 @@ mod test
         let (name, password) = ("Sivert".to_string(), "password".to_string());
         create_user(&s, &name);
 
-        let uuid = s.login(name, password);
+        let token = s.login(name, password);
         std::fs::remove_file(db_file).expect("Removing file temp");
-        assert!(uuid.is_ok());
-        assert!(uuid.unwrap().len() == 36);
+        assert!(token.is_ok());
+        assert!(token.unwrap().access_token.len() == 36);
     }
 
     #[test]
@@ -1371,9 +1385,9 @@ mod test
         let name = "Sivert".to_string();
         create_user(&s, &name);
 
-        let uuid = s.login(name, "Not correct password".to_string());
+        let token = s.login(name, "Not correct password".to_string());
         std::fs::remove_file(db_file).expect("Removing file temp");
-        assert!(uuid.is_err());
+        assert!(token.is_err());
     }
 
     #[test]
@@ -1388,10 +1402,10 @@ mod test
             .expect("Changing password");
 
         let err = s.login(name.clone(), password);
-        let uuid = s.login(name, new);
+        let token = s.login(name, new);
 
         std::fs::remove_file(db_file).expect("Removing file temp");
-        assert!(err.is_err() && (uuid.is_ok() && uuid.unwrap().len() == 36));
+        assert!(err.is_err() && (token.is_ok() && token.unwrap().access_token.len() == 36));
     }
 
     #[test]
