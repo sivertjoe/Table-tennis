@@ -23,5 +23,6 @@ export const errorMap = {
   15: 'Wrong tournament count',
   16: 'Already joined tournament',
   17: 'Game already played',
+  18: 'Invalid token',
   // TODO: Get the error message from response
 }

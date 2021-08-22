@@ -60,6 +60,7 @@ fn response_code(e: ServerError) -> u8
             AlreadyJoined => 17,
             GameAlreadyPlayed => 17,
         },
+        ServerError::InvalidToken => 18,
         _ => 69,
     }
 }
