@@ -57,6 +57,7 @@ pub struct RegisterTournamentMatch
 {
     organizer_token: String,
     winner:          String,
+    #[allow(dead_code)]
     loser:           String,
     tournament_game: i64,
 }
@@ -89,8 +90,10 @@ struct TournamentGameInfo
 #[derive(Sql)]
 struct TournamentWinner
 {
+    #[allow(dead_code)]
     id:         i64,
     player:     i64,
+    #[allow(dead_code)]
     tournament: i64,
 }
 
@@ -169,6 +172,7 @@ impl TournamentGame
         }
     }
 
+    #[cfg(test)]
     fn players(tid: i64, bucket: i64, p1: i64, p2: i64) -> Self
     {
         TournamentGame {
@@ -1039,7 +1043,6 @@ mod test
                     assert_eq!(t.tournament.name, "Epic");
                     assert_eq!(vec.len(), 2);
                 },
-                _ => unreachable!(),
             };
         };
         assert_func(first);
