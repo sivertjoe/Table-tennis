@@ -372,9 +372,7 @@ impl DataBase
             .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![
                 game.tournament
             ])?;
-        let organizer_id = self
-            .get_user_from_token(&register_game.organizer_token)?
-            .id;
+        let organizer_id = self.get_user_from_token(&register_game.organizer_token)?.id;
 
         if tournament.state != TournamentState::InProgress as u8
         {

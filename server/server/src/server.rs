@@ -6,8 +6,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use rusqlite::{named_params, params, Connection, ToSql, NO_PARAMS};
 use server_core::{constants::*, types::*};
-use uuid::Uuid;
-use crate::tokens_logic::*;
 
 use super::{
     _named_params, _params,
@@ -21,6 +19,7 @@ use super::{
     user::{StatsUsers, User},
     GET_OR_CREATE_DB_VAR, SQL_TUPLE_NAMED,
 };
+use crate::tokens_logic::*;
 
 
 pub enum ParamsType<'a>
@@ -72,7 +71,14 @@ impl DataBase
 
     pub fn get_user_from_token(&self, token: &String) -> ServerResult<User>
     {
-        let tokens = self.sql_one::<Tokens, _>("select * from tokens where access_token = ?1", _params![token])?;
+        let tokens = self
+            .sql_one::<Tokens, _>("select * from tokens where access_token = ?1", _params![
+                token
+            ])?;
+        if !self.get_token_status(&tokens.access_token)?
+        {
+            return Err(ServerError::InvalidToken);
+        }
         self.sql_one::<User, _>("select * from users where token_id = ?1", _params![tokens.id])
     }
 
@@ -113,12 +119,11 @@ impl DataBase
     {
         let mut info = SQL_TUPLE_NAMED!(
             self,
-            "select password_hash, access_token, refresh_token, user_role from users as u
-            inner join tokens as t on u.token_id = t.id where name = :name;",
+            "select password_hash, token_id, id, user_role from users where name = :name;",
             named_params! {":name" : name},
             String,
-            String,
-            String,
+            i64,
+            i64,
             u8
         )?;
 
@@ -141,7 +146,7 @@ impl DataBase
             return Err(ServerError::UserNotExist);
         }
 
-        let (p, access, refresh, r) = info.pop().expect("Getting user stuff");
+        let (p, tid, pid, r) = info.pop().expect("Getting user stuff");
 
         if r & USER_ROLE_INACTIVE == USER_ROLE_INACTIVE
         {
@@ -150,12 +155,43 @@ impl DataBase
 
         if self.hash(&password) == p
         {
-            return Ok(
-                Tokens { valid: 1, id: -1, access_token: access, refresh_token: refresh });
-
+            let (access_token, refresh_token) = self.get_or_create_tokens(pid, tid)?;
+            return Ok(Tokens {
+                valid:         1,
+                id:            -1,
+                access_token:  access_token,
+                refresh_token: refresh_token,
+            });
         }
 
         return Err(ServerError::WrongUsernameOrPassword);
+    }
+
+    fn get_or_create_tokens(&self, pid: i64, tid: i64) -> ServerResult<(String, String)>
+    {
+        // There existed a user, but he didn't have a tokens entry
+        if tid == -1
+        {
+            let tokens = self.generate_tokens();
+            let tid = self.insert_tokens_in_db(&tokens)?;
+            self.conn
+                .execute("update users set token_id = ?1 where id = ?2", params![tid, pid])?;
+            Ok(tokens)
+        }
+        else
+        {
+            let tokens =
+                self.sql_one::<Tokens, _>("select * from tokens where id = ?1", _params![tid])?;
+            if tokens.valid == INVALID_TOKEN
+            {
+                self._renew_tokens(tokens.id)
+                    .map(|tokens| (tokens.access_token, tokens.refresh_token))
+            }
+            else
+            {
+                Ok((tokens.access_token, tokens.refresh_token))
+            }
+        }
     }
 
     pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
@@ -797,7 +833,6 @@ impl DataBase
         password_hash: String,
     ) -> ServerResult<Tokens>
     {
-
         let tokens = self.generate_tokens();
         let token_id = self.insert_tokens_in_db(&tokens)?;
 
@@ -805,7 +840,12 @@ impl DataBase
             "insert into users (name, password_hash, token_id, user_role) values (?1, ?2, ?3, ?4)",
             params![new_user, password_hash, token_id, USER_ROLE_SOFT_INACTIVE | USER_ROLE_REGULAR],
         )?;
-        Ok( Tokens { id: -1, valid: 1, access_token: tokens.0, refresh_token: tokens.1 } )
+        Ok(Tokens {
+            id:            -1,
+            valid:         1,
+            access_token:  tokens.0,
+            refresh_token: tokens.1,
+        })
     }
 
     fn try_get_new_user_notifications(&self) -> ServerResult<Vec<AdminNotification>>
@@ -960,8 +1000,9 @@ impl DataBase
 
     fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
     {
-        let sql = "select access_token from users as u inner join tokens as t on u.token_id = t.id where u.id = :id";
-        let c = SQL_TUPLE_NAMED!(self, sql, named_params!{":id": user_id }, String)?;
+        let sql = "select access_token from users as u inner join tokens as t on u.token_id = \
+                   t.id where u.id = :id";
+        let c = SQL_TUPLE_NAMED!(self, sql, named_params! {":id": user_id }, String)?;
         Ok(&c[0].0 == token)
     }
 

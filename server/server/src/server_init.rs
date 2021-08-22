@@ -18,9 +18,8 @@ impl DataBase
                 name            VARCHAR(20) not null unique,
                 elo             float  default 1500.0,
                 password_hash   varchar(64) not null,
-                token_id            integer,
-                user_role       smallint,
-                foreign key(token_id) references tokens(id)
+                token_id        integer,
+                user_role       smallint
                 )",
             NO_PARAMS,
         )
@@ -237,7 +236,8 @@ impl DataBase
                 valid                   integer
             )",
             NO_PARAMS,
-        ).expect("create table tokens");
+        )
+        .expect("create table tokens");
 
 
         DataBase {

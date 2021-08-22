@@ -179,7 +179,10 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 
     match DATABASE!(data).login(name, password)
     {
-        Ok(tokens) => HttpResponse::Ok().json(response_ok_with((tokens.access_token, tokens.refresh_token))),
+        Ok(tokens) =>
+        {
+            HttpResponse::Ok().json(response_ok_with((tokens.access_token, tokens.refresh_token)))
+        },
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
@@ -595,6 +598,30 @@ async fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     }
 }
 
+#[post("refresh")]
+async fn refresh(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    #[derive(Deserialize)]
+    struct Refresh
+    {
+        // Need to be non snake case when getting it from JS
+        #[allow(non_snake_case)]
+        refreshToken: String,
+    }
+
+    let info: Refresh = serde_json::from_str(&info).unwrap();
+
+    match DATABASE!(data).renew_tokens(&info.refreshToken)
+    {
+        Ok((payload, tokens)) => HttpResponse::Ok().json(response_ok_with((
+            payload,
+            tokens.access_token,
+            tokens.refresh_token,
+        ))),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 fn get_builder() -> openssl::ssl::SslAcceptorBuilder
 {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -677,6 +704,7 @@ async fn main() -> std::io::Result<()>
             .service(register_tournament_match)
             .service(get_tournaments)
             .service(delete_tournament)
+            .service(refresh)
     });
 
     if cfg!(debug_assertions)

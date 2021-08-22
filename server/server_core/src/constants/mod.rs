@@ -24,3 +24,6 @@ pub const USER_ROLE_SOFT_INACTIVE: u8 = 1 << 4;
 pub const DATABASE_FILE: &'static str = "db.db";
 
 pub const TOURNAMENT_BADGES_PATH: &'static str = "tournament_badges";
+
+pub const INVALID_TOKEN: i64 = 0;
+pub const VALID_TOKEN: i64 = 1;

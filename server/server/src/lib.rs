@@ -11,9 +11,9 @@ mod server_rollback;
 mod server_season;
 mod sql_executor;
 mod test_util;
+mod tokens_logic;
 mod tournament;
 mod user;
-mod tokens_logic;
 
 
 pub use badge::*;
@@ -26,8 +26,8 @@ pub use server_rollback::*;
 pub use server_season::*;
 pub use sql_executor::*;
 pub use test_util::*;
+pub use tokens_logic::*;
 pub use tournament::*;
 pub use user::*;
-pub use tokens_logic::*;
 
 pub use crate::server::*;

@@ -4,7 +4,6 @@
 #[cfg(test)]
 use server_core::constants::{USER_ROLE_REGULAR, USER_ROLE_SOFT_INACTIVE, USER_ROLE_SUPERUSER};
 #[cfg(test)] use server_core::{constants::*, types::*};
-#[cfg(test)] use uuid::Uuid;
 
 #[cfg(test)] use super::DataBase;
 
@@ -24,7 +23,6 @@ pub fn get_table_size(s: &DataBase, table: &str) -> i64
 #[cfg(test)]
 pub fn create_user(s: &DataBase, name: &str) -> String
 {
-    let uuid = format!("{}", Uuid::new_v4());
     let tokens = s.generate_tokens();
     let id = s.insert_tokens_in_db(&tokens).unwrap();
     s.conn
@@ -54,11 +52,14 @@ pub fn hash(word: &String) -> String
 #[cfg(test)]
 pub fn respond_to_match(s: &DataBase, name: &str, id: i64)
 {
-    let user =  s.get_user_without_matches_by("name", "=", name).unwrap();
+    let user = s.get_user_without_matches_by("name", "=", name).unwrap();
 
     let mut stmt = s
         .conn
-        .prepare("select t.access_token from users as u inner join tokens as t on u.token_id = t.id where u.name = :name")
+        .prepare(
+            "select t.access_token from users as u inner join tokens as t on u.token_id = t.id \
+             where u.name = :name",
+        )
         .expect("Creating query");
     let token: String = stmt
         .query_map_named(named_params! {":name": name}, |row| {
@@ -99,5 +100,7 @@ pub fn create_season(s: &DataBase, id: i64, time: i64) -> ServerResult<usize>
 #[cfg(test)]
 pub fn create_tournament_image(s: &DataBase)
 {
-    s.conn.execute("insert into images (name) values (?1)", params![format!("3.png")]).unwrap();
+    s.conn
+        .execute("insert into images (name) values (?1)", params![format!("3.png")])
+        .unwrap();
 }
