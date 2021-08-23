@@ -10,6 +10,7 @@ const DECLINE_REQUEST: u8 = 2;
 
 pub const STOP_SEASON: i64 = -1;
 pub const START_SEASON: i64 = -2;
+pub const CANCEL_SEASON: i64 = -3;
 
 pub const N_SEASON_ID: u32 = 1;
 pub const IS_SEASON_ID: u32 = 2;
@@ -21,3 +22,5 @@ pub const USER_ROLE_INACTIVE: u8 = 1 << 2;
 pub const USER_ROLE_SOFT_INACTIVE: u8 = 1 << 4;
 
 pub const DATABASE_FILE: &'static str = "db.db";
+
+pub const TOURNAMENT_BADGES_PATH: &'static str = "tournament_badges";

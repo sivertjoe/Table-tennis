@@ -98,7 +98,7 @@ macro_rules! _params {
             $crate::NO_PARAMS
         };
         ($($param:expr),+ $(,)?) => {
-            Some(ParamsType::Params(&[$(&$param as &dyn rusqlite::ToSql),+] as &[&dyn $crate::ToSql]))
+            Some(ParamsType::Params(&[$(&$param as &dyn rusqlite::ToSql),+] as &[&dyn rusqlite::ToSql]))
         };
 }
 

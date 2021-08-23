@@ -8,7 +8,7 @@ impl DataBase
     {
         let conn = match Connection::open(file)
         {
-            Err(e) => panic!(format!("Could not create connection, {}", e)),
+            Err(_) => panic!("Could not create connection"),
             Ok(c) => c,
         };
 
@@ -123,6 +123,20 @@ impl DataBase
         )
         .expect("Creating badges table");
 
+        conn.execute(
+            "create table if not exists tournament_badges (
+                id              integer primary key autoincrement,
+                image           integer,
+                pid             integer,
+                tid             integer,
+                foreign key(tid) references tournaments(id),
+                foreign key(pid) references users(id),
+                foreign key(image) references images(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Creating badges table");
+
 
         conn.execute(
             "create table if not exists seasons (
@@ -141,6 +155,80 @@ impl DataBase
             NO_PARAMS,
         )
         .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournaments (
+                id              integer primary key autoincrement,
+                name            varchar(36),
+                prize           integer,
+                state           smallint,
+                player_count    integer,
+                organizer       integer
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_lists (
+                id                      integer primary key autoincrement,
+                player                  integer,
+                tournament              integer,
+                foreign key(player)     references users(id),
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_games (
+                id                      integer primary key autoincrement,
+                bucket                   integer,
+                player1                  integer,
+                player2                  integer,
+                tournament              integer,
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        // This is the result of a tournament_game
+        conn.execute(
+            "create table if not exists tournament_matches (
+                id                      integer primary key autoincrement,
+                game                    integer,
+                winner                  integer,
+                loser                   integer,
+                foreign key(game) references tournament_games(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists tournament_winners (
+                id                      integer primary key autoincrement,
+                player                  integer,
+                tournament              integer,
+                foreign key(player)     references users(id),
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables table");
+
+        conn.execute(
+            "create table if not exists images (
+                id              integer primary key autoincrement,
+                name            varchar(10) not null
+            )",
+            NO_PARAMS,
+        )
+        .expect("Create variables images");
+
+
 
         DataBase {
             conn: conn

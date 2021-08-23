@@ -10,24 +10,10 @@ class EditSeason extends Component {
   successLabel = ''
   constructor() {
     super()
-    const token = localStorage.getItem('token')
-    if (token) {
-      AdminApi.isAdmin(token)
-        .then((isAdmin) => {
-          if (isAdmin) {
-            this.isAdmin = 1
-            MatchApi.getSeasonLength()
-              .then((len) => (this.seasonLength = len))
-              .catch((error) => console.warn(error.message))
-              .finally(() => this.setState({}))
-          } else {
-            this.isAdmin = -1
-          }
-        })
-        .catch((error) => console.warn(error.message))
-        .finally(() => this.setState({}))
-    } else this.isAdmin = -1
-    this.isAdmin = 1
+    MatchApi.getSeasonLength()
+      .then((len) => (this.seasonLength = len))
+      .catch((error) => console.warn(error.message))
+      .finally(() => this.setState({}))
 
     this.incNumber = this.incNumber.bind(this)
     this.decNumber = this.decNumber.bind(this)
@@ -55,7 +41,6 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
   }
 
   start() {
@@ -65,7 +50,15 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
+  }
+
+  cancel() {
+    AdminApi.cancelSeason()
+      .then(() => {
+        this.successLabel = 'Canceled the season'
+        this.setState({})
+      })
+      .catch((error) => console.warn(error))
   }
 
   submit() {
@@ -75,42 +68,34 @@ class EditSeason extends Component {
         this.setState({})
       })
       .catch((error) => console.warn(error))
-    this.setState({})
   }
 
   render() {
-    if (this.isAdmin === 1) {
-      return (
-        <div className="container">
-          <div className="center">
-            <h1>Edit Season</h1>
-            <label className="leftSpace">
-              Current season length: {this.seasonLength}
-            </label>
-            <br />
-            <button onClick={() => this.decNumber()}>-</button>
-            <button onClick={() => this.incNumber()}>+</button>
-            <br />
-            <br />
-            <div className="button">
-              <Button placeholder="Submit" callback={() => this.submit()} />
-            </div>
-            <br />
-            <Button placeholder="Stop Season" callback={() => this.stop()} />
-            <Button placeholder="Start Season" callback={() => this.start()} />
-            <br />
-            <br />
-            <label className="success">{this.successLabel}</label>
+    return (
+      <div className="container">
+        <div className="center">
+          <h1>Edit Season</h1>
+          <label className="leftSpace">
+            Current season length: {this.seasonLength}
+          </label>
+          <br />
+          <button onClick={() => this.decNumber()}>-</button>
+          <button onClick={() => this.incNumber()}>+</button>
+          <br />
+          <br />
+          <div className="button">
+            <Button placeholder="Submit" callback={() => this.submit()} />
           </div>
+          <br />
+          <Button placeholder="Cancel Season" callback={() => this.cancel()} />
+          <Button placeholder="Stop Season" callback={() => this.stop()} />
+          <Button placeholder="Start Season" callback={() => this.start()} />
+          <br />
+          <br />
+          <label className="success">{this.successLabel}</label>
         </div>
-      )
-    } else if (this.isAdmin === -1)
-      return (
-        <div>
-          <img className="arnold" alt="STOP!!!" src={'../unauth.png'} />
-        </div>
-      )
-    else return <h1 style={{ textAlign: 'center' }}>Loading...</h1>
+      </div>
+    )
   }
 }
 

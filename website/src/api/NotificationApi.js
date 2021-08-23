@@ -1,23 +1,31 @@
 import * as BaseApi from './BaseApi'
 
 export const getNotifications = () =>
-  BaseApi.get('notifications/' + localStorage.getItem('token'))
+  BaseApi.get('notifications?type=match&token=' + localStorage.getItem('token'))
 
-export const getAdminNotifications = (token) =>
-  BaseApi.post('admin-notifications', {
+export const getAdminNotifications = () =>
+  BaseApi.get('notifications?type=admin&token=' + localStorage.getItem('token'))
+
+export const registerMatch = (winner, loser, token) =>
+  BaseApi.post('register-match', {
+    winner: winner,
+    loser: loser,
     token: token,
   })
 
-export const replyToNewUser = (id, token, ans) =>
-  BaseApi.post('respond-to-user-notification', {
+const respondBase = (id, token, ans, type) => 
+  BaseApi.post('notifications', {
     id: id,
     ans: ans,
     token: token,
+    type: type
   })
+
+export const replyToMatch = (id, token, ans) => 
+    respondBase(id, token, ans, "match")
 
 export const replyToResetPassword = (id, token, ans) =>
-  BaseApi.post('respond-to-reset-password-notification', {
-    id: id,
-    ans: ans,
-    token: token,
-  })
+    respondBase(id, token, ans, "reset_password")
+
+export const replyToNewUser = (id, token, ans) =>
+    respondBase(id, token, ans, "new_user")

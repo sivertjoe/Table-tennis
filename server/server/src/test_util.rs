@@ -92,3 +92,9 @@ pub fn create_season(s: &DataBase, id: i64, time: i64) -> ServerResult<usize>
         .execute("insert into seasons (id, start_epoch) values (?1, ?2)", params![id, time])?;
     Ok(0)
 }
+
+#[cfg(test)]
+pub fn create_tournament_image(s: &DataBase)
+{
+    s.conn.execute("insert into images (name) values (?1)", params![format!("3.png")]).unwrap();
+}

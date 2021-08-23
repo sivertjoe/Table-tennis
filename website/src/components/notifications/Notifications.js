@@ -1,5 +1,5 @@
 import React from 'react'
-import * as MatchApi from '../../api/MatchApi'
+import * as NotificationApi from '../../api/NotificationApi'
 import '../../index.css'
 import './Notifications.css'
 import { getDateTime } from '../../utils/Date'
@@ -49,7 +49,7 @@ const NotificationItem = (values) => {
 
 const clickButton = (id, ans) => {
   const token = localStorage.getItem('token')
-  MatchApi.replyToMatch(id, token, ans)
+  NotificationApi.replyToMatch(id, token, ans)
     .then(() => {
       document.getElementById(id).remove()
       document.getElementById('notificationCounter').innerHTML -= 1

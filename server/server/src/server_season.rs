@@ -10,9 +10,9 @@ use crate::GET_OR_CREATE_DB_VAR;
 
 impl DataBase
 {
-    pub fn end_season(&self) -> ServerResult<()>
+    pub fn end_season(&self, stop_season: bool) -> ServerResult<()>
     {
-        self._end_season()
+        self._end_season(stop_season)
     }
 
     pub fn start_new_season(&self) -> ServerResult<()>
@@ -38,7 +38,7 @@ impl DataBase
 
     pub fn get_is_season(&self) -> ServerResult<bool>
     {
-        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 1).map(|num| num == 1)
+        GET_OR_CREATE_DB_VAR!(&self.conn, IS_SEASON_ID, 0).map(|num| num == 1)
     }
 
     pub fn set_is_season(&self, val: bool) -> ServerResult<()>
@@ -71,18 +71,29 @@ impl DataBase
 // ~ end season functions
 impl DataBase
 {
-    fn _end_season(&self) -> ServerResult<()>
+    fn _end_season(&self, stop_season: bool) -> ServerResult<()>
     {
         // Only award badges if there were a season
         if let Some(season) = self.get_latest_season()?
         {
             if self.get_is_season()?
             {
-                for (i, user) in self.get_users()?.into_iter().take(NUM_SEASON_PRIZES).enumerate()
+                if stop_season
                 {
-                    self.award_badge(i as i64, season.id, user.id)?;
+                    for (i, user) in
+                        self.get_users()?.into_iter().take(NUM_SEASON_PRIZES).enumerate()
+                    {
+                        self.award_badge(i as i64, season.id, user.id)?;
+                    }
+                    self.archive_match_history(season.id)?;
                 }
-                self.archive_match_history(season.id)?;
+                else
+                {
+                    // We wanted to cancel the season, in this case we don't award
+                    // badges, _and_ we delete the season, idea is to use this
+                    // to cancel a season that was not ment to starto
+                    self.delete_season(season.id)?;
+                }
                 self.clear_matches()?;
                 self.clear_notifications()?;
                 self.reset_elos()?;
@@ -114,6 +125,12 @@ impl DataBase
         )?;
         Ok(())
     }
+
+    fn delete_season(&self, season_id: i64) -> ServerResult<()>
+    {
+        self.conn.execute("delete from seasons where id = ?1", params![season_id])?;
+        Ok(())
+    }
 }
 
 
@@ -137,9 +154,12 @@ impl DataBase
 
     fn create_new_season(&self) -> ServerResult<()>
     {
-        self.conn.execute("insert into seasons (start_epoch) values (?1)", params![
-            Utc::now().timestamp_millis()
-        ])?;
+        let next_season = self.get_latest_season_number().unwrap_or(0) + 1;
+        self.conn
+            .execute("insert into seasons (id, start_epoch) values (?1, ?2)", params![
+                next_season,
+                Utc::now().timestamp_millis()
+            ])?;
         Ok(())
     }
 }
@@ -215,12 +235,12 @@ mod test
         let s = DataBase::new(db_file);
         let default = s.get_is_season().unwrap(); // Create it
 
-        s.set_is_season(false).unwrap();
+        s.set_is_season(true).unwrap();
         let next = s.get_is_season().unwrap();
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        assert_eq!(default, true);
-        assert_eq!(next, false);
+        assert_eq!(default, false);
+        assert_eq!(next, true);
     }
 
     #[test]
@@ -254,7 +274,7 @@ mod test
         s.register_match(lars.clone(), siv.clone(), token_siv.clone())
             .expect("Creating match");
         let notification_count_before = get_table_size(&s, "match_notification");
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
         let notification_count_after = get_table_size(&s, "match_notification");
 
         s.register_match(lars.clone(), siv.clone(), token_siv.clone())
@@ -288,7 +308,7 @@ mod test
         s.register_match(lars.clone(), siv.clone(), token_siv.clone())
             .expect("Creating match");
         respond_to_match(&s, lars.as_str(), 1);
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
 
         let badge_len = s.get_user(&lars).unwrap().badges.len();
         let old_matches_len = get_table_size(&s, "old_matches");
@@ -326,13 +346,13 @@ mod test
         let s = DataBase::new(db_file);
 
         s.start_new_season().unwrap();
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
 
         s.start_new_season().unwrap();
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
 
         s.start_new_season().unwrap();
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
 
         let mut stmt = s.conn.prepare("select count(*) from seasons").unwrap();
         let count = stmt
@@ -367,7 +387,7 @@ mod test
             (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
 
         s.start_new_season().unwrap();
-        s.end_season().unwrap();
+        s.end_season(true).unwrap();
 
         let (s_elo_new, m_elo_new) =
             (s.get_user(&siv).unwrap().elo, s.get_user(&mark).unwrap().elo);
@@ -401,12 +421,12 @@ mod test
         create_user(&s, "Ella");
 
         s.start_new_season().expect("Staring first season");
-        s.end_season().expect("ending first season");
+        s.end_season(true).expect("ending first season");
 
         let users1 = s.get_users().expect("Getting users");
         // Do this scheme to check that a new season gave _new_ awards
         s.start_new_season().expect("Starting season");
-        s.end_season().expect("Ending season");
+        s.end_season(true).expect("Ending season");
 
         let users2 = s.get_users().expect("Getting users");
 
@@ -419,8 +439,8 @@ mod test
             .enumerate()
             .for_each(|(i, (u1, u2))| {
                 assert_eq!(u1.badges[0].name, BADGES[i]);
-                assert_eq!(u2.badges[0].season, 1);
-                assert_eq!(u2.badges[1].season, 2);
+                assert_eq!(u2.badges[0].tooltip, 1.to_string());
+                assert_eq!(u2.badges[1].tooltip, 2.to_string());
             });
     }
 
@@ -431,7 +451,7 @@ mod test
         let s = DataBase::new(db_file);
         create_user(&s, "Sivert");
 
-        s.end_season().expect("ending season");
+        s.end_season(true).expect("ending season");
 
         let users = s.get_users().expect("Getting users");
         std::fs::remove_file(db_file).expect("Removing file tempH");
@@ -450,5 +470,29 @@ mod test
         let start = s.get_season_start();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(time, start.unwrap())
+    }
+
+    #[test]
+    fn test_can_cancel_season()
+    {
+        let db_file = "tempL2.db";
+        let s = DataBase::new(db_file);
+        create_user(&s, "Sivert");
+        let m = create_user(&s, "Markus");
+
+        s.start_new_season().unwrap();
+        s.register_match("Markus".to_string(), "Sivert".to_string(), m).unwrap();
+        respond_to_match(&s, "Sivert", 1);
+        let first_season = s.get_latest_season().unwrap();
+
+        s.end_season(false).unwrap();
+        let season_after_cancel = s.get_latest_season().unwrap();
+        let user = s.get_user(&"Sivert".to_string()).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert!(first_season.is_some());
+        assert!(season_after_cancel.is_none());
+        assert!(user.elo == 1500.);
+        assert!(user.badges.len() == 0);
     }
 }

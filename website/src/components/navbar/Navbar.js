@@ -34,6 +34,9 @@ class Navbar extends Component {
         <div className={'menu ' + (this.menuOpen ? 'menu-open' : '')}>
           <div className="items">
             <h2>
+              <a href="/tournaments">Tournaments</a>
+            </h2>
+            <h2>
               <a href="/match">Match</a>
             </h2>
             <h2>
@@ -47,7 +50,10 @@ class Navbar extends Component {
             </h2>
             {username ? (
               <h2>
-                <a style={{ color: 'var(--orange)' }} href={'/profiles/' + username}>
+                <a
+                  style={{ color: 'var(--orange)' }}
+                  href={'/profiles/' + username}
+                >
                   {username}
                 </a>
               </h2>

@@ -17,8 +17,26 @@ const parseResponse = (response) => {
 export const get = (url) =>
   fetch(apiUrl + url).then((res) => parseResponse(res))
 
-export const post = (url, body) =>
+export const getImageUrl = (url) => apiUrl + 'assets/' + url
+
+const _post = (url, body) =>
   fetch(apiUrl + url, {
     method: 'POST',
     body: JSON.stringify(body),
   }).then((res) => parseResponse(res))
+
+export const post = (url, body) => _post(url, body)
+
+const convertImage = (image) =>
+  new Promise((resolve, _) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.readAsDataURL(image)
+  })
+
+export const postImage = (url, body) =>
+  body.image
+    ? convertImage(body.image).then((img) =>
+        _post(url, { ...body, image: img }),
+      )
+    : _post(url, { ...body, image: '' })

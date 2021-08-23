@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use elo::EloRank;
-use rusqlite::{named_params, Connection, NO_PARAMS};
+use rusqlite::{named_params, Connection};
 use server_core::types::ServerResult;
 
 use super::{r#match::Match, server::DataBase};
@@ -9,19 +9,6 @@ use super::{r#match::Match, server::DataBase};
 impl DataBase
 {
     pub fn roll_back(&self, time: i64) -> ServerResult<()>
-    {
-        self.conn.execute("BEGIN TRANSACTION;", NO_PARAMS)?;
-        if let Err(e) = self._roll_back(time)
-        {
-            self.conn.execute("ROLLBACK;", NO_PARAMS)?;
-            return Err(e);
-        }
-
-        self.conn.execute("COMMIT;", NO_PARAMS)?;
-        Ok(())
-    }
-
-    fn _roll_back(&self, time: i64) -> ServerResult<()>
     {
         let elo = EloRank {
             k: 32

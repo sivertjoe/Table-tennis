@@ -24,7 +24,7 @@ fn get_ars(data: &Arc<Mutex<DataBase>>) -> (bool, i64, u32)
 fn start_new_season(data: &Arc<Mutex<DataBase>>)
 {
     let s = data.lock().expect("Getting mutex");
-    s.end_season().expect("Endig season");
+    s.end_season(true).expect("Endig season");
     s.start_new_season().expect("starting new season");
 }
 

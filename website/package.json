@@ -11,6 +11,7 @@
     "prettier": "^2.1.2",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-modal": "^3.13.1",
     "react-router-dom": "^5.2.0",
     "react-scripts": "4.0.0",
     "react-select": "^3.1.0",
@@ -24,14 +25,24 @@
     "build:prod": "REACT_APP_URL=https://sivert.dev REACT_APP_IP=58642 react-scripts build --prod"
   },
   "eslintConfig": {
-    "extends": ["react-app", "react-app/jest"]
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
     "development": [
       "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "chokidar": "^3.5.1"
   }
 }
