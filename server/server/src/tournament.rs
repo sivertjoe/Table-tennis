@@ -254,8 +254,7 @@ impl DataBase
     fn create_image_prize(&self, image: String, tournament: i64) -> ServerResult<i64>
     {
         let image_name = format!("{}/{}.png", TOURNAMENT_BADGES_PATH, tournament);
-        let mut file =
-            std::fs::File::create(&format!("assets/{}", image_name)).expect("creating file");
+        let mut file = std::fs::File::create(&image_name).expect("creating file");
 
         let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
         let bin = base64::decode(bin[1]).unwrap();
