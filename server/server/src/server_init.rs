@@ -162,6 +162,7 @@ impl DataBase
                 name            varchar(36),
                 prize           integer,
                 state           smallint,
+                ttype           smallint,
                 player_count    integer,
                 organizer       integer
             )",

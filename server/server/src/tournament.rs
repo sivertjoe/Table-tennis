@@ -13,6 +13,12 @@ use crate::{
     server::{DataBase, ParamsType},
 };
 
+pub enum TournamentType
+{
+    SingleElimination,
+    DoubleElimination,
+}
+
 #[derive(Deserialize)]
 pub struct GetTournamentOptions
 {
@@ -109,6 +115,7 @@ pub struct Tournament
     pub name:         String,
     pub prize:        i64,
     pub state:        u8,
+    pub ttype:        u8,
     pub player_count: i64,
     pub organizer:    i64,
 }
@@ -121,6 +128,7 @@ pub struct SendTournament
     prize:          String,
     player_count:   i64,
     state:          u8,
+    ttype:          u8,
     organizer_name: String,
     winner:         String,
 }
@@ -272,6 +280,7 @@ impl DataBase
             .map(|t| t.id)
     }
 
+    // @TODO: Need to take in the tournament type
     fn _create_tournament(
         &self,
         pid: i64,
@@ -286,9 +295,16 @@ impl DataBase
         }
 
         self.conn.execute(
-            "insert into tournaments (name, prize, state, organizer, player_count) values (?1, \
-             ?2, ?3, ?4, ?5)",
-            params![name, prize, TournamentState::Created as i64, pid, player_count],
+            "insert into tournaments (name, prize, state, ttype, organizer, player_count) values \
+             (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                name,
+                prize,
+                TournamentState::Created as i64,
+                TournamentType::SingleElimination as i64,
+                pid,
+                player_count
+            ],
         )?;
         Ok(())
     }
@@ -516,10 +532,71 @@ impl DataBase
         Ok(())
     }
 
+    fn create_losers_bracket(&self, player_count: i64) -> ServerResult<()>
+    {
+        let player_count = player_count;
+        let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
+        let power = 2_usize.pow(biggest_power_of_two);
+
+
+        let mut set: Vec<usize> = ((power / 2) - 1..power - 1).collect();
+        let mut first_bracket = true;
+
+        let mut matches: Vec<TournamentGame> = Vec::new();
+
+        let id = 10;
+        let bucket = 10;
+        let insert_two = |first: bool, i: usize| {
+            if first
+            {
+                if (i & 1) == 0
+                {
+                    let mut game = TournamentGame::empty(id, bucket);
+                    game.insert_player(i as i64);
+                    matches.push(game);
+                }
+                else
+                {
+                    let prev = matches.last_mut().unwrap();
+                    prev.insert_player(i as i64);
+                };
+            }
+        };
+
+
+        loop
+        {
+            let mut new_set = Vec::new();
+            for i in set.drain(..)
+            {
+                println!("{}", i);
+                if i == 0
+                {
+                    break;
+                }
+                if (i & 1) == 0
+                {
+                    let parent = (i - 1) / 2;
+                    new_set.push(parent);
+                }
+            }
+            set = new_set;
+            if set.len() == 0
+            {
+                break;
+            }
+        }
+
+
+
+        Ok(())
+    }
+
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
         -> ServerResult<()>
     {
         let games = self.generate_buckets(&tournament, &self.generate_matchups(people));
+        //self.create_losers_bracket(&tournament)?;
 
         for bucket in games
         {
@@ -611,6 +688,7 @@ impl DataBase
             prize:          self.get_image_name(tournament.prize)?,
             player_count:   tournament.player_count,
             state:          tournament.state,
+            ttype:          tournament.ttype,
             id:             tournament.id,
             organizer_name: self
                 .get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
@@ -704,11 +782,11 @@ impl DataBase
     pub fn get_tournaments(&self, info: GetTournamentOptions) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
-        let t_infos: Vec<TournamentInfo> = tournaments
+        let t_infos = tournaments
             .into_iter()
             .filter(|t| self.filter_tournaments(t, &info))
             .map(|t| self.map_tournament_info(t))
-            .collect();
+            .collect::<Vec<TournamentInfo>>();
         Ok(t_infos)
     }
 
@@ -897,6 +975,7 @@ mod test
         let tournament = Tournament {
             id:           0,
             state:        0,
+            ttype:        0,
             player_count: 0,
             name:         String::new(),
             prize:        0,
@@ -924,6 +1003,7 @@ mod test
         let tournament = Tournament {
             id:           0,
             state:        0,
+            ttype:        0,
             player_count: 0,
             name:         String::new(),
             prize:        0,
@@ -1287,5 +1367,15 @@ mod test
         assert!(tournament.is_err());
         assert_eq!(games.len(), 0);
         assert_eq!(matches.len(), 0);
+    }
+
+
+    #[test]
+    fn create_losers_bracket()
+    {
+        let db_file = "tempT18";
+        let s = DataBase::new(db_file);
+        s.create_losers_bracket(8).unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 }
