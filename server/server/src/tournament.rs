@@ -468,11 +468,16 @@ impl DataBase
         let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
 
         self.create_match_from_game(winner_id, loser_id, game.id)?;
-        // This was the last game, award some stuff
+        // Winners bracket final game
         if game.bucket == 0
         {
             // @TODO: do something
             self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
+        }
+        // Losers bracket final game
+        else if game.bucket == -1
+        {
+            //@TODO: Handle me
         }
         else
         {
@@ -488,10 +493,14 @@ impl DataBase
             else
             // loser bracket match
             {
-                // @TODO: handle me
                 let loser_bracket_parent =
                     self.loser_bracket_parent(game.bucket, tournament.player_count);
-                //println!("{}", loser_bracket_parent);
+
+                self.conn.execute(
+                    "update tournament_games set player2 = ?1 where bucket = ?2 and tournament = \
+                     ?3",
+                    params![loser_id, loser_bracket_parent, tournament.id],
+                )?;
             }
         }
         Ok(())
@@ -689,13 +698,13 @@ impl DataBase
         let mut matches: Vec<TournamentGame> = Vec::new();
 
         let first_bracket_insert =
-            |matches: &mut Vec<TournamentGame>, i: usize, bucket: &mut i64, base: i64| {
+            |matches: &mut Vec<TournamentGame>, i: usize, bucket: &mut i64| {
                 if (i & 1) == 1
                 {
-                    let mut game = TournamentGame::empty(tid, base + *bucket);
+                    let mut game = TournamentGame::empty(tid, *bucket);
                     game.insert_player(-(i as i64) - 1);
                     matches.push(game);
-                    *bucket -= 1;
+                    *bucket += 1;
                 }
                 else
                 {
@@ -703,35 +712,26 @@ impl DataBase
                     prev.insert_player(-(i as i64) - 1);
                 };
             };
-        let insert = |
-            matches: &mut Vec<TournamentGame>,
-            first: bool,
-            i: usize,
-            bucket: &mut i64,
-            base: i64,
-        | {
-            if first
-            {
-                //println!("FIRST ROWN!!!!!!!!!!!!");
-                first_bracket_insert(matches, i, bucket, base);
-            }
-            else
-            {
-                //println!("SECOND ROWN!!!!!!!!!!!!");
-                let mut game = TournamentGame::empty(tid, base + *bucket);
-                game.insert_player(-(i as i64) - 1);
-                matches.push(game);
-                *bucket -= 1;
-            }
-        };
+        let insert =
+            |matches: &mut Vec<TournamentGame>, first: bool, i: usize, bucket: &mut i64| {
+                if first
+                {
+                    first_bracket_insert(matches, i, bucket);
+                }
+                else
+                {
+                    let mut game = TournamentGame::empty(tid, *bucket);
+                    game.insert_player(-(i as i64) - 1);
+                    matches.push(game);
+                    *bucket += 1;
+                }
+            };
 
 
         let mut toggle = true;
-        let mut base = -900;
+        let mut bucket = -(power as i64 - 2);
         loop
         {
-            base -= 100;
-            let mut bucket = 0;
             toggle = !toggle;
             let mut new_set = Vec::new();
             let len = set.len();
@@ -742,12 +742,12 @@ impl DataBase
                 {
                     for _ in 0..len
                     {
-                        let game = TournamentGame::empty(tid, base + bucket);
+                        let game = TournamentGame::empty(tid, bucket);
                         matches.push(game);
-                        bucket -= 1;
+                        bucket += 1;
                     }
                 }
-                insert(&mut matches, first_row, i, &mut bucket, base);
+                insert(&mut matches, first_row, i, &mut bucket);
                 if i == 0
                 {
                     break;
@@ -762,7 +762,6 @@ impl DataBase
 
             if set.len() == 0
             {
-                // println!("{:#?}", matches);
                 for game in matches
                 {
                     self._create_tournament_game(
@@ -1635,7 +1634,6 @@ mod test
             .collect();
 
 
-
         let test_ = |i: usize, _games: &Vec<TournamentGame>| {
             let register_game =
                 reg_tournament_match_from_tournament_game(&s, &_games[i], token.clone());
@@ -1656,8 +1654,6 @@ mod test
         };
 
 
-        // let ress = vec![test_(0), test_(1)];
-        //println!("{:#?}", games);
         let mut ress = vec![test_(1, &games), test_(2, &games)];
         let games: Vec<TournamentGame> = s
             .get_all_tournament_games(1)
@@ -1669,8 +1665,17 @@ mod test
         ress.push(test_(0, &games));
 
 
-        let games: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
-        //println!("{:#?}", games);
+        let games: Vec<TournamentGame> = s
+            .get_all_tournament_games(1)
+            .unwrap()
+            .into_iter()
+            .filter(|tg| tg.bucket < 0)
+            .collect();
+
+        println!("{:#?}", games);
+        let first_loser_game = games.iter().position(|g| g.bucket == -2).unwrap();
+        ress.push(test_(first_loser_game, &games));
+
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(vec.iter().all(|r| r.is_ok()));
