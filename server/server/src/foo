@@ -1,0 +1,44 @@
+[
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: -4,
+        player2: -5,
+        bucket: -1,
+    },
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: -6,
+        player2: -7,
+        bucket: -3,
+    },
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: -2,
+        player2: 0,
+        bucket: -5,
+    },
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: -3,
+        player2: 0,
+        bucket: -6,
+    },
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: 0,
+        player2: 0,
+        bucket: -7,
+    },
+    TournamentGame {
+        id: -1,
+        tournament: 1,
+        player1: -1,
+        player2: 0,
+        bucket: -8,
+    },
+]
