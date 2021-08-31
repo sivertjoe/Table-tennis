@@ -458,12 +458,12 @@ impl DataBase
     ) -> ServerResult<()>
     {
         let mut games = self.get_all_single_tournament_games(game.tournament)?;
-        println!(
+        /*println!(
             "{:#?} - {:?} - {:?}",
             self.get_all_tournament_games(tournament.id),
             game,
             register_game
-        );
+        );*/
         let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
         let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
 
@@ -481,7 +481,7 @@ impl DataBase
             {
                 let game_index = games.iter().position(|g| g.bucket == game.bucket).unwrap();
                 let parent = self.advance_player(&mut games, game_index, winner_id);
-                println!("{}", parent);
+                //println!("{}", parent);
                 self.update_bucket(&games[parent])?;
                 self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
             }
@@ -491,7 +491,7 @@ impl DataBase
                 // @TODO: handle me
                 let loser_bracket_parent =
                     self.loser_bracket_parent(game.bucket, tournament.player_count);
-                println!("{}", loser_bracket_parent);
+                //println!("{}", loser_bracket_parent);
             }
         }
         Ok(())
@@ -499,7 +499,23 @@ impl DataBase
 
     fn loser_bracket_parent(&self, bucket: i64, player_count: i64) -> i64
     {
-        bucket
+        let bucket = bucket.abs();
+        let biggest_power_of_two = (((bucket + 2) as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+        let power = 2_i64.pow(biggest_power_of_two);
+
+        let bracket_size = power / 4;
+        let x = bracket_size - 1;
+
+        let parent = |n: i64| (((n - 1) as f64) / 2.0).ceil() as i64;
+
+        if power - 2 - bracket_size > bucket
+        {
+            -(parent(bucket - x) + x)
+        }
+        else
+        {
+            -(bucket - bracket_size)
+        }
     }
 
     fn send_loser_to_losers_bracket(
@@ -696,12 +712,12 @@ impl DataBase
         | {
             if first
             {
-                println!("FIRST ROWN!!!!!!!!!!!!");
+                //println!("FIRST ROWN!!!!!!!!!!!!");
                 first_bracket_insert(matches, i, bucket, base);
             }
             else
             {
-                println!("SECOND ROWN!!!!!!!!!!!!");
+                //println!("SECOND ROWN!!!!!!!!!!!!");
                 let mut game = TournamentGame::empty(tid, base + *bucket);
                 game.insert_player(-(i as i64) - 1);
                 matches.push(game);
@@ -1623,7 +1639,7 @@ mod test
         let test_ = |i: usize, _games: &Vec<TournamentGame>| {
             let register_game =
                 reg_tournament_match_from_tournament_game(&s, &_games[i], token.clone());
-            println!("brw:: {}", _games[i].bucket);
+            //println!("brw:: {}", _games[i].bucket);
             let gid = s
                 .sql_one::<TournamentGame, _>(
                     "select * from tournament_games where (player1 = (-?1)-1 or player2 = (-?1)-1)",
@@ -1654,10 +1670,53 @@ mod test
 
 
         let games: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
-        println!("{:#?}", games);
+        //println!("{:#?}", games);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(vec.iter().all(|r| r.is_ok()));
         assert!(ress.iter().all(|(r1, r2)| r1.is_ok() && r2.is_ok()));
+    }
+
+
+    #[test]
+    fn loser_bracket_parent_function()
+    {
+        let db_file = "tempT21.db";
+        let db = DataBase::new(db_file);
+
+        let test_size = |n| // n: e.g 32
+        {
+            if n == 4
+            {
+                return db.loser_bracket_parent(2, 4) == -1;
+            }
+            let stop = (n / 2) - 2;
+            let start = stop - (n / 8) + 1;
+
+            let mut vec = Vec::new();
+            let mut s = (n / 2 - 1);
+            for i in start..=stop
+            {
+                for _ in 0..2
+                {
+                    vec.push(db.loser_bracket_parent(s, n) == -i);
+                    s += 1;
+                }
+            }
+
+            for i in (stop + 1)..(stop + 1) + n / 4
+            {
+                vec.push(db.loser_bracket_parent(s, n) == -i);
+                s += 1;
+            }
+            vec.into_iter().all(|b| b)
+        };
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        assert!(test_size(4));
+        assert!(test_size(8));
+        assert!(test_size(16));
+        assert!(test_size(32));
+        assert!(test_size(64));
     }
 }
