@@ -458,51 +458,60 @@ impl DataBase
     ) -> ServerResult<()>
     {
         let mut games = self.get_all_single_tournament_games(game.tournament)?;
-        /*println!(
-            "{:#?} - {:?} - {:?}",
-            self.get_all_tournament_games(tournament.id),
-            game,
-            register_game
-        );*/
         let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
         let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
 
         self.create_match_from_game(winner_id, loser_id, game.id)?;
-        // Winners bracket final game
-        if game.bucket == 0
-        {
-            // @TODO: do something
-            self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
-        }
-        // Losers bracket final game
-        else if game.bucket == -1
-        {
-            //@TODO: Handle me
-        }
-        else
-        {
-            if game.bucket > 0
-            // winners bracket match
-            {
-                let game_index = games.iter().position(|g| g.bucket == game.bucket).unwrap();
-                let parent = self.advance_player(&mut games, game_index, winner_id);
-                //println!("{}", parent);
-                self.update_bucket(&games[parent])?;
-                self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
-            }
-            else
-            // loser bracket match
-            {
-                let loser_bracket_parent =
-                    self.loser_bracket_parent(game.bucket, tournament.player_count);
 
-                self.conn.execute(
-                    "update tournament_games set player2 = ?1 where bucket = ?2 and tournament = \
-                     ?3",
-                    params![loser_id, loser_bracket_parent, tournament.id],
-                )?;
-            }
-        }
+        let biggest_power_of_two =
+            ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+        let power = 2_i64.pow(biggest_power_of_two);
+
+        match game.bucket
+        {
+            // Winners bracket final game
+            0 =>
+            {
+                // @TODO: Send winner to final
+                self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
+            },
+            // Losers bracket final game
+            -1 =>
+            {
+                // @TODO: Send winner to final
+            },
+            // First final
+            n if n == power =>
+            {},
+            // Second final
+            N if N == (power + 1) =>
+            {},
+            // Normal game
+            _ =>
+            {
+                if game.bucket > 0
+                // winners bracket match
+                {
+                    let parent = self.advance_player(&mut games, game.bucket as usize, winner_id);
+                    let game_index = games.iter().position(|g| g.bucket == parent as i64).unwrap();
+                    self.update_bucket(&games[game_index])?;
+                    self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
+                }
+                else
+                // loser bracket match
+                {
+                    let loser_bracket_parent =
+                        self.loser_bracket_parent(game.bucket, tournament.player_count);
+
+                    self.conn.execute(
+                        "update tournament_games set player2 = ?1 where bucket = ?2 and \
+                         tournament = ?3",
+                        params![winner_id, loser_bracket_parent, tournament.id],
+                    )?;
+                }
+            },
+        };
+
         Ok(())
     }
 
@@ -535,15 +544,16 @@ impl DataBase
     ) -> ServerResult<()>
     {
         // OK, this guy just lost match in bucket #n, send him to loser bracket where
-        // player1 = #n,
+        // player1 = #n - 1,
         // right?
 
+        let less = -(game.bucket + 1);
         let mut loser_bracket = self.sql_one::<TournamentGame, _>(
-            "select * from tournament_games where (player1 = (-?1) - 1 or player2 = (-?1) -1) and \
-             tournament = ?2",
-            _params![game.bucket, tid],
+            "select * from tournament_games where (player1 = ?1 or player2 = ?1) and tournament = \
+             ?2",
+            _params![less, tid],
         )?;
-        if loser_bracket.player1 <= 0
+        if loser_bracket.player1 == less
         {
             loser_bracket.player1 = id;
         }
@@ -639,9 +649,9 @@ impl DataBase
     fn advance_player(&self, games: &mut Vec<TournamentGame>, i: usize, winner: i64) -> usize
     {
         let parent = (i - 1) / 2;
+        let mut game = games.iter_mut().find(|g| g.bucket == parent as i64).unwrap();
 
-        let parent_player =
-            if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
+        let parent_player = if i & 1 == 1 { &mut game.player1 } else { &mut game.player2 };
 
         *parent_player = winner;
         parent
@@ -786,6 +796,16 @@ impl DataBase
         if tournament.ttype == TournamentType::DoubleElimination as u8
         {
             self.create_losers_bracket(tournament.player_count, tournament.id)?;
+
+            // We will denote the final final match with n, where n is the highest power of
+            // two E.g 16, 32, 8, etc.
+
+            let biggest_power_of_two =
+                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+            let power = 2_i64.pow(biggest_power_of_two);
+            // For now, I dont wanna generate the second final, only generate it
+            // if it's needed
+            self._create_tournament_game(0, 0, power, tournament.id)?;
         }
 
         for bucket in games
@@ -1626,22 +1646,29 @@ mod test
             .map(|t| s.join_tournament(t, 1))
             .collect();
 
-        let games: Vec<TournamentGame> = s
+        let mut games: Vec<TournamentGame> = s
             .get_all_tournament_games(1)
             .unwrap()
             .into_iter()
             .filter(|tg| tg.bucket >= 0)
             .collect();
 
+        let all: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
+        games.sort_by(|a, b| b.id.partial_cmp(&a.id).unwrap());
 
-        let test_ = |i: usize, _games: &Vec<TournamentGame>| {
-            let register_game =
-                reg_tournament_match_from_tournament_game(&s, &_games[i], token.clone());
-            //println!("brw:: {}", _games[i].bucket);
+        let test_ = |i: isize| {
+            let all: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
+            let game = all.iter().find(|g| g.bucket == i as i64).unwrap();
+
+
+            let register_game = reg_tournament_match_from_tournament_game(&s, game, token.clone());
+
+            let less = -(game.bucket + 1);
+
             let gid = s
                 .sql_one::<TournamentGame, _>(
-                    "select * from tournament_games where (player1 = (-?1)-1 or player2 = (-?1)-1)",
-                    _params![&_games[i].bucket],
+                    "select * from tournament_games where player1 = ?1 or player2 = ?1",
+                    _params![less],
                 )
                 .map(|t| t.id)
                 .unwrap();
@@ -1654,32 +1681,32 @@ mod test
         };
 
 
-        let mut ress = vec![test_(1, &games), test_(2, &games)];
-        let games: Vec<TournamentGame> = s
+
+
+        let mut ress: Vec<_> = (0..=2).rev().map(|n| test_(n as isize)).collect();
+
+
+
+        let mut games: Vec<TournamentGame> = s
             .get_all_tournament_games(1)
             .unwrap()
             .into_iter()
-            .filter(|tg| tg.bucket == 0)
+            .filter(|g| g.bucket < 0)
             .collect();
+        games.sort_by(|a, b| a.id.partial_cmp(&b.id).unwrap());
 
-        ress.push(test_(0, &games));
 
+        let power = 4; // CALCULATE THIS LATER
 
-        let games: Vec<TournamentGame> = s
-            .get_all_tournament_games(1)
-            .unwrap()
-            .into_iter()
-            .filter(|tg| tg.bucket < 0)
-            .collect();
+        let start = power - 2;
 
-        println!("{:#?}", games);
-        let first_loser_game = games.iter().position(|g| g.bucket == -2).unwrap();
-        ress.push(test_(first_loser_game, &games));
+        let ress2: Vec<_> = (1..=power - 2).rev().map(|i| test_(-i as isize)).collect();
 
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(vec.iter().all(|r| r.is_ok()));
         assert!(ress.iter().all(|(r1, r2)| r1.is_ok() && r2.is_ok()));
+        assert!(ress2.iter().all(|(r1, r2)| r1.is_ok() && r2.is_ok()));
     }
 
 
