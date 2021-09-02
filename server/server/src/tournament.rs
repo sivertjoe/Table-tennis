@@ -472,20 +472,41 @@ impl DataBase
             // Winners bracket final game
             0 =>
             {
-                // @TODO: Send winner to final
+                self.conn.execute(
+                    "update tournament_games set player1 = ?1 where bucket = ?2 and tournament = \
+                     ?3",
+                    params![winner_id, power, tournament.id],
+                )?;
                 self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
             },
             // Losers bracket final game
             -1 =>
             {
-                // @TODO: Send winner to final
+                self.conn.execute(
+                    "update tournament_games set player2 = ?1 where bucket = ?2 and tournament = \
+                     ?3",
+                    params![winner_id, power, tournament.id],
+                )?;
             },
             // First final
             n if n == power =>
-            {},
+            {
+                // Tournament is over
+                if winner_id == game.player1
+                {
+                    self.finish_tournament(&tournament, winner_id)?;
+                }
+                // Loser won, go to game #2
+                else
+                {
+                    self._create_tournament_game(loser_id, winner_id, (power + 1), tournament.id)?;
+                }
+            },
             // Second final
             N if N == (power + 1) =>
-            {},
+            {
+                self.finish_tournament(&tournament, winner_id)?;
+            },
             // Normal game
             _ =>
             {
@@ -564,6 +585,14 @@ impl DataBase
         self.update_bucket(&loser_bracket)
     }
 
+    fn finish_tournament(&self, tournament: &Tournament, winner_id: i64) -> ServerResult<()>
+    {
+        self.create_tournament_winner(tournament.id, winner_id)?;
+        self.update_tournament_state(tournament.id, TournamentState::Done)?;
+        self.award_winner_with_prize(tournament.prize, winner_id, tournament.id)?;
+        Ok(())
+    }
+
     fn handle_single_elimination_match(
         &self,
         game: &TournamentGame,
@@ -580,9 +609,7 @@ impl DataBase
         if game.bucket == 0
         {
             // @TODO: Check if double elim
-            self.create_tournament_winner(tournament.id, winner_id)?;
-            self.update_tournament_state(tournament.id, TournamentState::Done)?;
-            self.award_winner_with_prize(tournament.prize, winner_id, tournament.id)?;
+            self.finish_tournament(tournament, winner_id)?;
         }
         else
         {
@@ -1632,52 +1659,32 @@ mod test
     {
         let db_file = "tempT20.db";
         let s = DataBase::new(db_file);
-        let token = create_user(&s, "Sivert");
-        let token2 = create_user(&s, "Bernt");
-        let token3 = create_user(&s, "Markus");
-        let token4 = create_user(&s, "Ella");
-
 
         s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        let vec: Vec<ServerResult<_>> = vec![token.clone(), token2, token3, token4]
-            .into_iter()
-            .map(|t| s.join_tournament(t, 1))
-            .collect();
 
-        let mut games: Vec<TournamentGame> = s
-            .get_all_tournament_games(1)
-            .unwrap()
-            .into_iter()
-            .filter(|tg| tg.bucket >= 0)
-            .collect();
 
-        let all: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
-        games.sort_by(|a, b| b.id.partial_cmp(&a.id).unwrap());
+        // tournament organizer
+        let token = create_user(&s, "Sivert");
+
+        let vec = vec!["Bernt", "Markus", "Ella"]
+            .into_iter()
+            .map(|name| create_user(&s, name))
+            .chain(vec![token.clone()].into_iter())
+            .map(|token| s.join_tournament(token, 1))
+            .collect::<Vec<_>>();
+
+
 
         let test_ = |i: isize| {
             let all: Vec<TournamentGame> = s.get_all_tournament_games(1).unwrap();
             let game = all.iter().find(|g| g.bucket == i as i64).unwrap();
 
-
             let register_game = reg_tournament_match_from_tournament_game(&s, game, token.clone());
 
-            let less = -(game.bucket + 1);
-
-            let gid = s
-                .sql_one::<TournamentGame, _>(
-                    "select * from tournament_games where player1 = ?1 or player2 = ?1",
-                    _params![less],
-                )
-                .map(|t| t.id)
-                .unwrap();
             let res1 = s.register_tournament_match(register_game);
-            let res2 = s.sql_one::<TournamentGame, _>(
-                "select * from tournament_games where id = ?1",
-                _params![gid],
-            );
-            (res1, res2)
+            res1
         };
 
 
@@ -1687,13 +1694,6 @@ mod test
 
 
 
-        let mut games: Vec<TournamentGame> = s
-            .get_all_tournament_games(1)
-            .unwrap()
-            .into_iter()
-            .filter(|g| g.bucket < 0)
-            .collect();
-        games.sort_by(|a, b| a.id.partial_cmp(&b.id).unwrap());
 
 
         let power = 4; // CALCULATE THIS LATER
@@ -1702,11 +1702,15 @@ mod test
 
         let ress2: Vec<_> = (1..=power - 2).rev().map(|i| test_(-i as isize)).collect();
 
+        test_(power).unwrap();
+        let ress3 = vec![test_(power)];
+
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(vec.iter().all(|r| r.is_ok()));
-        assert!(ress.iter().all(|(r1, r2)| r1.is_ok() && r2.is_ok()));
-        assert!(ress2.iter().all(|(r1, r2)| r1.is_ok() && r2.is_ok()));
+        assert!(ress.iter().all(|r1| r1.is_ok()));
+        assert!(ress2.iter().all(|r1| r1.is_ok()));
+        assert!(ress3.iter().all(|r1| r1.is_ok()));
     }
 
 
@@ -1745,10 +1749,10 @@ mod test
         };
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        assert!(test_size(4));
-        assert!(test_size(8));
-        assert!(test_size(16));
-        assert!(test_size(32));
-        assert!(test_size(64));
+        for i in 2..6
+        {
+            let pow = 2_i64.pow(i as u32);
+            assert!(test_size(pow));
+        }
     }
 }
