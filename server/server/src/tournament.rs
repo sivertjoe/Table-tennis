@@ -243,6 +243,35 @@ impl TournamentGame
     }
 }
 
+struct LoserBracketGenerator(i64);
+
+impl LoserBracketGenerator
+{
+    fn new(p: i64) -> Self
+    {
+        LoserBracketGenerator(p)
+    }
+}
+
+impl Iterator for LoserBracketGenerator
+{
+    type Item = Vec<i64>;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        if self.0 == 1
+        {
+            None
+        }
+        else
+        {
+            let p = self.0;
+            self.0 >>= 1;
+            Some(((p / 2 - 1)..(p - 1)).collect::<Self::Item>())
+        }
+    }
+}
+
 const DEFAULT_PICTURE: &str = "tournament_badges/default.png";
 
 impl DataBase
@@ -745,10 +774,11 @@ impl DataBase
      * @NOTE:
      * This is a little scuffed, for the TournamentGames, if the value is below 0
      * it means that this is the position of the loser in the corresponding
-     * positive number bracket. Meaning, the loser of bracket #n will be
-     * placed in the tournament_game where player1 = #n. BUT, since 0 is a
+     * positive number bucket. Meaning, the loser of bucket #n will be
+     * placed in the tournament_game where player1 = -#n. BUT, since 0 is a
      * valid bucket AND used for denoting empty game, I need to do
-     * player1 = #n - 1. Kind of scuffed, but it works..
+     * player1 = - (#n + 1). Kind of scuffed, but it works..
+     * Use pos to get the actual number
      */
     fn create_losers_bracket(&self, player_count: i64, tid: i64) -> ServerResult<()>
     {
@@ -756,90 +786,59 @@ impl DataBase
         let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
         let power = 2_usize.pow(biggest_power_of_two);
 
-        let mut set: Vec<usize> = ((power / 2) - 1..power - 1).collect();
         let mut matches: Vec<TournamentGame> = Vec::new();
+        let mut iter = LoserBracketGenerator::new(power as i64).into_iter();
 
-        let first_bracket_insert =
-            |matches: &mut Vec<TournamentGame>, i: usize, bucket: &mut i64| {
-                if (i & 1) == 1
-                {
-                    let mut game = TournamentGame::empty(tid, *bucket);
-                    game.insert_player(-(i as i64) - 1);
-                    matches.push(game);
-                    *bucket += 1;
-                }
-                else
-                {
-                    let prev = matches.last_mut().unwrap();
-                    prev.insert_player(-(i as i64) - 1);
-                };
-            };
-        let insert =
-            |matches: &mut Vec<TournamentGame>, first: bool, i: usize, bucket: &mut i64| {
-                if first
-                {
-                    first_bracket_insert(matches, i, bucket);
-                }
-                else
-                {
-                    let mut game = TournamentGame::empty(tid, *bucket);
-                    game.insert_player(-(i as i64) - 1);
-                    matches.push(game);
-                    *bucket += 1;
-                }
-            };
+        // Helper functions for later
+        let pos = |i: i64| -(i + 1);
+        let get_pair = |pair: &[i64]| -> (i64, i64) {
+            match pair
+            {
+                &[a, b] => (a, b),
+                _ => unreachable!(),
+            }
+        };
+        let create_empty = |len: usize, matches: &mut Vec<TournamentGame>, bucket: &mut i64| {
+            for i in 0..len
+            {
+                matches.push(TournamentGame::empty(tid, *bucket));
+                *bucket += 1;
+            }
+        };
+        let create_normal = |set: Vec<i64>, matches: &mut Vec<TournamentGame>, bucket: &mut i64| {
+            for p in set
+            {
+                matches.push(TournamentGame::players(tid, *bucket, pos(p), 0));
+                *bucket += 1;
+            }
+        };
 
+        // These two sections don't really follow the pattern, so just deal with them
+        // first
+        let first_section = iter.next().unwrap();
+        let second_section = iter.next().unwrap();
 
-        let mut toggle = true;
         let mut bucket = -(power as i64 - 2);
-        'outer: loop
+        for pair in first_section.chunks(2)
         {
-            toggle = !toggle;
-            let mut new_set = Vec::new();
-            let len = set.len();
-            let copy = set.clone();
-            for i in set.into_iter()
-            {
-                let first_row = i >= power / 2 - 1;
-                if !toggle && !first_row
-                {
-                    for _ in 0..len
-                    {
-                        let game = TournamentGame::empty(tid, bucket);
-                        matches.push(game);
-                        bucket += 1;
-                    }
-                    set = copy;
-                    continue 'outer;
-                }
-                insert(&mut matches, first_row, i, &mut bucket);
-                if i == 0
-                {
-                    break;
-                }
-                if (i & 1) == 0
-                {
-                    let parent = (i - 1) / 2;
-                    new_set.push(parent);
-                }
-            }
-            set = new_set;
-
-            if set.len() == 0
-            {
-                for game in matches
-                {
-                    self._create_tournament_game(
-                        game.player1,
-                        game.player2,
-                        game.bucket,
-                        game.tournament,
-                    )?;
-                }
-                break;
-            }
+            let (b1, b2) = get_pair(pair);
+            matches.push(TournamentGame::players(tid, bucket, pos(b1), pos(b2)));
+            bucket += 1;
         }
 
+        create_normal(second_section, &mut matches, &mut bucket);
+
+        // Now that the hard coded guys left, we can finally start the pattern
+        for section in iter
+        {
+            create_empty(section.len(), &mut matches, &mut bucket);
+            create_normal(section, &mut matches, &mut bucket);
+        }
+
+        for game in matches
+        {
+            self._create_tournament_game(game.player1, game.player2, game.bucket, game.tournament)?;
+        }
 
         Ok(())
     }
