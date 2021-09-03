@@ -544,7 +544,7 @@ impl DataBase
                 // Loser won, go to game #2
                 else
                 {
-                    self._create_tournament_game(loser_id, winner_id, (power + 1), tournament.id)?;
+                    self._create_tournament_game(loser_id, winner_id, power + 1, tournament.id)?;
                 }
             },
             // Second final
@@ -779,8 +779,15 @@ impl DataBase
      * valid bucket AND used for denoting empty game, I need to do
      * player1 = - (#n + 1). Kind of scuffed, but it works..
      * Use pos to get the actual number
+     *
+     * Forward games, are games that have been forwarded
      */
-    fn create_losers_bracket(&self, player_count: i64, tid: i64) -> ServerResult<()>
+    fn create_losers_bracket(
+        &self,
+        player_count: i64,
+        tid: i64,
+        forward_games: Vec<i64>,
+    ) -> ServerResult<()>
     {
         let player_count = player_count;
         let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
@@ -828,6 +835,17 @@ impl DataBase
 
         create_normal(second_section, &mut matches, &mut bucket);
 
+        // Check to see if we can forward anything
+        // IF we need to forward something, its always from bot to top in terms of
+        // brackets
+        println!("{:?}", &forward_games);
+        for (i, forward) in forward_games.into_iter().enumerate()
+        {
+            // The match we're forwarding to
+            let parent = matches[i].bucket + (power as i64 / 4);
+        }
+
+
         // Now that the hard coded guys left, we can finally start the pattern
         for section in iter
         {
@@ -849,14 +867,25 @@ impl DataBase
         let games = self.generate_buckets(&tournament, &self.generate_matchups(people));
         if tournament.ttype == TournamentType::DoubleElimination as u8
         {
-            self.create_losers_bracket(tournament.player_count, tournament.id)?;
+            let biggest_power_of_two =
+                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+
+            let power = 2_i64.pow(biggest_power_of_two);
+
+
+            // Games that were forwarded
+            let forwards: Vec<i64> = games
+                .iter()
+                .take(power as usize / 2)
+                .filter_map(|g| g.is_single().then(|| g.bucket))
+                .collect();
+
+            self.create_losers_bracket(tournament.player_count, tournament.id, forwards)?;
+
 
             // We will denote the final final match with n, where n is the highest power of
             // two E.g 16, 32, 8, etc.
 
-            let biggest_power_of_two =
-                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
-            let power = 2_i64.pow(biggest_power_of_two);
             // For now, I dont wanna generate the second final, only generate it
             // if it's needed
             self._create_tournament_game(0, 0, power, tournament.id)?;
@@ -1657,7 +1686,7 @@ mod test
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        s.create_losers_bracket(8, 1).unwrap();
+        s.create_losers_bracket(8, 1, Vec::new()).unwrap();
 
         let games = s
             .sql_many::<TournamentGame, _>("select * from tournament_games where bucket < 0", None)
@@ -1674,7 +1703,7 @@ mod test
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        s.create_losers_bracket(8, 1).unwrap();
+        s.create_losers_bracket(8, 1, Vec::new()).unwrap();
         let tournament = s.sql_one::<Tournament, _>("select * from tournaments", None).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         let ttype: TournamentType = tournament.ttype.into();
@@ -1806,20 +1835,30 @@ mod test
     }
 
     #[test]
-    fn can_create_16_double_elim_tournament()
+    fn can_forward_games_in_double_elimination()
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
+        let users = (1..16).map(|n| create_user(&s, &n.to_string())).collect::<Vec<String>>();
 
-        s._create_tournament(1, "Epic".to_string(), 1, 16, TournamentType::DoubleElimination)
-            .unwrap();
-        let vec: Vec<String> = (1..=16).map(|n| create_user(&s, &n.to_string())).collect();
-        vec.into_iter().for_each(|token| {
-            s.join_tournament(token, 1).unwrap();
+        let token = users.first().clone().unwrap();
+        let create_tournament = CreateTournament {
+            organizer_token: token.clone(),
+            name:            "Epic".to_string(),
+            image:           "".to_string(),
+            player_count:    15,
+            ttype:           "doubleElimination".to_string(),
+        };
+
+        s.create_tournament(create_tournament).expect("Creating tournament");
+
+        users.iter().for_each(|token| {
+            s.join_tournament(token.clone(), 1).expect("joining tournament");
         });
 
+
+
         std::fs::remove_file(db_file).expect("Removing file tempH");
-        // @TODO: RIGOUROUS CHEKC
-        //res.into_iter().all(|r| r.is_ok());
+        assert!(false);
     }
 }
