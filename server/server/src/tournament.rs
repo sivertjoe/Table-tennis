@@ -755,6 +755,7 @@ impl DataBase
         {
             if games[i].is_single()
             {
+                println!("I am single {}", games[i].bucket);
                 self.advance_game(&mut games, i);
             }
         }
@@ -838,7 +839,7 @@ impl DataBase
         // Check to see if we can forward anything
         // IF we need to forward something, its always from bot to top in terms of
         // brackets
-        println!("{:?}", &forward_games);
+        println!("??? {:?}", &forward_games);
         for (i, forward) in forward_games.into_iter().enumerate()
         {
             // The match we're forwarding to
@@ -876,8 +877,12 @@ impl DataBase
             // Games that were forwarded
             let forwards: Vec<i64> = games
                 .iter()
+                .rev()
                 .take(power as usize / 2)
-                .filter_map(|g| g.is_single().then(|| g.bucket))
+                .filter_map(|g| {
+                    println!("{} {}", g.bucket, g.is_single());
+                    g.is_single().then(|| g.bucket)
+                })
                 .collect();
 
             self.create_losers_bracket(tournament.player_count, tournament.id, forwards)?;
@@ -1839,14 +1844,17 @@ mod test
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
-        let users = (1..16).map(|n| create_user(&s, &n.to_string())).collect::<Vec<String>>();
+        let player_count = 10;
+        let users = (1..=player_count)
+            .map(|n| create_user(&s, &n.to_string()))
+            .collect::<Vec<String>>();
 
         let token = users.first().clone().unwrap();
         let create_tournament = CreateTournament {
             organizer_token: token.clone(),
             name:            "Epic".to_string(),
             image:           "".to_string(),
-            player_count:    15,
+            player_count:    player_count,
             ttype:           "doubleElimination".to_string(),
         };
 
