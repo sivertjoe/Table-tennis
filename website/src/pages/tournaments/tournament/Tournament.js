@@ -28,6 +28,9 @@ class Tournament extends Component {
         <div className="container ">
           {this.state.tournament ? (
             this.state.tournament.tournament.state > 0 ? (
+            //   <div className="center">
+            //   {name === organizerName && <DeleteTournament id={id} />}
+            // </div>
               <TournamentComponenet
                 matches={this.state.tournament.data.Games}
                 info={this.state.tournament.tournament}
