@@ -243,13 +243,13 @@ impl TournamentGame
     }
 }
 
-struct LoserBracketGenerator(i64);
+struct LoserBracketGenerator(i64, i64);
 
 impl LoserBracketGenerator
 {
     fn new(p: i64) -> Self
     {
-        LoserBracketGenerator(p)
+        LoserBracketGenerator(p, 1)
     }
 }
 
@@ -268,6 +268,23 @@ impl Iterator for LoserBracketGenerator
             let p = self.0;
             self.0 >>= 1;
             Some(((p / 2 - 1)..(p - 1)).collect::<Self::Item>())
+        }
+    }
+}
+
+impl DoubleEndedIterator for LoserBracketGenerator
+{
+    fn next_back(&mut self) -> Option<Vec<i64>>
+    {
+        if self.1 == self.0
+        {
+            None
+        }
+        else
+        {
+            self.1 <<= 1;
+            let p = self.1;
+            Some(((p / 2 - 1)..(p - 1)).collect::<Vec<i64>>())
         }
     }
 }
@@ -586,7 +603,6 @@ impl DataBase
                         else
                         {
                             lgame.player2 = winner_id;
-
                         }
                         lgame.player1 = winner_id;
                     }
@@ -792,15 +808,9 @@ impl DataBase
      * valid bucket AND used for denoting empty game, I need to do
      * player1 = - (#n + 1). Kind of scuffed, but it works..
      * Use pos to get the actual number
-     *
-     * Forward games, are games that have been forwarded
      */
-    fn create_losers_bracket(
-        &self,
-        player_count: i64,
-        tid: i64,
-        forward_games: Vec<i64>,
-    ) -> ServerResult<()>
+
+    fn create_losers_bracket(&self, player_count: i64, tid: i64) -> ServerResult<()>
     {
         let player_count = player_count;
         let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
@@ -832,6 +842,21 @@ impl DataBase
                 *bucket += 1;
             }
         };
+        let forward_corresponding_game = |id: i64, matches: &mut Vec<TournamentGame>| {
+            let game = matches.iter().position(|g| 
+                {
+                    // @TODO: Continue here~
+                    // Remember to do || g.player222 == pos(id) etc, 
+                    // maybe I can be smart and find the index too,
+                    // try that first!!!
+                    g.player1 == pos(id)).unwrap()
+                }
+            let parent = game + (power / 4);
+
+            assert_eq!(matches[game].player2, 0);
+            matches[parent].player2 = matches[game].player1;
+            matches[game].player1 = 0;
+        };
 
         // These two sections don't really follow the pattern, so just deal with them
         // first
@@ -848,22 +873,24 @@ impl DataBase
 
         create_normal(second_section, &mut matches, &mut bucket);
 
-        // Check to see if we can forward anything
-        // IF we need to forward something, its always from bot to top in terms of
-        // brackets
-        println!("??? {:?}", &forward_games);
-        for (i, forward) in forward_games.into_iter().enumerate()
-        {
-            // The match we're forwarding to
-            let parent = matches[i].bucket + (power as i64 / 4);
-        }
-
-
         // Now that the hard coded guys left, we can finally start the pattern
         for section in iter
         {
             create_empty(section.len(), &mut matches, &mut bucket);
             create_normal(section, &mut matches, &mut bucket);
+        }
+
+        // Now, the losers bracket is created, however, we potentially need to forward
+        // brackets based on the player_count and such.
+
+
+        if player_count != power as i64
+        {
+            let take_amount = (power - player_count as usize);
+            for id in ((power / 2 - 1)..(power - 1)).rev().take(take_amount)
+            {
+                forward_corresponding_game(id as i64, &mut matches);
+            }
         }
 
         for game in matches
@@ -886,18 +913,8 @@ impl DataBase
             let power = 2_i64.pow(biggest_power_of_two);
 
 
-            // Games that were forwarded
-            let forwards: Vec<i64> = games
-                .iter()
-                .rev()
-                .take(power as usize / 2)
-                .filter_map(|g| {
-                    println!("{} {}", g.bucket, g.is_single());
-                    g.is_single().then(|| g.bucket)
-                })
-                .collect();
 
-            self.create_losers_bracket(tournament.player_count, tournament.id, forwards)?;
+            self.create_losers_bracket(tournament.player_count, tournament.id)?;
 
 
             // We will denote the final final match with n, where n is the highest power of
@@ -1703,7 +1720,7 @@ mod test
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        s.create_losers_bracket(8, 1, Vec::new()).unwrap();
+        s.create_losers_bracket(8, 1).unwrap();
 
         let games = s
             .sql_many::<TournamentGame, _>("select * from tournament_games where bucket < 0", None)
@@ -1720,7 +1737,7 @@ mod test
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        s.create_losers_bracket(8, 1, Vec::new()).unwrap();
+        s.create_losers_bracket(8, 1).unwrap();
         let tournament = s.sql_one::<Tournament, _>("select * from tournaments", None).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         let ttype: TournamentType = tournament.ttype.into();
@@ -1856,7 +1873,7 @@ mod test
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
-        let player_count = 10;
+        let player_count = 6;
         let users = (1..=player_count)
             .map(|n| create_user(&s, &n.to_string()))
             .collect::<Vec<String>>();
@@ -1878,7 +1895,17 @@ mod test
 
 
 
-        std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(false);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+    }
+
+    #[test]
+    fn foo()
+    {
+        let iter = LoserBracketGenerator::new(8).into_iter().rev();
+        for e in iter
+        {
+            println!("{:?}", e);
+        }
     }
 }
