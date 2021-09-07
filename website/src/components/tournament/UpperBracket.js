@@ -10,40 +10,29 @@ import Select from 'react-select'
 import DeleteTournament from '../../components/delete-tournament/DeleteTournament'
 // import { defaultProps } from 'react-select/src/Select'
 
-function loser_bracket_parent(bucket) {
-  bucket = Math.abs(bucket)
-  let numBrackets = Math.ceil(Math.log2(bucket + 2))
-  let n_matches = Math.pow(2, numBrackets)
-
-  const bracket_size = n_matches / 4
-  const x = bracket_size - 1
-  const parent = (n) => Math.ceil((n - 1) / 2)
-  if (n_matches - 2 - bracket_size > bucket) {
-    return -(parent(bucket - x) + x)
-  } else {
-    return -(bucket - bracket_size)
-  }
-}
-
 function map_from_upper_to_lower(bucket, player_count) {
   let numBrackets = Math.ceil(Math.log2(player_count))
   let power = Math.pow(2, numBrackets)
+  const npower = -1 * power
   const x = power / 4
-    //TODO: fix the commented out if, outer: hotfix
-  if (bucket < player_count && bucket >= player_count / 2) {
-  // if((power -2 - (power/4)) > bucket){
+  //TODO: fix the commented out if, outer: hotfix
+  // if((power -2 - (power/2)) > -(bucket)){
+  if (bucket < power && bucket >= power / 2 - 1) {
     let reduced = bucket - power / 2 + 1
     reduced = reduced / 2
     const y = Math.trunc(reduced)
     const p = Number((bucket & 1) === 0)
     return -(bucket + (x - y - p))
   } else {
-    return -(bucket + x)
+    let highest = Math.ceil(Math.log2(bucket + 2))
+    let actual_x = Math.pow(2, highest) / 2
+    return -(bucket + actual_x)
   }
 }
 
 const finals = {
-  2: 'Final',
+  0: 'Final',
+  2: 'Upperfinals',
   4: 'Semifinals',
   8: 'Quarterfinals',
   16: 'Eighth-finals',
@@ -60,8 +49,16 @@ function TournamentMatch(props) {
   ]
 
   function parentNotPlayed(match, matches) {
+    console.log("asdfasdfasdfasdfasdfasdfasd", matches)
+    console.log(match)
+    if(match.bucket === matches[0].bucket){
+      return matches.length !== match.bucket
+    }
     if (match.bucket === 0) {
-      return true
+      let parent =matches[0]
+      return ![parent.player1, parent.player2].filter((m) =>
+      [match.player1, match.player2].includes(m),
+    ).length
     }
 
     let parentIndex = Math.trunc((match.bucket - 1) / 2)
@@ -169,11 +166,11 @@ function TournamentBracket(props) {
   const start = props.start
   const stop = props.stop
   const matches = props.matches
-  const l = matches.length
+  const l = matches.length+1
   //   for-loop, cause match can be undefined
   for (let i = start; i < stop; i++) {
     ret.push(
-      <div className="match" key={'match-div-' + i}>
+      <div className={'match test' + matches[i].bucket} key={'match-div-' + i}>
         <TournamentMatch
           match={matches[i]}
           matches={matches}
@@ -190,7 +187,7 @@ function TournamentBracket(props) {
     <div className="bracket-container">
       <h2>{props.title}</h2>
       <div
-        className={'bracket' + (stop === l ? '' : ' border-right')}
+        className={'bracket' + (matches[0]===matches[start] ? '' : ' border-right')} //ouch todo sivert gi meg finalen til slutt/ start
         key={'bracket-' + props.start}
       >
         {ret}
@@ -210,56 +207,62 @@ export const UpperBracket = (props) => {
     return <div>Loading..</div>
   }
   function handleInputChange(match, winner, loser, player_count) {
-    if (match.bucket === 0) {
-      tournament.winner = winner
-    } else {
-      if (match.bucket == player_count) {
-        return
-      }
+    // else {
+    //   if (match.bucket == player_count) {
+    //     return
+    //   }
+    // TODO: Check for power and power + 1
+    if (match.bucket !== 0) {
       let parent = Math.trunc((match.bucket - 1) / 2)
       const index = matches.findIndex((m) => m.bucket === parent)
-      const lower_index = map_from_upper_to_lower(match.bucket, player_count)
-      const idx = props.lower.findIndex((m) => m.bucket == lower_index)
-      console.log("lower_index",lower_index)
-      console.log("idx:",idx)
       if ((match.bucket & 1) === 1) {
         matches[index].player1 = winner
         // props.lower[-(idx)].player2 = loser
       } else {
         matches[index].player2 = winner
       }
-      if (match.bucket < player_count && match.bucket >= player_count / 2) {
-        if ((match.bucket & 1) === 1) {
-          props.lower[(idx)].player2 = loser
-          // props.lower[-(idx)].player2 = loser
-        } else {
-          props.lower[(idx)].player1 = loser
-        }
-      }else{
-
-        props.lower[(idx)].player2 = loser
-      }
-      // props.lower.map((m) => {if(m.bucket == lower_index){m.player1 =loser}})
-      console.log(props.lower)
-      props.setLower([...props.lower])
     }
+    if(match.bucket === 0){
+      matches[0].player1 = winner
+
+    }
+    const lower_index = map_from_upper_to_lower(match.bucket, player_count)
+    const idx = props.lower.findIndex((m) => m.bucket == lower_index)
+
+    //player count must be power, will not work with odd trournamentt
+    if (match.bucket < player_count && match.bucket >= player_count / 2 - 1) {
+      if ((match.bucket & 1) === 1) {
+        props.lower[idx].player2 = loser
+        // props.lower[-(idx)].player2 = loser
+      } else {
+        props.lower[idx].player1 = loser
+      }
+    } else {
+      props.lower[idx].player2 = loser
+    }
+    // props.lower.map((m) => {if(m.bucket == lower_index){m.player1 =loser}})
+    console.log(props.lower)
+    props.setLower([...props.lower])
+    // }
 
     setMatches([...matches]) // Ouch.
   }
+
   const handleInput = (player_count) => (match, winner, loser) => {
     handleInputChange(match, winner, loser, player_count)
   }
+  
   let numBrackets = Math.ceil(Math.log2(tournament.player_count))
   let n_matches = Math.pow(2, numBrackets)
   let tournamentBrackets = []
-  let start_match = 0
+  let start_match = 1
   let competitors = n_matches
 
   const id = tournament.id
   const organizerName = tournament.organizer_name
   const name = localStorage.getItem('username')
 
-  for (let i = 0; i < numBrackets; i++) {
+  for (let i = 1; i <= numBrackets; i++) {
     n_matches /= 2
     tournamentBrackets.push(
       <TournamentBracket
@@ -273,22 +276,37 @@ export const UpperBracket = (props) => {
         winner={tournament.winner}
       />,
     )
+
     competitors /= 2
     start_match += n_matches
   }
-  //   if (tournament.winner) {
-  // if (tournament.winner !== '') {
-  //   tournamentBrackets.push(
-  //     <div className="bracket-container" key="winner-bracket">
-  //       <h2>Winner</h2>
-  //       <div className="bracket">
-  //         <div className="match">
-  //           <div className="winner">{tournament.winner}</div>
-  //         </div>
-  //       </div>
-  //     </div>,
-  //   )
-  // }
+  console.log(matches)
+  tournamentBrackets.push(
+    <TournamentBracket
+      start={0}
+      stop={1}
+      matches={matches}
+      callback={handleInput(tournament.player_count)}
+      organizer={tournament.organizer_name}
+      title={finals[0]}
+      key={' bracket' + -1}
+    />,
+  )
+
+
+    if (tournament.winner) {
+  if (tournament.winner !== '') {
+    tournamentBrackets.push(
+      <div className="bracket-container" key="winner-bracket">
+        <h2>Winner</h2>
+        <div className="bracket">
+          <div className="match">
+            <div className="winner">{tournament.winner}</div>
+          </div>
+        </div>
+      </div>,
+    )
+  }}
 
   return (
     <>

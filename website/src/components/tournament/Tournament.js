@@ -1,70 +1,77 @@
 import React from 'react'
 import { UpperBracket } from './UpperBracket'
 import { LowerBracket } from './LowerBracket'
+import { DoubleElimination } from './DoubleElimination'
 
-function DoubleElemination(props) {
-  return (
-    <>
-      <UpperBracket
-        matches={props.upper}
-        info={props.info}
-        setLower={props.setLower}
-        lower={props.lower}
-      />
-      <LowerBracket
-        matches={props.lower}
-        info={props.info}
-        setUpper={props.setUpper}
-        upper={props.upper}
-      />
-    </>
-  )
-}
+// function DoubleElemination(props) {
+//   return (
+//     <>
+//       <UpperBracket
+//         matches={props.upper}
+//         info={props.info}
+//         setLower={props.setLower}
+//         lower={props.lower}
+//       />
+//       <LowerBracket
+//         matches={props.lower}
+//         info={props.info}
+//         setUpper={props.setUpper}
+//         upper={props.upper}
+//       />
+//     </>
+//   )
+// }
 
 export const Tournament = (props) => {
-  //TODO: make this a apicall and not a prop<
-  let numBrackets = Math.ceil(Math.log2(props.info.player_count))
-  let power = Math.pow(2, numBrackets)
-  const [matches, setMatches] = React.useState([...props.matches])
-  const [upper, setUpper] = React.useState(
-    matches.filter((m) => m.bucket >= 0 && m.bucket < power),
-  )
-  const [lower, setLower] = React.useState(matches.filter((m) => m.bucket < 0).reverse())
-  
-  // console.log("matches:", props.matches)
-  // console.log("tournament:", props.info)
-
-  // setUpper(matches.filter(m=>(m.bucket>=0 && m.bucket<power)))
-  // setLower(matches.filter(m=>(m.bucket<0 )))
-  console.log('matches', matches)
-  console.log('upper', upper)
-  console.log('lower', lower)
-
-  switch (props.info.ttype) {
-    case 0:
-      return (
-        <UpperBracket
-          matches={upper}
-          lower={lower}
-          info={props.info}
-          setLower={setLower}
-        />
-      )
-    case 1:
-      return (
-        <DoubleElemination
-          upper={upper}
-          lower={lower}
-          info={props.info}
-          setUpper={setUpper}
-          setLower={setLower}
-        />
-      )
-
-    default:
-      return <p>error</p>
-  }
+  return (<DoubleElimination info={props.info} matches={props.matches}/>)
 }
+
+
+
+// export const Tournament = (props) => {
+//   //TODO: make this a apicall and not a prop<
+//   let numBrackets = Math.ceil(Math.log2(props.info.player_count))
+//   let power = Math.pow(2, numBrackets)
+//   const [matches, setMatches] = React.useState([...props.matches])
+//   const [upper, setUpper] = React.useState(
+//     matches.filter((m) => m.bucket >= 0 && m.bucket <= power),
+//   )
+//   const [lower, setLower] = React.useState(matches.filter((m) => m.bucket < 0).reverse())
+  
+//   // console.log("matches:", props.matches)
+//   // console.log("tournament:", props.info)
+
+//   // setUpper(matches.filter(m=>(m.bucket>=0 && m.bucket<power)))
+//   // setLower(matches.filter(m=>(m.bucket<0 )))
+//   console.log('matches', matches)
+//   console.log('upper', upper)
+//   console.log('lower', lower)
+
+//   switch (props.info.ttype) {
+//     case 0:
+//       return (
+//         <UpperBracket
+//           matches={upper}
+//           lower={lower}
+//           info={props.info}
+//           setLower={setLower}
+//         />
+//       )
+//     case 1:
+//       return (
+//         <DoubleElemination
+//           upper={upper}
+//           lower={lower}
+//           info={props.info}
+//           setUpper={setUpper}
+//           setLower={setLower}
+//         />
+//       )
+
+//     default:
+//       return <p>error</p>
+//   }
+// }
 
 export default Tournament
 

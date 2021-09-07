@@ -574,8 +574,20 @@ impl DataBase
                         _params![loser_bracket_parent, tournament.id],
                     )?;
 
+                    // empty bracket game here
                     if lgame.player1 == 0
                     {
+                        let bucket = game.bucket.abs();
+                        // we are odd, but in p1
+                        if bucket & 1 == 1
+                        {
+                            lgame.player1 = winner_id;
+                        }
+                        else
+                        {
+                            lgame.player2 = winner_id;
+
+                        }
                         lgame.player1 = winner_id;
                     }
                     else
