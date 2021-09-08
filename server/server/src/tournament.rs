@@ -118,10 +118,11 @@ enum TournamentInfoState
 #[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 struct TournamentGameInfo
 {
-    id:      i64,
-    player1: String,
-    player2: String,
-    bucket:  i64,
+    id:            i64,
+    player1:       String,
+    player2:       String,
+    bucket:        i64,
+    parent_bucket: i64,
 }
 
 #[derive(Sql)]
@@ -583,8 +584,7 @@ impl DataBase
                 else
                 // loser bracket match
                 {
-                    let loser_bracket_parent =
-                        self.loser_bracket_parent(game.bucket, tournament.player_count);
+                    let loser_bracket_parent = self.loser_bracket_parent(game.bucket);
 
                     let mut lgame = self.sql_one::<TournamentGame, _>(
                         "select * from tournament_games where bucket = ?1 and tournament = ?2",
@@ -618,11 +618,16 @@ impl DataBase
         Ok(())
     }
 
-    fn loser_bracket_parent(&self, bucket: i64, player_count: i64) -> i64
+    fn loser_bracket_parent(&self, bucket: i64) -> i64
     {
         let bucket = bucket.abs();
         let biggest_power_of_two = (((bucket + 2) as f64).ln() / 2.0_f64.ln()).ceil() as u32;
         let power = 2_i64.pow(biggest_power_of_two);
+
+        if bucket == -1
+        {
+            return power;
+        }
 
         let bracket_size = power / 4;
         let x = bracket_size - 1;
@@ -842,21 +847,21 @@ impl DataBase
                 *bucket += 1;
             }
         };
-        let forward_corresponding_game = |id: i64, matches: &mut Vec<TournamentGame>| {
-            let game = matches.iter().position(|g| 
+        /*let forward_corresponding_game = |id: i64, matches: &mut Vec<TournamentGame>| {
+            let game = matches.iter().position(|g|
                 {
                     // @TODO: Continue here~
-                    // Remember to do || g.player222 == pos(id) etc, 
+                    // Remember to do || g.player222 == pos(id) etc,
                     // maybe I can be smart and find the index too,
                     // try that first!!!
-                    g.player1 == pos(id)).unwrap()
+                    g.player1 == pos(id).unwrap()
                 }
             let parent = game + (power / 4);
 
-            assert_eq!(matches[game].player2, 0);
+            // assert_eq!(matches[game].player2, 0);
             matches[parent].player2 = matches[game].player1;
             matches[game].player1 = 0;
-        };
+        };*/
 
         // These two sections don't really follow the pattern, so just deal with them
         // first
@@ -889,7 +894,7 @@ impl DataBase
             let take_amount = (power - player_count as usize);
             for id in ((power / 2 - 1)..(power - 1)).rev().take(take_amount)
             {
-                forward_corresponding_game(id as i64, &mut matches);
+                //forward_corresponding_game(id as i64, &mut matches);
             }
         }
 
@@ -973,7 +978,7 @@ impl DataBase
         Ok(())
     }
 
-    fn convert(&self, tg: TournamentGame) -> TournamentGameInfo
+    fn convert(&self, tg: TournamentGame, tournament: &Tournament) -> TournamentGameInfo
     {
         let h = |id: i64| -> String {
             if id > 0
@@ -990,11 +995,44 @@ impl DataBase
             }
         };
 
+
+        let get_parent_bucket = |id: i64| match tournament.ttype.into()
+        {
+            TournamentType::SingleElimination => (id - 1) / 2,
+            TournamentType::DoubleElimination =>
+            {
+                if id >= 0
+                {
+                    let biggest_power_of_two =
+                        ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+                    let power = 2_i64.pow(biggest_power_of_two);
+
+                    if id == 0
+                    {
+                        return power;
+                    }
+                    else if id == power || id == power + 1
+                    {
+                        return power + 1;
+                    }
+                    else
+                    {
+                        return (id - 1) / 2;
+                    }
+                }
+                else
+                {
+                    return self.loser_bracket_parent(id);
+                }
+            },
+        };
+
         TournamentGameInfo {
-            player1: h(tg.player1),
-            player2: h(tg.player2),
-            id:      tg.id,
-            bucket:  tg.bucket,
+            player1:       h(tg.player1),
+            player2:       h(tg.player2),
+            id:            tg.id,
+            bucket:        tg.bucket,
+            parent_bucket: get_parent_bucket(tg.id),
         }
     }
 
@@ -1064,7 +1102,7 @@ impl DataBase
                 )
                 .unwrap()
                 .into_iter()
-                .map(|tg| self.convert(tg))
+                .map(|tg| self.convert(tg, &t))
                 .collect();
 
             let mut tournament_winner = None;
@@ -1104,6 +1142,27 @@ impl DataBase
         {
             true
         }
+    }
+
+    pub fn get_tournament_from_id(&self, id: i64) -> ServerResult<TournamentInfo>
+    {
+        self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![id])
+            .map(|tournament| self.map_tournament_info(tournament))
+    }
+
+    pub fn get_tournament_names(
+        &self,
+        info: GetTournamentOptions,
+    ) -> ServerResult<Vec<(String, i64)>>
+    {
+        self.sql_many::<Tournament, _>("select * from tournaments", None)
+            .map(|tournaments| {
+                tournaments
+                    .into_iter()
+                    .filter(|t| self.filter_tournaments(t, &info))
+                    .map(|t| (t.name, t.id))
+                    .collect()
+            })
     }
 
     pub fn get_tournaments(&self, info: GetTournamentOptions) -> ServerResult<Vec<TournamentInfo>>
@@ -1836,25 +1895,25 @@ mod test
         {
             if n == 4
             {
-                return db.loser_bracket_parent(2, 4) == -1;
+                return db.loser_bracket_parent(2) == -1;
             }
-            let stop = (n / 2) - 2;
+            let stop: i64 = (n / 2) - 2;
             let start = stop - (n / 8) + 1;
 
             let mut vec = Vec::new();
-            let mut s = (n / 2 - 1);
+            let mut s = n / 2 - 1;
             for i in start..=stop
             {
                 for _ in 0..2
                 {
-                    vec.push(db.loser_bracket_parent(s, n) == -i);
+                    vec.push(db.loser_bracket_parent(s) == -i);
                     s += 1;
                 }
             }
 
             for i in (stop + 1)..(stop + 1) + n / 4
             {
-                vec.push(db.loser_bracket_parent(s, n) == -i);
+                vec.push(db.loser_bracket_parent(s) == -i);
                 s += 1;
             }
             vec.into_iter().all(|b| b)
@@ -1895,7 +1954,7 @@ mod test
 
 
 
-        assert!(false);
+        // assert!(false);
         std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 
