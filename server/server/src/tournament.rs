@@ -231,6 +231,22 @@ impl TournamentGame
         (self.player1 == 0 && self.player2 != 0) || (self.player1 != 0 && self.player2 == 0)
     }
 
+    fn remove_player(&mut self) -> i64
+    {
+        if self.player1 < self.player2
+        {
+            let p = self.player1;
+            self.player1 = 0;
+            p
+        }
+        else
+        {
+            let p = self.player2;
+            self.player2 = 0;
+            p
+        }
+    }
+
     fn is_full(&self) -> bool
     {
         self.player1 != 0 && self.player2 != 0
@@ -883,7 +899,7 @@ impl DataBase
         {
             if games[i].is_single()
             {
-                println!("I am single {}", games[i].bucket);
+                // println!("I am single {}", games[i].bucket);
                 self.advance_game(&mut games, i);
             }
         }
@@ -910,7 +926,11 @@ impl DataBase
      * Use pos to get the actual number
      */
 
-    fn create_losers_bracket(&self, player_count: i64, tid: i64) -> ServerResult<()>
+    fn create_losers_bracket(
+        &self,
+        player_count: i64,
+        tid: i64,
+    ) -> ServerResult<Vec<TournamentGame>>
     {
         let player_count = player_count;
         let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
@@ -942,32 +962,6 @@ impl DataBase
                 *bucket += 1;
             }
         };
-        let forward_corresponding_game = |index: usize, matches: &mut Vec<TournamentGame>| {
-            let parent_bucket = self.loser_bracket_parent(matches[index].bucket);
-            let parent_index = matches.iter().position(|g| g.bucket == parent_bucket).unwrap();
-            println!("{:?}", matches[index]);
-
-
-            if index & 1 == 1
-            {
-                let p1 = matches[index].player1;
-                let p2 = matches[index].player2;
-
-                matches[parent_index].player2 = p1;
-                matches[parent_index - 1].player2 = p2;
-
-                matches[index].player1 = 0;
-                matches[index].player2 = 0;
-            }
-            else
-            {
-                let p1 = matches[index].player1;
-                matches[parent_index].insert_player(p1);
-
-                matches[index].player1 = 0;
-                matches[index].player2 = 0;
-            }
-        };
 
         // These two sections don't really follow the pattern, so just deal with them
         // first
@@ -991,28 +985,19 @@ impl DataBase
             create_normal(section, &mut matches, &mut bucket);
         }
 
-        // Now, the losers bracket is created, however, we potentially need to forward
-        // brackets based on the player_count and such.
 
+        Ok(matches)
+    }
 
-        if player_count != power as i64
-        {
-            let take_amount = (power - player_count as usize);
-
-            let f = (0..).take(take_amount);
-            println!("{}", power);
-            for i in f
-            {
-                forward_corresponding_game(i, &mut matches);
-            }
-        }
-
-        for game in matches
-        {
-            self._create_tournament_game(game.player1, game.player2, game.bucket, game.tournament)?;
-        }
-
-        Ok(())
+    fn forward_games(
+        &self,
+        mut matches: Vec<TournamentGame>,
+        rest: i64,
+        power: i64,
+    ) -> Vec<TournamentGame>
+    {
+        // schemerino
+        matches
     }
 
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
@@ -1026,9 +1011,19 @@ impl DataBase
 
             let power = 2_i64.pow(biggest_power_of_two);
 
+            // let matches = self.create_losers_bracket(power / 2, tournament.id)?;
+            let matches = self.create_losers_bracket(power, tournament.id)?;
+            let matches = self.forward_games(matches, power - tournament.player_count, power);
 
-
-            self.create_losers_bracket(tournament.player_count, tournament.id)?;
+            for game in matches
+            {
+                self._create_tournament_game(
+                    game.player1,
+                    game.player2,
+                    game.bucket,
+                    game.tournament,
+                )?;
+            }
 
 
             // We will denote the final final match with n, where n is the highest power of
@@ -1886,11 +1881,8 @@ mod test
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
             .unwrap();
 
-        s.create_losers_bracket(8, 1).unwrap();
+        let games = s.create_losers_bracket(8, 1).unwrap();
 
-        let games = s
-            .sql_many::<TournamentGame, _>("select * from tournament_games where bucket < 0", None)
-            .unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert_eq!(games.len(), 6);
     }
@@ -2039,7 +2031,7 @@ mod test
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
-        let player_count = 5;
+        let player_count = 9;
         let users = (1..=player_count)
             .map(|n| create_user(&s, &n.to_string()))
             .collect::<Vec<String>>();
@@ -2061,7 +2053,7 @@ mod test
 
 
 
-        assert!(false);
+        // assert!(false);
         std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 
