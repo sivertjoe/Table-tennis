@@ -457,6 +457,66 @@ impl DataBase
         )
     }
 
+    fn check_parents_not_played(&self, tournament_match: &TournamentMatch, game: &TournamentGame, tournament: &Tournament) -> ServerResult<()>
+    {
+        let delete_match = |id: i64| -> ServerResult<()>
+        {
+            self.conn.execute("delete from tourament_matches where game = ?1", params![id])?;
+            Ok(())
+        };
+        if tournament.ttype == TournamentType::SingleElimination as u8
+        {
+            if game.bucket == 0
+            {
+                delete_match(game.id)?;
+                return Ok(());
+            }
+            let parent = (game.id - 1) / 2;
+            if self.sql_one::<TournamentMatch, _>(
+                    "select * from tournament_matches where game = ?1",
+                    _params![parent]).is_ok()
+            {
+                // Parent have been played, dont allow.
+                return Err(ServerError::Critical("Parent have been played".to_string()));
+            }
+        }
+        else if tournament.ttype == TournamentType::DoubleElimination as u8
+        {
+            let check_parent = |game_id: i64| -> ServerResult<()>
+            {
+                match self.sql_one::<TournamentMatch, _>(
+                    "select * from tournament_matches where game = ?1",
+                    _params![game_id])
+                    {
+                        Ok(_) => Err(ServerError::Critical("".to_string())),
+                        Err(_) => Ok(()),
+                    }
+            };
+            let get_id = |bucket: i64|  -> i64
+            {
+                self.sql_one::<TournamentGame, _>("select * from tournament_games where bucket = ?1 and tournament = ?2", _params![bucket, tournament.id])
+                    .map(|tg| tg.id)
+                    .unwrap()
+            };
+            let check = |bucket: i64| -> ServerResult<()>
+            {
+                check_parent(get_id(bucket))
+            };
+
+            let biggest_power_of_two =((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+            let power = 2_i64.pow(biggest_power_of_two);
+            
+            if game.bucket == power + 1
+            {
+                delete_match(game.bucket)?;
+                return Ok(());
+            }
+           
+            check(game.bucket)?;
+        }
+
+        Ok(())
+    }
     pub fn register_tournament_match(
         &self,
         register_game: RegisterTournamentMatch,
@@ -490,14 +550,35 @@ impl DataBase
             return Err(ServerError::Tournament(TournamentError::InvalidGame));
         }
 
-        if self
+        if let Ok(old) = self
             .sql_one::<TournamentMatch, _>(
                 "select * from tournament_matches where game = ?1",
                 _params![game.id],
             )
-            .is_ok()
         {
-            return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
+            // return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
+            self.check_parents_not_played(&old, &game, &tournament)?;
+            self.conn.execute("delete from tournament_matches where id = ?1", params![old.id])?;
+            if tournament.ttype == TournamentType::DoubleElimination as u8
+            {
+
+                let mut loser_game = self.sql_one::<TournamentGame, _>("select * from tournament_games where \
+                (player1 = ?1 or player2 = ?1) and tournament = ?2", 
+                _params![old.loser, tournament.id])?;
+                
+                let pos = |i: i64| -(i + 1);
+                
+                if loser_game.player1 == old.loser
+                {
+                    loser_game.player1 = pos(game.id);
+                }
+                else
+                {
+                    loser_game.player2 = pos(game.id);
+                }
+                self.update_bucket(&loser_game)?;
+            }
+
         }
         match tournament.ttype.into()
         {
@@ -1646,7 +1727,7 @@ mod test
     }
 
     #[test]
-    fn test_cannot_register_same_game_twice()
+    fn test_can_register_same_game_twice()
     {
         let db_file = "tempT15.db";
         let s = DataBase::new(db_file);
@@ -1674,10 +1755,8 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res1.is_ok());
-        assert!(
-            res2.is_err()
-                && res2.unwrap_err() == ServerError::Tournament(TournamentError::GameAlreadyPlayed)
-        );
+        println!("{:?}", res2); 
+        assert!(res2.is_ok());
     }
 
     #[test]
