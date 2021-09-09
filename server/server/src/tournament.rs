@@ -996,33 +996,33 @@ impl DataBase
         };
 
 
-        let get_parent_bucket = |id: i64| match tournament.ttype.into()
+        let get_parent_bucket = |bucket: i64| match tournament.ttype.into()
         {
-            TournamentType::SingleElimination => (id - 1) / 2,
+            TournamentType::SingleElimination => (bucket - 1) / 2,
             TournamentType::DoubleElimination =>
             {
-                if id >= 0
+                if bucket >= 0
                 {
                     let biggest_power_of_two =
                         ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
                     let power = 2_i64.pow(biggest_power_of_two);
 
-                    if id == 0
+                    if bucket == 0
                     {
                         return power;
                     }
-                    else if id == power || id == power + 1
+                    else if bucket == power || bucket == power + 1
                     {
                         return power + 1;
                     }
                     else
                     {
-                        return (id - 1) / 2;
+                        return (bucket - 1) / 2;
                     }
                 }
                 else
                 {
-                    return self.loser_bracket_parent(id);
+                    return self.loser_bracket_parent(bucket);
                 }
             },
         };
@@ -1032,7 +1032,7 @@ impl DataBase
             player2:       h(tg.player2),
             id:            tg.id,
             bucket:        tg.bucket,
-            parent_bucket: get_parent_bucket(tg.id),
+            parent_bucket: get_parent_bucket(tg.bucket),
         }
     }
 
