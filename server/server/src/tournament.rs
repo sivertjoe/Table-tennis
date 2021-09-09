@@ -231,6 +231,11 @@ impl TournamentGame
         (self.player1 == 0 && self.player2 != 0) || (self.player1 != 0 && self.player2 == 0)
     }
 
+    fn is_full(&self) -> bool
+    {
+        self.player1 != 0 && self.player2 != 0
+    }
+
     fn insert_player(&mut self, player: i64)
     {
         if self.player1 == 0
@@ -268,7 +273,7 @@ impl Iterator for LoserBracketGenerator
         {
             let p = self.0;
             self.0 >>= 1;
-            Some(((p / 2 - 1)..(p - 1)).collect::<Self::Item>())
+            Some(((p / 2 - 1)..(p - 1)).rev().collect::<Self::Item>())
         }
     }
 }
@@ -457,11 +462,16 @@ impl DataBase
         )
     }
 
-    fn check_parents_not_played(&self, tournament_match: &TournamentMatch, game: &TournamentGame, tournament: &Tournament) -> ServerResult<()>
+    fn check_parents_not_played(
+        &self,
+        tournament_match: &TournamentMatch,
+        game: &TournamentGame,
+        tournament: &Tournament,
+    ) -> ServerResult<()>
     {
-        let delete_match = |id: i64| -> ServerResult<()>
-        {
-            self.conn.execute("delete from tourament_matches where game = ?1", params![id])?;
+        let delete_match = |id: i64| -> ServerResult<()> {
+            self.conn
+                .execute("delete from tourament_matches where game = ?1", params![id])?;
             Ok(())
         };
         if tournament.ttype == TournamentType::SingleElimination as u8
@@ -472,9 +482,12 @@ impl DataBase
                 return Ok(());
             }
             let parent = (game.id - 1) / 2;
-            if self.sql_one::<TournamentMatch, _>(
+            if self
+                .sql_one::<TournamentMatch, _>(
                     "select * from tournament_matches where game = ?1",
-                    _params![parent]).is_ok()
+                    _params![parent],
+                )
+                .is_ok()
             {
                 // Parent have been played, dont allow.
                 return Err(ServerError::Critical("Parent have been played".to_string()));
@@ -482,41 +495,42 @@ impl DataBase
         }
         else if tournament.ttype == TournamentType::DoubleElimination as u8
         {
-            let check_parent = |game_id: i64| -> ServerResult<()>
-            {
+            let check_parent = |game_id: i64| -> ServerResult<()> {
                 match self.sql_one::<TournamentMatch, _>(
                     "select * from tournament_matches where game = ?1",
-                    _params![game_id])
-                    {
-                        Ok(_) => Err(ServerError::Critical("".to_string())),
-                        Err(_) => Ok(()),
-                    }
+                    _params![game_id],
+                )
+                {
+                    Ok(_) => Err(ServerError::Critical("".to_string())),
+                    Err(_) => Ok(()),
+                }
             };
-            let get_id = |bucket: i64|  -> i64
-            {
-                self.sql_one::<TournamentGame, _>("select * from tournament_games where bucket = ?1 and tournament = ?2", _params![bucket, tournament.id])
-                    .map(|tg| tg.id)
-                    .unwrap()
+            let get_id = |bucket: i64| -> i64 {
+                self.sql_one::<TournamentGame, _>(
+                    "select * from tournament_games where bucket = ?1 and tournament = ?2",
+                    _params![bucket, tournament.id],
+                )
+                .map(|tg| tg.id)
+                .unwrap()
             };
-            let check = |bucket: i64| -> ServerResult<()>
-            {
-                check_parent(get_id(bucket))
-            };
+            let check = |bucket: i64| -> ServerResult<()> { check_parent(get_id(bucket)) };
 
-            let biggest_power_of_two =((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+            let biggest_power_of_two =
+                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
             let power = 2_i64.pow(biggest_power_of_two);
-            
+
             if game.bucket == power + 1
             {
                 delete_match(game.bucket)?;
                 return Ok(());
             }
-           
+
             check(game.bucket)?;
         }
 
         Ok(())
     }
+
     pub fn register_tournament_match(
         &self,
         register_game: RegisterTournamentMatch,
@@ -550,24 +564,25 @@ impl DataBase
             return Err(ServerError::Tournament(TournamentError::InvalidGame));
         }
 
-        if let Ok(old) = self
-            .sql_one::<TournamentMatch, _>(
-                "select * from tournament_matches where game = ?1",
-                _params![game.id],
-            )
+        if let Ok(old) = self.sql_one::<TournamentMatch, _>(
+            "select * from tournament_matches where game = ?1",
+            _params![game.id],
+        )
         {
             // return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
             self.check_parents_not_played(&old, &game, &tournament)?;
-            self.conn.execute("delete from tournament_matches where id = ?1", params![old.id])?;
+            self.conn
+                .execute("delete from tournament_matches where id = ?1", params![old.id])?;
             if tournament.ttype == TournamentType::DoubleElimination as u8
             {
+                let mut loser_game = self.sql_one::<TournamentGame, _>(
+                    "select * from tournament_games where (player1 = ?1 or player2 = ?1) and \
+                     tournament = ?2",
+                    _params![old.loser, tournament.id],
+                )?;
 
-                let mut loser_game = self.sql_one::<TournamentGame, _>("select * from tournament_games where \
-                (player1 = ?1 or player2 = ?1) and tournament = ?2", 
-                _params![old.loser, tournament.id])?;
-                
                 let pos = |i: i64| -(i + 1);
-                
+
                 if loser_game.player1 == old.loser
                 {
                     loser_game.player1 = pos(game.id);
@@ -578,7 +593,6 @@ impl DataBase
                 }
                 self.update_bucket(&loser_game)?;
             }
-
         }
         match tournament.ttype.into()
         {
@@ -928,21 +942,32 @@ impl DataBase
                 *bucket += 1;
             }
         };
-        /*let forward_corresponding_game = |id: i64, matches: &mut Vec<TournamentGame>| {
-            let game = matches.iter().position(|g|
-                {
-                    // @TODO: Continue here~
-                    // Remember to do || g.player222 == pos(id) etc,
-                    // maybe I can be smart and find the index too,
-                    // try that first!!!
-                    g.player1 == pos(id).unwrap()
-                }
-            let parent = game + (power / 4);
+        let forward_corresponding_game = |index: usize, matches: &mut Vec<TournamentGame>| {
+            let parent_bucket = self.loser_bracket_parent(matches[index].bucket);
+            let parent_index = matches.iter().position(|g| g.bucket == parent_bucket).unwrap();
+            println!("{:?}", matches[index]);
 
-            // assert_eq!(matches[game].player2, 0);
-            matches[parent].player2 = matches[game].player1;
-            matches[game].player1 = 0;
-        };*/
+
+            if index & 1 == 1
+            {
+                let p1 = matches[index].player1;
+                let p2 = matches[index].player2;
+
+                matches[parent_index].player2 = p1;
+                matches[parent_index - 1].player2 = p2;
+
+                matches[index].player1 = 0;
+                matches[index].player2 = 0;
+            }
+            else
+            {
+                let p1 = matches[index].player1;
+                matches[parent_index].insert_player(p1);
+
+                matches[index].player1 = 0;
+                matches[index].player2 = 0;
+            }
+        };
 
         // These two sections don't really follow the pattern, so just deal with them
         // first
@@ -953,7 +978,7 @@ impl DataBase
         for pair in first_section.chunks(2)
         {
             let (b1, b2) = get_pair(pair);
-            matches.push(TournamentGame::players(tid, bucket, pos(b1), pos(b2)));
+            matches.push(TournamentGame::players(tid, bucket, pos(b2), pos(b1)));
             bucket += 1;
         }
 
@@ -973,9 +998,12 @@ impl DataBase
         if player_count != power as i64
         {
             let take_amount = (power - player_count as usize);
-            for id in ((power / 2 - 1)..(power - 1)).rev().take(take_amount)
+
+            let f = (0..).take(take_amount);
+            println!("{}", power);
+            for i in f
             {
-                //forward_corresponding_game(id as i64, &mut matches);
+                forward_corresponding_game(i, &mut matches);
             }
         }
 
@@ -1755,7 +1783,7 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res1.is_ok());
-        println!("{:?}", res2); 
+        println!("{:?}", res2);
         assert!(res2.is_ok());
     }
 
@@ -2011,7 +2039,7 @@ mod test
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
-        let player_count = 6;
+        let player_count = 5;
         let users = (1..=player_count)
             .map(|n| create_user(&s, &n.to_string()))
             .collect::<Vec<String>>();
@@ -2033,7 +2061,7 @@ mod test
 
 
 
-        // assert!(false);
+        assert!(false);
         std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 
