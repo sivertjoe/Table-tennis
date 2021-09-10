@@ -229,6 +229,17 @@ impl DataBase
         )
         .expect("Create variables images");
 
+        conn.execute(
+            "create table if not exists tournament_lookup (
+                id              integer primary key autoincrement,
+                tournament      integer,
+                _table           blob,
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("creating tournament_lookup");
+
 
 
         DataBase {

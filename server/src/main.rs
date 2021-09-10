@@ -437,6 +437,18 @@ async fn _get_tournament_names(
     }
 }
 
+#[get("/tournament-table/{id}")]
+async fn get_tournament_table(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(id): web::Path<i64>,
+) -> HttpResponse
+{
+    match DATABASE!(data).get_upper_to_lower_table(id)
+    {
+        Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
 #[get("/tournament/{id}")]
 async fn _get_tournament(
     data: web::Data<Arc<Mutex<DataBase>>>,
@@ -706,6 +718,7 @@ async fn main() -> std::io::Result<()>
             .service(delete_tournament)
             .service(_get_tournament_names)
             .service(_get_tournament)
+            .service(get_tournament_table)
     });
 
     if cfg!(debug_assertions)

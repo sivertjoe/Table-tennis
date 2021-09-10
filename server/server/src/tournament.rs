@@ -2,6 +2,7 @@ use std::io::prelude::*;
 
 use rusqlite::params;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
 use server_core::{
     constants::*,
     types::{FromSql, *},
@@ -899,7 +900,6 @@ impl DataBase
         {
             if games[i].is_single()
             {
-                // println!("I am single {}", games[i].bucket);
                 self.advance_game(&mut games, i);
             }
         }
@@ -989,6 +989,32 @@ impl DataBase
         Ok(matches)
     }
 
+    fn loser_forward_iterator(&self, power: i64) -> impl Iterator<Item = (i64, i64)>
+    {
+        let power = power / 2;
+        let odd_pattern = || {
+            (0..(power / 4)).scan(power / 2 - 1, |acc, _| {
+                *acc += 2;
+                Some(*acc)
+            })
+        };
+
+        let even_pattern = || {
+            (0..(power / 4)).scan(power / 2 - 2, |acc, _| {
+                *acc += 2;
+                Some(*acc)
+            })
+        };
+
+        let easy_pattern = || power..power + power / 2;
+
+        let buckets = || (power..);
+
+        (odd_pattern().chain(even_pattern()).chain(easy_pattern()))
+            .zip(buckets())
+            .map(|(i, j)| (-i, -j))
+    }
+
     fn forward_games(
         &self,
         mut matches: Vec<TournamentGame>,
@@ -996,8 +1022,79 @@ impl DataBase
         power: i64,
     ) -> Vec<TournamentGame>
     {
-        // schemerino
+        let mut bucket = -(matches.len() as i64 + 1);
+        let tid = matches[0].tournament;
+        for (p1, p2) in self.loser_forward_iterator(power).take(rest as usize)
+        {
+            matches.insert(0, TournamentGame::players(tid, bucket, p1, p2));
+            bucket -= 1;
+        }
+        let mut seen = Vec::new();
+
+        for game in &mut matches
+        {
+            if seen.contains(&game.player1)
+            {
+                game.player1 = 0;
+            }
+            else
+            {
+                seen.push(game.player1);
+            }
+
+            if seen.contains(&game.player2)
+            {
+                game.player2 = 0;
+            }
+            else
+            {
+                seen.push(game.player2);
+            }
+        }
+        // Now, we have forwarded each game, just create the remaining dummy games
+        for _ in 0..power / 2 - rest
+        {
+            matches.insert(0, TournamentGame::players(tid, bucket, 0, 0));
+            bucket -= 1;
+        }
+
         matches
+    }
+
+    fn create_upper_to_lower_table(&self, matches: &Vec<TournamentGame>) -> ServerResult<String>
+    {
+        let pos = |i: i64| -(i + 1);
+
+        let tid = matches[0].tournament;
+        //vec![(pos(tg.player1), tg.bucket, 1), (pos(tg.player2), tg.bucket, 2)]
+
+        let vec: Vec<_> = matches
+            .iter()
+            .map(|tg| {
+                let mut vec = Vec::new();
+                if tg.player1 != 0
+                {
+                    vec.push((pos(tg.player1), tg.bucket, 1));
+                }
+                if tg.player2 != 0
+                {
+                    vec.push((pos(tg.player2), tg.bucket, 2));
+                }
+                vec
+            })
+            .flatten()
+            .collect();
+
+        Ok(json!(vec).to_string())
+    }
+
+    pub fn get_upper_to_lower_table(&self, tid: i64) -> ServerResult<String>
+    {
+        let mut stmt =
+            self.conn.prepare("select table from tournament_lookup where tournament = ?1")?;
+        let table: String =
+            stmt.query_map(params![tid], |row| Ok(row.get(0)?))?.next().unwrap().unwrap();
+        Ok(table)
     }
 
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
@@ -1011,9 +1108,21 @@ impl DataBase
 
             let power = 2_i64.pow(biggest_power_of_two);
 
-            // let matches = self.create_losers_bracket(power / 2, tournament.id)?;
-            let matches = self.create_losers_bracket(power, tournament.id)?;
-            let matches = self.forward_games(matches, power - tournament.player_count, power);
+            let matches = if tournament.player_count == power
+            {
+                self.create_losers_bracket(power, tournament.id)?
+            }
+            else
+            {
+                let matches = self.create_losers_bracket(power / 2, tournament.id)?;
+                self.forward_games(matches, tournament.player_count - power / 2, power)
+            };
+            let table = self.create_upper_to_lower_table(&matches)?;
+            self.conn.execute(
+                "insert into tournament_lookup (tournament, _table) values (?1, ?2)",
+                params![tournament.id, table],
+            )?;
+
 
             for game in matches
             {
@@ -1330,6 +1439,12 @@ impl DataBase
             }
             self.conn
                 .execute("delete from tournament_games where tournament = ?1", params![tid])?;
+
+            if tournament.ttype == TournamentType::DoubleElimination as u8
+            {
+                self.conn
+                    .execute("delete from tournament_lookup where tournament = ?1", params![tid])?;
+            }
         }
         delete_tournament(tid)?;
         Ok(())
@@ -1778,7 +1893,6 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res1.is_ok());
-        println!("{:?}", res2);
         assert!(res2.is_ok());
     }
 
@@ -2031,7 +2145,7 @@ mod test
     {
         let db_file = "tempT22.db";
         let s = DataBase::new(db_file);
-        let player_count = 9;
+        let player_count = 13;
         let users = (1..=player_count)
             .map(|n| create_user(&s, &n.to_string()))
             .collect::<Vec<String>>();
@@ -2053,7 +2167,7 @@ mod test
 
 
 
-        // assert!(false);
+        //assert!(false);
         std::fs::remove_file(db_file).expect("Removing file tempH");
     }
 
