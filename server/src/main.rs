@@ -423,14 +423,14 @@ async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     }
 }
 
-#[get("/_tournaments")]
-async fn _get_tournament_names(
+#[get("/tournament-infos")]
+async fn _get_tournament_infos(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: web::Query<GetTournamentOptions>,
 ) -> HttpResponse
 {
     let info: GetTournamentOptions = info.into_inner();
-    match DATABASE!(data).get_tournament_names(info)
+    match DATABASE!(data).get_tournament_infos(info)
     {
         Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -716,7 +716,7 @@ async fn main() -> std::io::Result<()>
             .service(register_tournament_match)
             .service(get_tournaments)
             .service(delete_tournament)
-            .service(_get_tournament_names)
+            .service(_get_tournament_infos)
             .service(_get_tournament)
             .service(get_tournament_table)
     });

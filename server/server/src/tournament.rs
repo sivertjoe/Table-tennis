@@ -1,4 +1,4 @@
-use std::io::prelude::*;
+use std::{array::IntoIter, collections::HashMap, io::prelude::*, iter::FromIterator};
 
 use rusqlite::params;
 use serde_derive::{Deserialize, Serialize};
@@ -1363,17 +1363,92 @@ impl DataBase
             .map(|tournament| self.map_tournament_info(tournament))
     }
 
-    pub fn get_tournament_names(
+    fn get_player_count(&self, tournament: &Tournament) -> ServerResult<i64>
+    {
+        if tournament.state == TournamentState::Created as u8
+        {
+            let mut stmt = self
+                .conn
+                .prepare("select count(*) from tournament_lists where tournament = ?1")?;
+            let count: i64 = stmt
+                .query_map(params![tournament.id], |row| Ok(row.get(0)?))?
+                .next()
+                .unwrap()
+                .unwrap();
+            Ok(count)
+        }
+        else
+        {
+            Ok(tournament.player_count)
+        }
+    }
+
+    fn get_players(&self, tournament: &Tournament) -> ServerResult<Vec<serde_json::Value>>
+    {
+        Ok(self
+            .sql_many::<TournamentList, _>(
+                "select * from tournament_lists where tournament = ?1",
+                _params![tournament.id],
+            )?
+            .into_iter()
+            .map(|t| {
+                serde_json::Value::String(
+                    self.get_user_without_matches_by("id", "=", &t.player.to_string())
+                        .unwrap()
+                        .name,
+                )
+            })
+            .collect())
+    }
+
+    fn get_players_and_num_players(
+        &self,
+        tournament: &Tournament,
+    ) -> ServerResult<(i64, Vec<serde_json::Value>)>
+    {
+        if tournament.state == TournamentState::Created as u8
+        {
+            let players = self.get_players(&tournament)?;
+
+            Ok((players.len() as i64, players))
+        }
+        else
+        {
+            Ok((tournament.player_count, Vec::new()))
+        }
+    }
+
+    fn get_organizer_name(&self, tournament: &Tournament) -> ServerResult<serde_json::Value>
+    {
+        Ok(serde_json::Value::String(
+            self.get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
+                .name,
+        ))
+    }
+
+    pub fn get_tournament_infos(
         &self,
         info: GetTournamentOptions,
-    ) -> ServerResult<Vec<(String, i64)>>
+    ) -> ServerResult<Vec<HashMap<&str, serde_json::Value>>>
     {
         self.sql_many::<Tournament, _>("select * from tournaments", None)
-            .map(|tournaments| {
-                tournaments
+            .map(|tournament| {
+                tournament
                     .into_iter()
                     .filter(|t| self.filter_tournaments(t, &info))
-                    .map(|t| (t.name, t.id))
+                    .map(|t| {
+                        let (num_players, players) = self.get_players_and_num_players(&t).unwrap();
+                        let val: serde_json::Number = num_players.into();
+                        let organizer_name = self.get_organizer_name(&t).unwrap();
+                        HashMap::<_, _>::from_iter(IntoIter::new([
+                            ("name", serde_json::Value::String(t.name)),
+                            ("id", serde_json::Value::Number(t.id.into())),
+                            ("player_count", serde_json::Value::Number(t.player_count.into())),
+                            ("num_players", serde_json::Value::Number(val)),
+                            ("players", serde_json::Value::Array(players)),
+                            ("organizer_name", organizer_name),
+                        ]))
+                    })
                     .collect()
             })
     }

@@ -1,5 +1,9 @@
 import * as BaseApi from './BaseApi'
 
+export const GetTournamentInfos = () => BaseApi.GetHook('tournament-infos')
+
+export const getTournament = (id) => BaseApi.get('tournament/' + id)
+
 export const createTournament = (name, playerCount, image, type) =>
   BaseApi.postImage('create-tournament', {
     name: name,

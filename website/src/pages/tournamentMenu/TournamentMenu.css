@@ -1,0 +1,6 @@
+.outer-container {
+  margin: unset;
+  width: 100%;
+  max-width: unset;
+  box-sizing: border-box;
+}
