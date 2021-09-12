@@ -4,34 +4,29 @@
   flex-direction: row;
   width: 100%;
 }
-
-@media only screen and (max-width: 1024px) {
-  .tournament-grid {
-    flex-direction: column;
-  }
-}
 .tournament-menu {
   /*margin: unset;*/
   margin-top: 2rem;
   margin-left: 1rem;
+  margin-right: 1rem;
   background-color: var(--black);
   flex: 0 0 450px;
   height: fit-content;
   border-radius: 1rem;
   padding: 2rem 2rem;
+}
 
+@media only screen and (max-width: 1024px) {
+  .tournament-grid {
+    flex-direction: column;
+  }
+  .tournament-menu {
+    flex: 0 0 auto;
+
+    /* flex: 0 0 auto; */
+  }
 }
-/*
-.menu-container {
-  background-color: var(--black);
-  width: 80%;
-  max-width: 60rem;
-  height: fit-content;
-  margin: 2rem auto auto auto;
-  border-radius: 1rem;
-  padding: 2rem 2rem;
-}
-*/
+
 .tournament-container {
   background-color: var(--black);
   height: fit-content;
@@ -110,4 +105,10 @@ tr {
 
 .table-container {
   margin: 2rem auto;
+}
+.arrow {
+  display: block;
+  font-size: 10rem;
+  line-height: 2rem;
+  margin-bottom: 3rem;
 }

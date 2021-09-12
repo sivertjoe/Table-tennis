@@ -287,36 +287,36 @@ function TournamentMatch(props) {
     }
 
     //this is the match that has the parent in the finals
-    if(match.bucket === 0){
+    if (match.bucket === 0) {
       parent = finals
     }
 
     //potentially the last match
-    if(match.bucket === power){
+    if (match.bucket === power) {
       // game is played
-      if(finals[1]){ 
+      if (finals[1]) {
         w = finals[0].player2
       }
       // tournament is over
-      else if(info.winner !== ""){
+      else if (info.winner !== '') {
         w = info.winner
       }
       //game is not yet played
-      else { 
-        w = ""
+      else {
+        w = ''
       }
     }
     //definitive last match outcome is defined by the winner
-    else if(match.bucket === power +1){ 
-      w = info.winner 
-    }else{ // winner must be determinated if the player have been forwarded to the parent list
+    else if (match.bucket === power + 1) {
+      w = info.winner
+    } else {
+      // winner must be determinated if the player have been forwarded to the parent list
       const parentMatch = parent.find((m) => {
         return m.bucket === match.parent_bucket
       })
       w = [parentMatch?.player1, parentMatch?.player2].filter((m) =>
-      [match.player1, match.player2].includes(m),
+        [match.player1, match.player2].includes(m),
       )[0]
-
     }
     if (w !== '') setWinner(w)
   }
@@ -537,6 +537,8 @@ function LowerBracket(props) {
 }
 
 export const DoubleElimination = (props) => {
+  const [isDesktop, setDesktop] = useState(window.innerWidth > 1450)
+
   let numBrackets = Math.ceil(Math.log2(props.info.player_count))
   let power = Math.pow(2, numBrackets)
 
