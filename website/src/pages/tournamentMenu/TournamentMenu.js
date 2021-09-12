@@ -1,14 +1,13 @@
-import '../tournaments/menu/Menu.css'
-import '../../components/tabs/Tabs.css'
 import React, { useState } from 'react'
+
 import Button from '../../components/button/Button'
-import * as Api from '../../api/TournamentApi'
-import useFetch from 'use-http'
-import '../tournaments/Tournaments.css'
-import '../tournaments/tournament/Tournament.css'
-import TournamentList from '../../components/tournament-list/TournamentList'
-import { default as TournamentComponenet } from '../../components/tournament/Tournament.js'
+import '../../index.css'
 import './TournamentMenu.css'
+
+import * as Api from '../../api/TournamentApi'
+
+import { default as TournamentComponenet } from '../../components/tournament/Tournament.js'
+import TournamentList from '../../components/tournament-list/TournamentList'
 
 function TournamentMenu() {
   const tabs = ['In progress', 'Old']
@@ -29,7 +28,7 @@ function TournamentMenu() {
             'tab' +
             (activeTab === tab ? ' selected' : '') +
             (i === 0 ? ' left-round' : '') +
-            (i === tabs.length ? ' right-round' : '')
+            (i === tabs.length -1 ? ' right-round' : '')
           }
           onClick={() => setActiveTab(tab)}
         >
@@ -48,15 +47,8 @@ function TournamentMenu() {
       .catch((err) => console.log('jaha' + err))
   }
 
-    /*
-     * NOTE BERNT:
-     * I suspect that one of the 'container' are the wrong containers since I do 
-     * import 'tournament.css' as well as './tournament/tournament.css' which both contain a version
-     * of 'container'. So maybe one of them is wrong IDK.
-     *
-     */
   const Menu = (props) => (
-    <div className={'container side-menu' + (show ? '' : ' hidden')}>
+    <div className={'tournament-menu'}>
       <Tabs />
       <div className="table-container">
         <table>
@@ -84,10 +76,10 @@ function TournamentMenu() {
       />
     </div>
   )
+        /*<span className="arrow" onClick={this.state.goBack}>&#10229;</span>*/
   const TournamentContainer = (data) => (
-    <div className={'body' + (show ? '' : ' hidden')}>
-      <span className="arrow" /*onClick={this.state.goBack}*/>&#10229;</span>
-      <div className="container ">
+    //<div className={'body' + (show ? '' : ' hidden')}>
+      <div className="tournament-container ">
         {info ? (
           info.tournament.state > 0 ? (
             //   <div className="center">
@@ -107,14 +99,14 @@ function TournamentMenu() {
           <h1>No tournament selected...</h1>
         )}
       </div>
-    </div>
+    //</div>
   )
 
   return (
     <>
       {loading && <h1>Loading..</h1>}
       {!loading && (
-        <div className="page">
+        <div className="tournament-grid">
           <Menu info={data} />
           <TournamentContainer info={data} />
         </div>
