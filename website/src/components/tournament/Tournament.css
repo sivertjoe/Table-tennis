@@ -132,3 +132,7 @@
   text-align: center;
   color: var(--orange);
 }
+
+.inactive-bracket {
+  display: none;
+}

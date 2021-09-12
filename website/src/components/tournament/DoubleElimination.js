@@ -479,7 +479,10 @@ function UpperBracket(props) {
   }
   return (
     <>
-      <div key="tournament-upper" className="tournament">
+      <div
+        key="tournament-upper"
+        className={props.selected ? 'tournament' : 'inactive-bracket'}
+      >
         {tournamentBrackets}
       </div>
     </>
@@ -529,7 +532,10 @@ function LowerBracket(props) {
   }
   return (
     <>
-      <div key="tournament" className="tournament">
+      <div
+        key="tournament"
+        className={props.selected ? 'tournament' : 'inactive-bracket'}
+      >
         {tournamentBrackets}
       </div>
     </>
@@ -554,6 +560,9 @@ export const DoubleElimination = (props) => {
     props.matches.filter((m) => m.bucket >= power),
   )
   const [info, setInfo] = React.useState(props.info)
+
+  const tabs = ['Upper Bracket', 'Lower Bracket']
+  const [activeTab, setActiveTab] = React.useState(tabs[0])
 
   const titlesUpper = {
     0: 'Final',
@@ -599,15 +608,42 @@ export const DoubleElimination = (props) => {
     info,
     setInfo,
   }
+  const Tabs = () => (
+    <div className="tabs">
+      {tabs.map((tab, i) => (
+        <button
+          key={tab}
+          className={
+            'tab' +
+            (activeTab === tab ? ' selected' : '') +
+            (i === 0 ? ' left-round' : '') +
+            (i === tabs.length - 1 ? ' right-round' : '')
+          }
+          onClick={() => setActiveTab(tab)}
+        >
+          {tab}
+        </button>
+      ))}
+    </div>
+  )
+
+  const selectedTab = (tab) => {
+    if (isDesktop) {
+      return true
+    } else {
+      return activeTab === tab
+    }
+  }
 
   return (
     <>
+      {!isDesktop && <Tabs />}
       <SectionContext.Provider value={upperSection}>
-        <UpperBracket />
+        <UpperBracket selected={selectedTab(tabs[0])} />
       </SectionContext.Provider>
 
       <SectionContext.Provider value={lowerSection}>
-        <LowerBracket />
+        <LowerBracket selected={selectedTab(tabs[1])} />
       </SectionContext.Provider>
     </>
   )
