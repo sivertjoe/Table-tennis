@@ -537,7 +537,7 @@ function LowerBracket(props) {
 }
 
 export const DoubleElimination = (props) => {
-  const [isDesktop, setDesktop] = useState(window.innerWidth > 1450)
+  const [isDesktop, setDesktop] = React.useState(window.innerWidth > 1450)
 
   let numBrackets = Math.ceil(Math.log2(props.info.player_count))
   let power = Math.pow(2, numBrackets)
