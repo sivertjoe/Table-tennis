@@ -701,7 +701,12 @@ impl DataBase
                 // Loser won, go to game #2
                 else
                 {
-                    self._create_tournament_game(loser_id, winner_id, power + 1, tournament.id)?;
+                    self.conn.execute(
+                        "update tournament_games set player1 = ?1, player2 = ?2 where bucket = ?3 and tournament = \
+                         ?4",
+                        params![loser_id, winner_id, power + 1, tournament.id],
+                    )?;
+                    // self._create_tournament_game(loser_id, winner_id, power + 1, tournament.id)?;
                 }
             },
             // Second final
@@ -1118,7 +1123,7 @@ impl DataBase
     pub fn get_upper_to_lower_table(&self, tid: i64) -> ServerResult<String>
     {
         let mut stmt =
-            self.conn.prepare("select table from tournament_lookup where tournament = ?1")?;
+            self.conn.prepare("select _table from tournament_lookup where tournament = ?1")?;
         let table: String =
             stmt.query_map(params![tid], |row| Ok(row.get(0)?))?.next().unwrap().unwrap();
         Ok(table)
@@ -1165,9 +1170,8 @@ impl DataBase
             // We will denote the final final match with n, where n is the highest power of
             // two E.g 16, 32, 8, etc.
 
-            // For now, I dont wanna generate the second final, only generate it
-            // if it's needed
             self._create_tournament_game(0, 0, power, tournament.id)?;
+            self._create_tournament_game(0, 0, power+1, tournament.id)?;
         }
 
         for bucket in games
