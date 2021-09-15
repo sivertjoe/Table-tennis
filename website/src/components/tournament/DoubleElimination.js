@@ -155,8 +155,8 @@ function ForwardToLower(
 
   if (match.bucket >= power) return
 
-  console.log(tournamentTable[0])
   let lower_index = tournamentTable.find((a) => a[0] === match.bucket)
+  console.log(tournamentTable)
 
   const idx = secondary.findIndex((m) => m.bucket == lower_index[1])
   if (lower_index[2] === 1) secondary[idx].player1 = loser
@@ -186,19 +186,28 @@ function ForwardLower(
   loser,
   info,
   setInfo,
+  tournamentTable,
 ) {
   if (match.bucket === -1) return
 
   let parent = loser_bracket_parent(match.bucket)
   const index = primary.findIndex((m) => m.bucket === parent)
+
   if (parent_is_empty(parent, biggest_power_of_two(info.player_count))) {
-    if ((match.bucket & 1) === 1) {
+    const table_index = tournamentTable.findIndex((a) => a[1] == parent)
+    if (table_index !== -1) {
+      if (tournamentTable[table_index][2] == 1) {
+        primary[index].player2 = winner
+      } else {
+        primary[index].player1 = winner
+      }
+    } else if ((match.bucket & 1) === 1) {
       primary[index].player1 = winner
     } else {
       primary[index].player2 = winner
     }
   } else {
-    primary[index].player1 = winner
+    primary[index].player2 = winner
   }
   setPrimary([...primary])
 }
@@ -251,6 +260,10 @@ function TournamentMatch(props) {
     { value: match.player2, label: match.player2 },
   ]
 
+  //   function isParentMatchDone(){
+
+  //   }
+
   function openModal() {
     if (
       // props.winner === '' &&
@@ -271,10 +284,21 @@ function TournamentMatch(props) {
     //   match.player1 === winner ? match.player2 : match.player1
     let l = options.find((l) => l.value !== selectedClient).value
     let w = selectedClient
-    // Api.registerTournamentMatch(w, l, props.match.id)
-    //   .then(() => closeModal())
-    //   .catch((e) => console.warn('Jaha' + e))
-    forward(primary, setPrimary, finals, setFinals, match, w, l, info, setInfo)
+    Api.registerTournamentMatch(w, l, props.match.id)
+      .then(() => closeModal())
+      .catch((e) => console.warn('Jaha' + e))
+    forward(
+      primary,
+      setPrimary,
+      finals,
+      setFinals,
+      match,
+      w,
+      l,
+      info,
+      setInfo,
+      tournamentTable,
+    )
 
     transelate(
       secondary,
@@ -304,7 +328,7 @@ function TournamentMatch(props) {
 
     //this is the match that has the parent in the other bracket
     if (match.bucket === -1) {
-      parent = secondary
+      parent = finals
     }
 
     //this is the match that has the parent in the finals
@@ -595,10 +619,10 @@ export const DoubleElimination = (props) => {
   const [tournamentTable, setTournamentTable] = React.useState(undefined)
   React.useEffect(() => {
     Api.getTournamentTable(info.id)
-      .then((t) => setTournamentTable(json(t)))
+      .then((t) => JSON.parse(t))
+      .then((t) => setTournamentTable(t))
       .catch((c) => console.warn('au'))
   }, [])
-  console.log(typeof tournamentTable)
   const titlesUpper = {
     0: 'Final',
     2: 'Upperfinal',
@@ -608,12 +632,7 @@ export const DoubleElimination = (props) => {
     32: '16th-finals',
     64: '32nd-finals',
   }
-  let a = [
-    [1, 2, 3],
-    [1, 2, 3],
-    [1, 2, 3],
-    [1, 2, 3],
-  ]
+
   const upperSection = {
     primary: upper,
     setPrimary: setUpper,

@@ -59,7 +59,8 @@ fn response_code(e: ServerError) -> u8
             WrongTournamentCount => 15,
             AlreadyJoined => 16,
             GameAlreadyPlayed => 17,
-            InvalidTtype => 17,
+            InvalidTtype => 18,
+            CannotRerun => 19,
         },
         _ => 69,
     }

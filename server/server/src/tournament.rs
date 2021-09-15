@@ -748,7 +748,6 @@ impl DataBase
                         {
                             lgame.player2 = winner_id;
                         }
-                        lgame.player1 = winner_id;
                     }
                     else
                     {
@@ -767,11 +766,6 @@ impl DataBase
         let bucket = bucket.abs();
         let biggest_power_of_two = (((bucket + 2) as f64).ln() / 2.0_f64.ln()).ceil() as u32;
         let power = 2_i64.pow(biggest_power_of_two);
-
-        if bucket == -1
-        {
-            return power;
-        }
 
         let bracket_size = power / 4;
         let x = bracket_size - 1;
@@ -1229,11 +1223,11 @@ impl DataBase
             TournamentType::SingleElimination => (bucket - 1) / 2,
             TournamentType::DoubleElimination =>
             {
+                let biggest_power_of_two =
+                    ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+                let power = 2_i64.pow(biggest_power_of_two);
                 if bucket >= 0
                 {
-                    let biggest_power_of_two =
-                        ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
-                    let power = 2_i64.pow(biggest_power_of_two);
 
                     if bucket == 0
                     {
@@ -1250,6 +1244,10 @@ impl DataBase
                 }
                 else
                 {
+                    if bucket == -1
+                    {
+                        return power;
+                    }
                     return self.loser_bracket_parent(bucket);
                 }
             },
