@@ -15,7 +15,8 @@ function TournamentMenu(props) {
   const tabs = ['In progress', 'Old']
   const [activeTab, setActiveTab] = useState(tabs[0])
   const [selectedTournament, setSelectedTournament] = useState(undefined)
-  const [loading, data] = Api.GetTournamentInfos()
+  const [data, setData] = useState(undefined)
+  //   const [loading, data] = Api.GetTournamentInfos()
   const [info, setInfo] = useState(undefined)
   const [isDesktop, setDesktop] = useState(window.innerWidth > 1450)
   //   let h = useHistory()
@@ -33,11 +34,17 @@ function TournamentMenu(props) {
   //     console.log(match)
   //   }, [match])
   useEffect(() => {
-    if (!loading) {
+    Api.getTournamentInfosToggle('active')
+      .then((data) => setData(data))
+      .catch('ahaj')
+  }, [])
+
+  useEffect(() => {
+    if (data) {
       const match = new URLSearchParams(props.location.search).get('match')
       setSelectedTournament(data.find((m) => m.id == match))
     }
-  }, [loading, props.location.search, data])
+  }, [data, props.location.search])
 
   useEffect(() => {
     if (selectedTournament) {
@@ -54,6 +61,18 @@ function TournamentMenu(props) {
     return () => window.removeEventListener('resize', updateMedia)
   })
 
+  const ToggleTournamentStatus = (tab) => {
+    let arg = ''
+    if (tab === tabs[1]) arg = 'old'
+    else arg = 'active'
+
+    Api.getTournamentInfosToggle(arg)
+      .then((data) => setData(data))
+      .catch('ahaj')
+
+    setActiveTab(tab)
+  }
+
   const Tabs = () => (
     <div className="tabs">
       {tabs.map((tab, i) => (
@@ -65,7 +84,7 @@ function TournamentMenu(props) {
             (i === 0 ? ' left-round' : '') +
             (i === tabs.length - 1 ? ' right-round' : '')
           }
-          onClick={() => setActiveTab(tab)}
+          onClick={() => ToggleTournamentStatus(tab)}
         >
           {tab}
         </button>
@@ -161,8 +180,8 @@ function TournamentMenu(props) {
 
   return (
     <>
-      {loading && <h1>Loading..</h1>}
-      {!loading && (
+      {!data && <h1>Loading..</h1>}
+      {data && (
         <div className="tournament-grid">
           {isDesktop && <Menu info={data} history={props.history} />}
 

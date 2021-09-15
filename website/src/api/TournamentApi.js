@@ -1,6 +1,11 @@
 import * as BaseApi from './BaseApi'
 
+export const getTournamentTable = (id) => BaseApi.get('tournament-table/' + id)
+
 export const GetTournamentInfos = () => BaseApi.GetHook('tournament-infos')
+
+export const getTournamentInfosToggle = (arg = 'active') =>
+  BaseApi.get('tournament-infos?query=' + arg)
 
 export const getTournament = (id) => BaseApi.get('tournament/' + id)
 

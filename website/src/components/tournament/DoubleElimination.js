@@ -24,6 +24,8 @@ const SectionContext = React.createContext({
   setInfo: () => {},
 
   titles: {},
+
+  tournamentTable: [[]],
 })
 
 // const TournamentContext = React.createContext({
@@ -47,25 +49,32 @@ function parent_is_empty(bucket) {
 
   return !(power - 2 - bracket_size >= bucket)
 }
-function map_from_upper_to_lower(bucket, player_count) {
-  let numBrackets = Math.ceil(Math.log2(player_count))
-  let power = Math.pow(2, numBrackets)
-  const npower = -1 * power
-  const x = power / 4
-  //TODO: fix the commented out if, outer: hotfix
-  // if((power -2 - (power/2)) > -(bucket)){
-  if (bucket < power && bucket >= power / 2 - 1) {
-    let reduced = bucket - power / 2 + 1
-    reduced = reduced / 2
-    const y = Math.trunc(reduced)
-    const p = Number((bucket & 1) === 0)
-    return -(bucket + (x - y - p))
-  } else {
-    let highest = Math.ceil(Math.log2(bucket + 2))
-    let actual_x = Math.pow(2, highest) / 2
-    return -(bucket + actual_x)
-  }
+// function map_from_upper_to_lower(bucket, player_count) {
+//   let numBrackets = Math.ceil(Math.log2(player_count))
+//   let power = Math.pow(2, numBrackets)
+//   const npower = -1 * power
+//   const x = power / 4
+//   //TODO: fix the commented out if, outer: hotfix
+//   // if((power -2 - (power/2)) > -(bucket)){
+//   if (bucket < power && bucket >= power / 2 - 1) {
+//     let reduced = bucket - power / 2 + 1
+//     reduced = reduced / 2
+//     const y = Math.trunc(reduced)
+//     const p = Number((bucket & 1) === 0)
+//     return -(bucket + (x - y - p))
+//   } else {
+//     let highest = Math.ceil(Math.log2(bucket + 2))
+//     let actual_x = Math.pow(2, highest) / 2
+//     return -(bucket + actual_x)
+//   }
+// }
+
+function map_from_upper_to_lower(arr, bucket) {
+  console.log('=============', arr)
+  let a = arr.find((a) => a[0] === bucket)
+  return a
 }
+
 function biggest_power_of_two(bucket) {
   let numBrackets = Math.ceil(Math.log2(bucket))
   return Math.pow(2, numBrackets)
@@ -97,14 +106,16 @@ function ForwardUpper(
   setInfo,
 ) {
   const matches = primary
-  console.log(match.bucket)
   if (match.bucket === biggest_power_of_two(info.player_count)) {
     //need one more match
     if (winner === match.player2) {
-      const secondFinal = Object.assign({}, finals[0])
-      secondFinal.bucket++
-
-      finals.push(secondFinal)
+      //   const secondFinal = Object.assign({}, finals[0])
+      //   secondFinal.bucket++
+      console.log(finals)
+      finals[1].player1 = finals[0].player1
+      finals[1].player2 = finals[0].player2
+      //   finals.push(secondFinal)
+      console.log(finals)
       setFinals([...finals])
     } else {
       //winner of finale. is done
@@ -138,25 +149,30 @@ function ForwardToLower(
   loser,
   info,
   setInfo,
+  tournamentTable,
 ) {
   const power = biggest_power_of_two(info.player_count)
 
   if (match.bucket >= power) return
 
-  const lower_index = map_from_upper_to_lower(match.bucket, power)
-  const idx = secondary.findIndex((m) => m.bucket == lower_index)
+  console.log(tournamentTable[0])
+  let lower_index = tournamentTable.find((a) => a[0] === match.bucket)
+
+  const idx = secondary.findIndex((m) => m.bucket == lower_index[1])
+  if (lower_index[2] === 1) secondary[idx].player1 = loser
+  else secondary[idx].player2 = loser
 
   //player count must be power, will not work with odd trournamentt
-  if (match.bucket < power && match.bucket >= power / 2 - 1) {
-    if ((match.bucket & 1) === 1) {
-      secondary[idx].player2 = loser
-      // secondary[-(idx)].player2 = loser
-    } else {
-      secondary[idx].player1 = loser
-    }
-  } else {
-    secondary[idx].player2 = loser
-  }
+  //   if (match.bucket < power && match.bucket >= power / 2 - 1) {
+  //     if ((match.bucket & 1) === 1) {
+  //       secondary[idx].player2 = loser
+  //       // secondary[-(idx)].player2 = loser
+  //     } else {
+  //       secondary[idx].player1 = loser
+  //     }
+  //   } else {
+  //     secondary[idx].player2 = loser
+  //   }
   setSecondary([...secondary])
 }
 
@@ -167,6 +183,7 @@ function ForwardLower(
   setFinals,
   match,
   winner,
+  loser,
   info,
   setInfo,
 ) {
@@ -196,6 +213,7 @@ function ForwardToUpper(
   loser,
   info,
   setInfo,
+  a,
 ) {
   if (match.bucket === -1) {
     //TODO...
@@ -220,6 +238,8 @@ function TournamentMatch(props) {
 
     info,
     setInfo,
+    titles,
+    tournamentTable,
   } = React.useContext(SectionContext)
   const match = props.match
   const [selectedClient, setSelectedClient] = React.useState(undefined)
@@ -251,9 +271,9 @@ function TournamentMatch(props) {
     //   match.player1 === winner ? match.player2 : match.player1
     let l = options.find((l) => l.value !== selectedClient).value
     let w = selectedClient
-    Api.registerTournamentMatch(w, l, props.match.id)
-      .then(() => closeModal())
-      .catch((e) => console.warn('Jaha' + e))
+    // Api.registerTournamentMatch(w, l, props.match.id)
+    //   .then(() => closeModal())
+    //   .catch((e) => console.warn('Jaha' + e))
     forward(primary, setPrimary, finals, setFinals, match, w, l, info, setInfo)
 
     transelate(
@@ -266,6 +286,7 @@ function TournamentMatch(props) {
       l,
       info,
       setInfo,
+      tournamentTable,
     )
     closeModal()
     setWinner(w)
@@ -294,7 +315,7 @@ function TournamentMatch(props) {
     //potentially the last match
     if (match.bucket === power) {
       // game is played
-      if (finals[1]) {
+      if (finals[1].player2) {
         w = finals[0].player2
       }
       // tournament is over
@@ -432,8 +453,9 @@ function UpperBracket(props) {
     info,
     titles,
     // setInfo
+    tournamentTable,
   } = React.useContext(SectionContext)
-  if (!primary || !secondary) {
+  if (!primary || !secondary || !tournamentTable) {
     return <div>Loading..</div>
   }
   let numBrackets = Math.ceil(Math.log2(info.player_count))
@@ -457,10 +479,16 @@ function UpperBracket(props) {
     competitors /= 2
     start_match += n_matches
   }
+  let finalss = finals
+  console.log(finalss)
+  if (finals[1].player1 === '') {
+    finalss = [finals[0]]
+  }
+  console.log(finalss)
   tournamentBrackets.push(
     <TournamentBracket
       last={true}
-      slice={finals}
+      slice={finalss}
       title={titles[0]}
       key={'bracket-upper-f-' + 1}
     />,
@@ -557,13 +585,20 @@ export const DoubleElimination = (props) => {
   )
 
   const [finals, setFinals] = React.useState(
-    props.matches.filter((m) => m.bucket >= power),
+    props.matches.filter((m) => m.bucket >= power).reverse(),
   )
   const [info, setInfo] = React.useState(props.info)
 
   const tabs = ['Upper Bracket', 'Lower Bracket']
   const [activeTab, setActiveTab] = React.useState(tabs[0])
 
+  const [tournamentTable, setTournamentTable] = React.useState(undefined)
+  React.useEffect(() => {
+    Api.getTournamentTable(info.id)
+      .then((t) => setTournamentTable(json(t)))
+      .catch((c) => console.warn('au'))
+  }, [])
+  console.log(typeof tournamentTable)
   const titlesUpper = {
     0: 'Final',
     2: 'Upperfinal',
@@ -573,7 +608,12 @@ export const DoubleElimination = (props) => {
     32: '16th-finals',
     64: '32nd-finals',
   }
-
+  let a = [
+    [1, 2, 3],
+    [1, 2, 3],
+    [1, 2, 3],
+    [1, 2, 3],
+  ]
   const upperSection = {
     primary: upper,
     setPrimary: setUpper,
@@ -590,6 +630,8 @@ export const DoubleElimination = (props) => {
     info,
     setInfo,
     titles: titlesUpper,
+
+    tournamentTable,
   }
 
   const lowerSection = {
@@ -607,6 +649,7 @@ export const DoubleElimination = (props) => {
 
     info,
     setInfo,
+    tournamentTable,
   }
   const Tabs = () => (
     <div className="tabs">
