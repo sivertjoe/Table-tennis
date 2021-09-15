@@ -479,72 +479,121 @@ impl DataBase
         )
     }
 
-    fn check_parents_not_played(
+    fn handle_game_rerun(
         &self,
-        tournament_match: &TournamentMatch,
         game: &TournamentGame,
+        old: &TournamentMatch,
         tournament: &Tournament,
     ) -> ServerResult<()>
     {
-        let delete_match = |id: i64| -> ServerResult<()> {
+        let delete_match = |old: &TournamentMatch| -> ServerResult<()> {
             self.conn
-                .execute("delete from tourament_matches where game = ?1", params![id])?;
+                .execute("delete from tournament_matches where id = ?1", params![old.id])?;
             Ok(())
         };
-        if tournament.ttype == TournamentType::SingleElimination as u8
-        {
-            if game.bucket == 0
-            {
-                delete_match(game.id)?;
-                return Ok(());
-            }
-            let parent = (game.id - 1) / 2;
-            if self
+
+        let remove_previous_tournament_winner = || -> ServerResult<()> {
+            self.conn
+                .execute("delete from tournament_winners where tournament = ?1", params![
+                    tournament.id
+                ])?;
+            self.conn
+                .execute("delete from tournament_badges where tournament = ?1", params![
+                    tournament.id
+                ])?;
+
+            // The state of the tournament should now also be not done
+            self.update_tournament_state(tournament.id, TournamentState::InProgress)?;
+
+            Ok(())
+        };
+
+        let parent_has_played = |bucket: i64| -> ServerResult<bool> {
+            let next = self.get_parent_bucket(bucket, tournament);
+
+            Ok(self
                 .sql_one::<TournamentMatch, _>(
                     "select * from tournament_matches where game = ?1",
-                    _params![parent],
+                    _params![next],
                 )
-                .is_ok()
+                .is_ok())
+        };
+
+        if tournament.ttype == TournamentType::SingleElimination as u8
+        {
+            // New tournament winner
+            if game.bucket == 0
             {
-                // Parent have been played, dont allow.
-                return Err(ServerError::Critical("Parent have been played".to_string()));
+                remove_previous_tournament_winner()?;
             }
+            // If was _not_ the final, so I don't think I need to do anything else..
+            delete_match(old)?;
         }
         else if tournament.ttype == TournamentType::DoubleElimination as u8
         {
-            let check_parent = |game_id: i64| -> ServerResult<()> {
-                match self.sql_one::<TournamentMatch, _>(
-                    "select * from tournament_matches where game = ?1",
-                    _params![game_id],
-                )
-                {
-                    Ok(_) => Err(ServerError::Critical("".to_string())),
-                    Err(_) => Ok(()),
-                }
-            };
-            let get_id = |bucket: i64| -> i64 {
-                self.sql_one::<TournamentGame, _>(
-                    "select * from tournament_games where bucket = ?1 and tournament = ?2",
-                    _params![bucket, tournament.id],
-                )
-                .map(|tg| tg.id)
-                .unwrap()
-            };
-            let check = |bucket: i64| -> ServerResult<()> { check_parent(get_id(bucket)) };
-
             let biggest_power_of_two =
                 ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
             let power = 2_i64.pow(biggest_power_of_two);
 
-            if game.bucket == power + 1
+            match game.bucket
             {
-                delete_match(game.bucket)?;
-                return Ok(());
-            }
+                // Winners and losers final
+                0 | -1 =>
+                {
+                    let parent_played = parent_has_played(game.bucket)?;
 
-            check(game.bucket)?;
+                    if tournament.state == TournamentState::Done as u8 || parent_played
+                    {
+                        return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                    }
+                    // ooowee,,, we'll allow it (y)
+                    delete_match(old)?;
+                },
+
+                // first final
+                n if n == power =>
+                {
+                    if tournament.state == TournamentState::Done as u8
+                    {
+                        // This implies a second final has been played
+                        if parent_has_played(game.bucket)?
+                        {
+                            return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                        }
+                        // This _was_ the final
+                        else
+                        {
+                            remove_previous_tournament_winner()?;
+                            delete_match(old)?;
+                        }
+                    }
+                    else
+                    {
+                        // If it is _not_ done, and this game has already been played, it implies
+                        // there exists a second final that has NOT been played
+                        delete_match(old)?;
+                    }
+                },
+
+                // second final
+                n if n == (power + 1) =>
+                {
+                    remove_previous_tournament_winner()?;
+                    delete_match(old)?;
+                },
+
+                // winners bracket
+                _ =>
+                {
+                    let parent_played = parent_has_played(game.bucket)?;
+                    if parent_played
+                    {
+                        return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                    }
+                    delete_match(old)?;
+                },
+            };
         }
-
         Ok(())
     }
 
@@ -587,29 +636,7 @@ impl DataBase
         )
         {
             // return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
-            self.check_parents_not_played(&old, &game, &tournament)?;
-            self.conn
-                .execute("delete from tournament_matches where id = ?1", params![old.id])?;
-            if tournament.ttype == TournamentType::DoubleElimination as u8
-            {
-                let mut loser_game = self.sql_one::<TournamentGame, _>(
-                    "select * from tournament_games where (player1 = ?1 or player2 = ?1) and \
-                     tournament = ?2",
-                    _params![old.loser, tournament.id],
-                )?;
-
-                let pos = |i: i64| -(i + 1);
-
-                if loser_game.player1 == old.loser
-                {
-                    loser_game.player1 = pos(game.id);
-                }
-                else
-                {
-                    loser_game.player2 = pos(game.id);
-                }
-                self.update_bucket(&loser_game)?;
-            }
+            self.handle_game_rerun(&game, &old, &tournament)?;
         }
         match tournament.ttype.into()
         {
@@ -1191,25 +1218,9 @@ impl DataBase
         Ok(())
     }
 
-    fn convert(&self, tg: TournamentGame, tournament: &Tournament) -> TournamentGameInfo
+    fn get_parent_bucket(&self, bucket: i64, tournament: &Tournament) -> i64
     {
-        let h = |id: i64| -> String {
-            if id > 0
-            {
-                match self.get_user_without_matches_by("id", "=", &id.to_string())
-                {
-                    Ok(u) => u.name,
-                    Err(_) => String::from(""),
-                }
-            }
-            else
-            {
-                String::from("")
-            }
-        };
-
-
-        let get_parent_bucket = |bucket: i64| match tournament.ttype.into()
+        match tournament.ttype.into()
         {
             TournamentType::SingleElimination => (bucket - 1) / 2,
             TournamentType::DoubleElimination =>
@@ -1238,14 +1249,34 @@ impl DataBase
                     return self.loser_bracket_parent(bucket);
                 }
             },
+        }
+    }
+
+    fn convert(&self, tg: TournamentGame, tournament: &Tournament) -> TournamentGameInfo
+    {
+        let h = |id: i64| -> String {
+            if id > 0
+            {
+                match self.get_user_without_matches_by("id", "=", &id.to_string())
+                {
+                    Ok(u) => u.name,
+                    Err(_) => String::from(""),
+                }
+            }
+            else
+            {
+                String::from("")
+            }
         };
+
+
 
         TournamentGameInfo {
             player1:       h(tg.player1),
             player2:       h(tg.player2),
             id:            tg.id,
             bucket:        tg.bucket,
-            parent_bucket: get_parent_bucket(tg.bucket),
+            parent_bucket: self.get_parent_bucket(tg.bucket, tournament),
         }
     }
 
