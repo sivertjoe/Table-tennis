@@ -39,7 +39,7 @@ impl DataBase
 
         let matches = get_all_matches_before(&self.conn, time)?;
 
-        if matches.len() == 0
+        if matches.is_empty()
         {
             return Ok(());
         }
@@ -51,8 +51,10 @@ impl DataBase
         {
             let winner_name = m.winner.clone();
             let loser_name = m.loser.clone();
-            let winner_elo = *map.entry(winner_name.clone()).or_insert(default_score(&m, true));
-            let loser_elo = *map.entry(loser_name.clone()).or_insert(default_score(&m, false));
+            let winner_elo =
+                *map.entry(winner_name.clone()).or_insert_with(|| default_score(&m, true));
+            let loser_elo =
+                *map.entry(loser_name.clone()).or_insert_with(|| default_score(&m, false));
 
             let (new_winner_elo, new_loser_elo) = elo.calculate(winner_elo, loser_elo);
 
@@ -78,7 +80,7 @@ impl DataBase
     }
 }
 
-fn get_initial_elo(name: &String, matches: &Vec<(Match, i64)>) -> f64
+fn get_initial_elo(name: &str, matches: &[(Match, i64)]) -> f64
 {
     match matches.iter().skip(1).find(|(m, _)| &m.winner == name || &m.loser == name)
     {
@@ -156,13 +158,5 @@ fn get_all_matches_before(s: &Connection, time: i64) -> ServerResult<Vec<(Match,
         ))
     })?;
 
-    let mut vec = Vec::new();
-    for m in matches
-    {
-        if let Ok((u, id)) = m
-        {
-            vec.push((u, id));
-        };
-    }
-    Ok(vec)
+    Ok(matches.flatten().collect())
 }

@@ -1,4 +1,4 @@
-use std::{array::IntoIter, collections::HashMap, io::prelude::*, iter::FromIterator};
+use std::{array::IntoIter, collections::HashMap, io::prelude::*};
 
 use rusqlite::params;
 use serde_derive::{Deserialize, Serialize};
@@ -129,8 +129,10 @@ struct TournamentGameInfo
 #[derive(Sql)]
 struct TournamentWinner
 {
+    #[allow(dead_code)]
     id:         i64,
     player:     i64,
+    #[allow(dead_code)]
     tournament: i64,
 }
 
@@ -232,27 +234,6 @@ impl TournamentGame
         (self.player1 == 0 && self.player2 != 0) || (self.player1 != 0 && self.player2 == 0)
     }
 
-    fn remove_player(&mut self) -> i64
-    {
-        if self.player1 < self.player2
-        {
-            let p = self.player1;
-            self.player1 = 0;
-            p
-        }
-        else
-        {
-            let p = self.player2;
-            self.player2 = 0;
-            p
-        }
-    }
-
-    fn is_full(&self) -> bool
-    {
-        self.player1 != 0 && self.player2 != 0
-    }
-
     fn insert_player(&mut self, player: i64)
     {
         if self.player1 == 0
@@ -324,7 +305,7 @@ impl DataBase
             .unwrap_or(1);
 
         // Use default picture
-        let prize = if info.image == ""
+        let prize = if info.image.is_empty()
         {
             self.get_default_prize()?
         }
@@ -372,7 +353,7 @@ impl DataBase
         let mut file = std::fs::File::create(&format!("{}/{}", ASSETS_PATH, &image_name))
             .expect("creating file");
 
-        let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
+        let bin: Vec<&str> = image.as_str().splitn(2, ',').collect();
         let bin = base64::decode(bin[1]).unwrap();
         file.write_all(&bin).expect("Writing into file");
 
@@ -679,7 +660,7 @@ impl DataBase
                      ?3",
                     params![winner_id, power, tournament.id],
                 )?;
-                self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
+                self.send_loser_to_losers_bracket(loser_id, game, tournament.id)?;
             },
             // Losers bracket final game
             -1 =>
@@ -696,23 +677,24 @@ impl DataBase
                 // Tournament is over
                 if winner_id == game.player1
                 {
-                    self.finish_tournament(&tournament, winner_id)?;
+                    self.finish_tournament(tournament, winner_id)?;
                 }
                 // Loser won, go to game #2
                 else
                 {
                     self.conn.execute(
-                        "update tournament_games set player1 = ?1, player2 = ?2 where bucket = ?3 and tournament = \
-                         ?4",
+                        "update tournament_games set player1 = ?1, player2 = ?2 where bucket = ?3 \
+                         and tournament = ?4",
                         params![loser_id, winner_id, power + 1, tournament.id],
                     )?;
-                    // self._create_tournament_game(loser_id, winner_id, power + 1, tournament.id)?;
+                    // self._create_tournament_game(loser_id, winner_id, power +
+                    // 1, tournament.id)?;
                 }
             },
             // Second final
-            N if N == (power + 1) =>
+            n if n == (power + 1) =>
             {
-                self.finish_tournament(&tournament, winner_id)?;
+                self.finish_tournament(tournament, winner_id)?;
             },
             // Normal game
             _ =>
@@ -723,7 +705,7 @@ impl DataBase
                     let parent = self.advance_player(&mut games, game.bucket as usize, winner_id);
                     let game_index = games.iter().position(|g| g.bucket == parent as i64).unwrap();
                     self.update_bucket(&games[game_index])?;
-                    self.send_loser_to_losers_bracket(loser_id, &game, tournament.id);
+                    self.send_loser_to_losers_bracket(loser_id, game, tournament.id)?;
                 }
                 else
                 // loser bracket match
@@ -901,7 +883,7 @@ impl DataBase
     fn advance_player(&self, games: &mut Vec<TournamentGame>, i: usize, winner: i64) -> usize
     {
         let parent = (i - 1) / 2;
-        let mut game = games.iter_mut().find(|g| g.bucket == parent as i64).unwrap();
+        let game = games.iter_mut().find(|g| g.bucket == parent as i64).unwrap();
 
         let parent_player = if i & 1 == 1 { &mut game.player1 } else { &mut game.player2 };
 
@@ -909,7 +891,7 @@ impl DataBase
         parent
     }
 
-    fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
+    fn generate_buckets(&self, tournament: &Tournament, people: &[i64]) -> Vec<TournamentGame>
     {
         let biggest_power_of_two = ((people.len() as f32).ln() / 2.0_f32.ln()).ceil() as u32;
         let power = 2_usize.pow(biggest_power_of_two);
@@ -963,19 +945,19 @@ impl DataBase
         let power = 2_usize.pow(biggest_power_of_two);
 
         let mut matches: Vec<TournamentGame> = Vec::new();
-        let mut iter = LoserBracketGenerator::new(power as i64).into_iter();
+        let mut iter = LoserBracketGenerator::new(power as i64);
 
         // Helper functions for later
         let pos = |i: i64| -(i + 1);
         let get_pair = |pair: &[i64]| -> (i64, i64) {
-            match pair
+            match *pair
             {
-                &[a, b] => (a, b),
+                [a, b] => (a, b),
                 _ => unreachable!(),
             }
         };
         let create_empty = |len: usize, matches: &mut Vec<TournamentGame>, bucket: &mut i64| {
-            for i in 0..len
+            for _ in 0..len
             {
                 matches.push(TournamentGame::empty(tid, *bucket));
                 *bucket += 1;
@@ -1087,12 +1069,10 @@ impl DataBase
         matches
     }
 
-    fn create_upper_to_lower_table(&self, matches: &Vec<TournamentGame>) -> ServerResult<String>
+    fn create_upper_to_lower_table(&self, matches: &[TournamentGame]) -> ServerResult<String>
     {
         let pos = |i: i64| -(i + 1);
 
-        let tid = matches[0].tournament;
-        //vec![(pos(tg.player1), tg.bucket, 1), (pos(tg.player2), tg.bucket, 2)]
 
         let vec: Vec<_> = matches
             .iter()
@@ -1116,10 +1096,11 @@ impl DataBase
 
     pub fn get_upper_to_lower_table(&self, tid: i64) -> ServerResult<String>
     {
-        let mut stmt =
-            self.conn.prepare("select _table from tournament_lookup where tournament = ?1")?;
+        let mut stmt = self
+            .conn
+            .prepare("select _table from tournament_lookup where tournament = ?1")?;
         let table: String =
-            stmt.query_map(params![tid], |row| Ok(row.get(0)?))?.next().unwrap().unwrap();
+            stmt.query_map(params![tid], |row| row.get(0))?.next().unwrap().unwrap();
         Ok(table)
     }
 
@@ -1165,7 +1146,7 @@ impl DataBase
             // two E.g 16, 32, 8, etc.
 
             self._create_tournament_game(0, 0, power, tournament.id)?;
-            self._create_tournament_game(0, 0, power+1, tournament.id)?;
+            self._create_tournament_game(0, 0, power + 1, tournament.id)?;
         }
 
         for bucket in games
@@ -1228,27 +1209,22 @@ impl DataBase
                 let power = 2_i64.pow(biggest_power_of_two);
                 if bucket >= 0
                 {
-
                     if bucket == 0
                     {
-                        return power;
+                        power
                     }
                     else if bucket == power || bucket == power + 1
                     {
-                        return power + 1;
+                        power + 1
                     }
                     else
                     {
-                        return (bucket - 1) / 2;
+                        (bucket - 1) / 2
                     }
                 }
                 else
                 {
-                    if bucket == -1
-                    {
-                        return power;
-                    }
-                    return self.loser_bracket_parent(bucket);
+                    if bucket == -1 { power } else { self.loser_bracket_parent(bucket) }
                 }
             },
         }
@@ -1396,26 +1372,6 @@ impl DataBase
             .map(|tournament| self.map_tournament_info(tournament))
     }
 
-    fn get_player_count(&self, tournament: &Tournament) -> ServerResult<i64>
-    {
-        if tournament.state == TournamentState::Created as u8
-        {
-            let mut stmt = self
-                .conn
-                .prepare("select count(*) from tournament_lists where tournament = ?1")?;
-            let count: i64 = stmt
-                .query_map(params![tournament.id], |row| Ok(row.get(0)?))?
-                .next()
-                .unwrap()
-                .unwrap();
-            Ok(count)
-        }
-        else
-        {
-            Ok(tournament.player_count)
-        }
-    }
-
     fn get_players(&self, tournament: &Tournament) -> ServerResult<Vec<serde_json::Value>>
     {
         Ok(self
@@ -1441,7 +1397,7 @@ impl DataBase
     {
         if tournament.state == TournamentState::Created as u8
         {
-            let players = self.get_players(&tournament)?;
+            let players = self.get_players(tournament)?;
 
             Ok((players.len() as i64, players))
         }
@@ -1473,14 +1429,15 @@ impl DataBase
                         let (num_players, players) = self.get_players_and_num_players(&t).unwrap();
                         let val: serde_json::Number = num_players.into();
                         let organizer_name = self.get_organizer_name(&t).unwrap();
-                        HashMap::<_, _>::from_iter(IntoIter::new([
+                        IntoIter::new([
                             ("name", serde_json::Value::String(t.name)),
                             ("id", serde_json::Value::Number(t.id.into())),
                             ("player_count", serde_json::Value::Number(t.player_count.into())),
                             ("num_players", serde_json::Value::Number(val)),
                             ("players", serde_json::Value::Array(players)),
                             ("organizer_name", organizer_name),
-                        ]))
+                        ])
+                        .collect()
                     })
                     .collect()
             })
@@ -1612,7 +1569,6 @@ mod test
         create_user(&s, "Markus");
         create_user(&s, "Ella");
 
-
         s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
             .unwrap();
         let _ = s.join_tournament(token.clone(), 1);
@@ -1633,10 +1589,9 @@ mod test
         let token_m = create_user(&s, "Markus");
         let token_e = create_user(&s, "Ella");
 
-
-        let tid = s
-            ._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
             .unwrap();
+
         let rs = s.join_tournament(token_s, 1);
         let rb = s.join_tournament(token_b, 1);
         let rm = s.join_tournament(token_m, 1);
@@ -1667,9 +1622,9 @@ mod test
         let token_l = create_user(&s, "Lars");
 
 
-        let tid = s
-            ._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
             .unwrap();
+
         let _ = s.join_tournament(token_s, 1);
         let _ = s.join_tournament(token_b, 1);
         let _ = s.join_tournament(token_m, 1);
@@ -1703,7 +1658,7 @@ mod test
             organizer:    0,
         };
 
-        let vec_ok = |vec| {
+        let vec_ok = |vec: Vec<i64>| {
             s.generate_buckets(&tournament, &vec)
                 .into_iter()
                 .rev()
@@ -1842,7 +1797,6 @@ mod test
                     assert_eq!(t.tournament.name, "Epic");
                     assert_eq!(vec.len(), 2);
                 },
-                _ => unreachable!(),
             };
         };
         assert_func(first);
@@ -2054,16 +2008,16 @@ mod test
 
         s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
             .unwrap();
-        s.join_tournament(token_s.clone(), 1);
-        s.join_tournament(token_b.clone(), 1);
-        s.join_tournament(token_m, 1);
-        s.join_tournament(token_e, 1);
+        s.join_tournament(token_s.clone(), 1).expect("joining tournament");
+        s.join_tournament(token_b.clone(), 1).expect("joining tournament");
+        s.join_tournament(token_m, 1).expect("joining tournament");
+        s.join_tournament(token_e, 1).expect("joining tournament");
         let tid = 1;
 
         let games = s.get_all_tournament_games(1).unwrap();
         let first_game = reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
 
-        s.register_tournament_match(first_game.clone());
+        s.register_tournament_match(first_game.clone()).expect("regestering match");
 
         s._delete_tournament(1).unwrap();
 
