@@ -28,18 +28,6 @@ const SectionContext = React.createContext({
   tournamentTable: [[]],
 })
 
-// const TournamentContext = React.createContext({
-//   lower: [],
-//   setLower: () => {},
-
-//   upper: [],
-//   setUpper: () => {},
-
-//   finals: [],
-//   setFinals: () => {},
-
-//   info: {},
-// })
 function parent_is_empty(bucket) {
   bucket = Math.abs(bucket)
   const biggest_power_of_two = Math.ceil(Math.log(bucket + 2) / Math.log(2))
@@ -48,31 +36,6 @@ function parent_is_empty(bucket) {
   const bracket_size = power / 4
 
   return !(power - 2 - bracket_size >= bucket)
-}
-// function map_from_upper_to_lower(bucket, player_count) {
-//   let numBrackets = Math.ceil(Math.log2(player_count))
-//   let power = Math.pow(2, numBrackets)
-//   const npower = -1 * power
-//   const x = power / 4
-//   //TODO: fix the commented out if, outer: hotfix
-//   // if((power -2 - (power/2)) > -(bucket)){
-//   if (bucket < power && bucket >= power / 2 - 1) {
-//     let reduced = bucket - power / 2 + 1
-//     reduced = reduced / 2
-//     const y = Math.trunc(reduced)
-//     const p = Number((bucket & 1) === 0)
-//     return -(bucket + (x - y - p))
-//   } else {
-//     let highest = Math.ceil(Math.log2(bucket + 2))
-//     let actual_x = Math.pow(2, highest) / 2
-//     return -(bucket + actual_x)
-//   }
-// }
-
-function map_from_upper_to_lower(arr, bucket) {
-  console.log('=============', arr)
-  let a = arr.find((a) => a[0] === bucket)
-  return a
 }
 
 function biggest_power_of_two(bucket) {
@@ -116,6 +79,7 @@ function ForwardUpper(
       finals[1].player2 = finals[0].player2
       //   finals.push(secondFinal)
       console.log(finals)
+
       setFinals([...finals])
     } else {
       //winner of finale. is done
@@ -156,7 +120,6 @@ function ForwardToLower(
   if (match.bucket >= power) return
 
   let lower_index = tournamentTable.find((a) => a[0] === match.bucket)
-  console.log(tournamentTable)
 
   const idx = secondary.findIndex((m) => m.bucket == lower_index[1])
   if (lower_index[2] === 1) secondary[idx].player1 = loser
@@ -260,13 +223,104 @@ function TournamentMatch(props) {
     { value: match.player2, label: match.player2 },
   ]
 
-  //   function isParentMatchDone(){
+  function findFowardedBuckets(bucket) {
+    let fowardedBuckets = []
+    let matches = []
 
-  //   }
+    if (bucket >= 0) {
+      fowardedBuckets.push(tournamentTable.find((m) => m[0] === bucket)[1])
+      if (bucket === 0) {
+        fowardedBuckets.push(finals[0].bucket)
+      } else {
+        fowardedBuckets.push(Math.trunc((bucket - 1) / 2))
+      }
+    } else {
+      if (bucket === -1) {
+        fowardedBuckets.push(finals[0].bucket)
+      } else {
+        fowardedBuckets.push(loser_bracket_parent(bucket))
+      }
+    }
+
+    fowardedBuckets.forEach((b) => {
+      matches.push(primary.find((m) => m.bucket === b))
+      matches.push(secondary.find((m) => m.bucket === b))
+      matches.push(finals.find((m) => m.bucket === b))
+    })
+    matches = matches.filter((m) => m !== undefined)
+
+    return matches
+  }
+
+  function isMatchPlayed(match) {
+    let parent = primary
+    if (match.bucket === -1) {
+      parent = finals
+    }
+    if (match.bucket === 0) {
+      parent = finals
+    }
+    //TODO: !!!
+    if (match.bucket < 0 && props.match.bucket > 0) {
+      parent = secondary
+    }
+
+    let parentMatch = parent.find((m) => m.bucket === match.parent_bucket)
+    let ret = false
+    if (parentMatch?.player1 !== '') {
+      ret =
+        parentMatch?.player1 === match.player1 ||
+        parentMatch?.player1 === match.player2
+    }
+
+    if (parentMatch?.player2 !== '') {
+      ret =
+        ret | (parentMatch?.player2 === match.player1) ||
+        parentMatch?.player2 === match.player2
+    }
+    return ret
+  }
+  function isReplayAllowed(match) {
+    let replay = false
+    if (match.bucket === -1 && (info.winner || finals[1].player1)) {
+      return replay
+    }
+
+    if (match.bucket >= finals[0].bucket) {
+      return !(
+        info.winner &&
+        finals[1].player1 &&
+        match.bucket === finals[0].bucket
+      )
+    }
+    // console.log(isMatchPlayed(match))
+    // if (isMatchPlayed(match)) {
+    const matches = findFowardedBuckets(match.bucket)
+    console.log('findFowardedBuckets', matches)
+    matches.forEach((m) => {
+      replay = replay || isMatchPlayed(m)
+    })
+
+    // }
+
+    return !replay
+  }
+
+  function findMatchFromBucket(bucket) {
+    let parent = primary
+    if (bucket < 0) {
+      parent = finals
+    }
+
+    if (bucket === 0) {
+      parent = finals
+    }
+  }
 
   function openModal() {
     if (
       // props.winner === '' &&
+      isReplayAllowed(match) &&
       match.player1 !== '' &&
       match.player2 !== '' &&
       info.organizer_name === localStorage.getItem('username')
@@ -284,9 +338,17 @@ function TournamentMatch(props) {
     //   match.player1 === winner ? match.player2 : match.player1
     let l = options.find((l) => l.value !== selectedClient).value
     let w = selectedClient
-    Api.registerTournamentMatch(w, l, props.match.id)
-      .then(() => closeModal())
-      .catch((e) => console.warn('Jaha' + e))
+    // Api.registerTournamentMatch(w, l, props.match.id)
+    //   .then(() => closeModal())
+    //   .catch((e) => console.warn('Jaha' + e))
+    if (match.bucket >= finals[0].bucket) {
+      setInfo({ ...info, winner: '' })
+      if (match.bucket === finals[0].bucket) {
+        finals[1].player1 = ''
+        finals[1].player2 = ''
+        setFinals([...finals])
+      }
+    }
     forward(
       primary,
       setPrimary,
@@ -313,6 +375,7 @@ function TournamentMatch(props) {
       tournamentTable,
     )
     closeModal()
+
     setWinner(w)
     setLoser(l)
   }
@@ -504,11 +567,9 @@ function UpperBracket(props) {
     start_match += n_matches
   }
   let finalss = finals
-  console.log(finalss)
   if (finals[1].player1 === '') {
     finalss = [finals[0]]
   }
-  console.log(finalss)
   tournamentBrackets.push(
     <TournamentBracket
       last={true}
