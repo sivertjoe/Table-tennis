@@ -429,7 +429,7 @@ impl DataBase
         Ok(vec)
     }
 
-    pub fn recreate_tournament(&self, token: String, tid: i64) -> ServerResult<()>
+    pub fn recreate_tournament(&self, token: String, tid: i64) -> ServerResult<i64>
     {
         let organizer_id = self.get_user_without_matches_by("uuid", "=", &token)?.id;
 
@@ -464,7 +464,7 @@ impl DataBase
         self.generate_tournament(tournament, players)?;
         self.update_tournament_state(tid, TournamentState::InProgress)?;
 
-        Ok(())
+        Ok(tid)
     }
 
     pub fn join_tournament(&self, token: String, tid: i64) -> ServerResult<bool>

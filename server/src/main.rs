@@ -363,6 +363,24 @@ async fn create_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     }
 }
 
+#[post("/recreate-tournament")]
+async fn recreate_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    #[derive(Deserialize)]
+    struct RecreateTournament
+    {
+        token: String,
+        tid:   i64,
+    }
+
+    let info: RecreateTournament = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).recreate_tournament(info.token, info.tid)
+    {
+        Ok(id) => HttpResponse::Ok().json(response_ok_with(id)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 #[post("/join-tournament")]
 async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
@@ -700,6 +718,7 @@ async fn main() -> std::io::Result<()>
             .service(get_tournament_infos)
             .service(get_tournament)
             .service(get_tournament_table)
+            .service(recreate_tournament)
     });
 
     if cfg!(debug_assertions)
