@@ -532,7 +532,7 @@ impl DataBase
                 .execute("delete from tournament_matches where id = ?1", params![old.id])?;
             Ok(())
         };
-
+        println!("line: {}",line!());
         let remove_previous_tournament_winner = || -> ServerResult<()> {
             self.conn
                 .execute("delete from tournament_winners where tournament = ?1", params![
@@ -636,6 +636,7 @@ impl DataBase
                         return Err(ServerError::Tournament(TournamentError::CannotRerun));
                     }
                     delete_match(old)?;
+<<<<<<< Updated upstream
                     if game.bucket > 0
                     {
                         // Reset loser bracket game OOF
@@ -656,6 +657,10 @@ impl DataBase
                             tournament.id
                         ])?;
                     }
+=======
+        println!("line: {}",line!());
+
+>>>>>>> Stashed changes
                 },
             };
         }
@@ -706,7 +711,10 @@ impl DataBase
             },
             TournamentType::DoubleElimination =>
             {
+        println!("line: {}",line!());
+
                 self.handle_double_elimination_match(&game, &register_game, &tournament)?
+
             },
         }
         Ok(())
@@ -719,6 +727,8 @@ impl DataBase
         tournament: &Tournament,
     ) -> ServerResult<()>
     {
+        println!("line: {}",line!());
+
         let mut games = self.get_all_single_tournament_games(game.tournament)?;
         let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
         let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
@@ -728,6 +738,7 @@ impl DataBase
         let biggest_power_of_two =
             ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
         let power = 2_i64.pow(biggest_power_of_two);
+        println!("line: {}",line!());
 
         match game.bucket
         {
@@ -779,10 +790,14 @@ impl DataBase
                 if game.bucket > 0
                 // winners bracket match
                 {
+        println!("line: {}",line!());
+
                     let parent = self.advance_player(&mut games, game.bucket as usize, winner_id);
                     let game_index = games.iter().position(|g| g.bucket == parent as i64).unwrap();
                     self.update_bucket(&games[game_index])?;
                     self.send_loser_to_losers_bracket(loser_id, game, tournament.id)?;
+        println!("line: {}",line!());
+
                 }
                 else
                 // loser bracket match

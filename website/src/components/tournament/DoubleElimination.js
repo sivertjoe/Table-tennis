@@ -39,13 +39,13 @@ function parent_is_empty(bucket) {
 }
 
 function biggest_power_of_two(bucket) {
-  let numBrackets = Math.ceil(Math.log2(bucket))
+  const numBrackets = Math.ceil(Math.log2(bucket))
   return Math.pow(2, numBrackets)
 }
 function loser_bracket_parent(bucket) {
   bucket = Math.abs(bucket)
-  let numBrackets = Math.ceil(Math.log2(bucket + 2))
-  let n_matches = Math.pow(2, numBrackets)
+  const numBrackets = Math.ceil(Math.log2(bucket + 2))
+  const n_matches = Math.pow(2, numBrackets)
 
   const bracket_size = n_matches / 4
   const x = bracket_size - 1
@@ -88,7 +88,7 @@ function ForwardUpper(
   } else if (match.bucket === biggest_power_of_two(info.player_count) + 1) {
     setInfo({ ...info, winner: winner })
   } else if (match.bucket !== 0) {
-    let parent = Math.trunc((match.bucket - 1) / 2)
+    const parent = Math.trunc((match.bucket - 1) / 2)
     const index = matches.findIndex((m) => m.bucket === parent)
     if ((match.bucket & 1) === 1) {
       matches[index].player1 = winner
@@ -119,23 +119,12 @@ function ForwardToLower(
 
   if (match.bucket >= power) return
 
-  let lower_index = tournamentTable.find((a) => a[0] === match.bucket)
+  const lower_index = tournamentTable.find((a) => a[0] === match.bucket)
 
-  const idx = secondary.findIndex((m) => m.bucket == lower_index[1])
+  const idx = secondary.findIndex((m) => m.bucket === lower_index[1])
   if (lower_index[2] === 1) secondary[idx].player1 = loser
   else secondary[idx].player2 = loser
 
-  //player count must be power, will not work with odd trournamentt
-  //   if (match.bucket < power && match.bucket >= power / 2 - 1) {
-  //     if ((match.bucket & 1) === 1) {
-  //       secondary[idx].player2 = loser
-  //       // secondary[-(idx)].player2 = loser
-  //     } else {
-  //       secondary[idx].player1 = loser
-  //     }
-  //   } else {
-  //     secondary[idx].player2 = loser
-  //   }
   setSecondary([...secondary])
 }
 
@@ -153,13 +142,13 @@ function ForwardLower(
 ) {
   if (match.bucket === -1) return
 
-  let parent = loser_bracket_parent(match.bucket)
+  const parent = loser_bracket_parent(match.bucket)
   const index = primary.findIndex((m) => m.bucket === parent)
 
   if (parent_is_empty(parent, biggest_power_of_two(info.player_count))) {
-    const table_index = tournamentTable.findIndex((a) => a[1] == parent)
+    const table_index = tournamentTable.findIndex((a) => a[1] === parent)
     if (table_index !== -1) {
-      if (tournamentTable[table_index][2] == 1) {
+      if (tournamentTable[table_index][2] === 1) {
         primary[index].player2 = winner
       } else {
         primary[index].player1 = winner
@@ -210,13 +199,11 @@ function TournamentMatch(props) {
 
     info,
     setInfo,
-    titles,
     tournamentTable,
   } = React.useContext(SectionContext)
   const match = props.match
   const [selectedClient, setSelectedClient] = React.useState(undefined)
   const [winner, setWinner] = React.useState('')
-  const [loser, setLoser] = React.useState('')
   const [modalIsOpen, setIsOpen] = React.useState(false)
   const options = [
     { value: match.player1, label: match.player1 },
@@ -293,33 +280,18 @@ function TournamentMatch(props) {
         match.bucket === finals[0].bucket
       )
     }
-    // console.log(isMatchPlayed(match))
-    // if (isMatchPlayed(match)) {
+
     const matches = findFowardedBuckets(match.bucket)
     console.log('findFowardedBuckets', matches)
     matches.forEach((m) => {
       replay = replay || isMatchPlayed(m)
     })
 
-    // }
-
     return !replay
-  }
-
-  function findMatchFromBucket(bucket) {
-    let parent = primary
-    if (bucket < 0) {
-      parent = finals
-    }
-
-    if (bucket === 0) {
-      parent = finals
-    }
   }
 
   function openModal() {
     if (
-      // props.winner === '' &&
       isReplayAllowed(match) &&
       match.player1 !== '' &&
       match.player2 !== '' &&
@@ -333,14 +305,13 @@ function TournamentMatch(props) {
   function commitMatch() {
     if (!selectedClient) return
 
-    // let winner = selectedClient
-    // let loser =
-    //   match.player1 === winner ? match.player2 : match.player1
-    let l = options.find((l) => l.value !== selectedClient).value
-    let w = selectedClient
-    // Api.registerTournamentMatch(w, l, props.match.id)
-    //   .then(() => closeModal())
-    //   .catch((e) => console.warn('Jaha' + e))
+    const l = options.find((l) => l.value !== selectedClient).value
+    const w = selectedClient
+    Api.registerTournamentMatch(w, l, props.match.id)
+      .then(() => closeModal())
+      .catch((e) => console.warn('Jaha' + e))
+
+    //makes finals able to be replayed
     if (match.bucket >= finals[0].bucket) {
       setInfo({ ...info, winner: '' })
       if (match.bucket === finals[0].bucket) {
@@ -377,15 +348,14 @@ function TournamentMatch(props) {
     closeModal()
 
     setWinner(w)
-    setLoser(l)
   }
   function _handleChange(event) {
     setSelectedClient(event.value)
   }
 
   if (winner === '') {
-    let numBrackets = Math.ceil(Math.log2(info.player_count))
-    let power = Math.pow(2, numBrackets)
+    const numBrackets = Math.ceil(Math.log2(info.player_count))
+    const power = Math.pow(2, numBrackets)
     let parent = primary
     let w = ''
 
@@ -478,26 +448,9 @@ function TournamentMatch(props) {
 }
 
 function TournamentBracket(props) {
-  const {
-    primary,
-    // setPrimary,
-
-    secondary,
-    // setSecondary,
-
-    // forward,
-    // transelate,
-
-    finals,
-    // setFinals,
-
-    // info,
-    // setInfo
-  } = React.useContext(SectionContext)
-
-  let ret = []
+  let matches = []
   props.slice.forEach((match) => {
-    ret.push(
+    matches.push(
       <div
         className={'match test' + match.bucket}
         key={'match-div-' + match.bucket}
@@ -510,14 +463,9 @@ function TournamentBracket(props) {
     <div className="bracket-container">
       <h2>{props.title}</h2>
       <div
-        // className={
-        //   'bracket' + ((props.slice[0].bucket === finals[0].bucket ||
-        //                 props.slice[props.slice.length-1].bucket === primary[primary.length-1].bucket) ? '' : ' border-right')
-        // } //ouch todo sivert gi meg finalen til slutt/ start
         className={'bracket' + (props.last ? '' : ' border-right')} //ouch todo sivert gi meg finalen til slutt/ start
-        // key={'bracket-' + props.key}
       >
-        {ret}
+        {matches}
       </div>
     </div>
   )
@@ -526,26 +474,16 @@ function TournamentBracket(props) {
 function UpperBracket(props) {
   const {
     primary,
-    // setPrimary,
-
     secondary,
-    // setSecondary,
-
-    // forward,
-    // transelate,
-
     finals,
-    // setFinals,
-
     info,
     titles,
-    // setInfo
     tournamentTable,
   } = React.useContext(SectionContext)
   if (!primary || !secondary || !tournamentTable) {
     return <div>Loading..</div>
   }
-  let numBrackets = Math.ceil(Math.log2(info.player_count))
+  const numBrackets = Math.ceil(Math.log2(info.player_count))
   let n_matches = Math.pow(2, numBrackets)
   let tournamentBrackets = []
   let competitors = n_matches
@@ -557,7 +495,6 @@ function UpperBracket(props) {
     tournamentBrackets.push(
       <TournamentBracket
         slice={slice}
-        // callback={handleInput(tournament.player_count)}
         title={titles[competitors]}
         key={'bracket-upper' + i}
       />,
@@ -602,29 +539,13 @@ function UpperBracket(props) {
   )
 }
 function LowerBracket(props) {
-  const {
-    primary,
-    // setPrimary,
-
-    // secondary,
-    // setSecondary,
-
-    // forward,
-    // transelate,
-
-    // finals,
-    // setFinals,
-
-    info,
-    // setInfo,
-  } = React.useContext(SectionContext)
+  const { primary, info } = React.useContext(SectionContext)
   if (!primary || !info.player_count) {
     return <div>Loading..</div>
   }
-  let numBrackets = Math.ceil(Math.log2(info.player_count))
-  let n_matches = Math.pow(2, numBrackets)
+  const numBrackets = Math.ceil(Math.log2(info.player_count))
+  const n_matches = Math.pow(2, numBrackets)
   let tournamentBrackets = []
-  let competitors = n_matches
   let start_match = 0
   let round = 1
   for (let i = n_matches / 4; i > 0; i >>= 1) {
@@ -656,7 +577,7 @@ function LowerBracket(props) {
 }
 
 export const DoubleElimination = (props) => {
-  const [isDesktop, setDesktop] = React.useState(window.innerWidth > 1450)
+  //   const [isDesktop, setDesktop] = React.useState(window.innerWidth > 1450)
 
   let numBrackets = Math.ceil(Math.log2(props.info.player_count))
   let power = Math.pow(2, numBrackets)
@@ -683,7 +604,7 @@ export const DoubleElimination = (props) => {
       .then((t) => JSON.parse(t))
       .then((t) => setTournamentTable(t))
       .catch((c) => console.warn('au'))
-  }, [])
+  }, [info])
   const titlesUpper = {
     0: 'Final',
     2: 'Upperfinal',
@@ -751,7 +672,7 @@ export const DoubleElimination = (props) => {
   )
 
   const selectedTab = (tab) => {
-    if (isDesktop) {
+    if (window.innerWidth > 1450) {
       return true
     } else {
       return activeTab === tab
@@ -760,7 +681,7 @@ export const DoubleElimination = (props) => {
 
   return (
     <>
-      {!isDesktop && <Tabs />}
+      {!window.innerWidth > 1450 && <Tabs />}
       <SectionContext.Provider value={upperSection}>
         <UpperBracket selected={selectedTab(tabs[0])} />
       </SectionContext.Provider>
