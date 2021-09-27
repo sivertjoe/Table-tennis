@@ -22,7 +22,7 @@ use server_core::{
 };
 
 const PORT: u32 = 58642;
-pub const DATABASE_FILE: &'static str = "db.db";
+pub const DATABASE_FILE: &str = "db.db";
 
 
 macro_rules! DATABASE {
@@ -57,8 +57,10 @@ fn response_code(e: ServerError) -> u8
             NotOrganizer => 13,
             InvalidGame => 14,
             WrongTournamentCount => 15,
-            AlreadyJoined => 17,
+            AlreadyJoined => 16,
             GameAlreadyPlayed => 17,
+            InvalidTtype => 18,
+            CannotRerun => 19,
         },
         _ => 69,
     }
@@ -86,7 +88,7 @@ fn response_ok() -> serde_json::Value
 async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
-    match DATABASE!(data).create_user(info.username.clone(), info.password.clone())
+    match DATABASE!(data).create_user(info.username, info.password)
     {
         Ok(s) => HttpResponse::Ok().json(response_ok_with(s)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -174,10 +176,8 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
 async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
-    let name = info.username.clone();
-    let password = info.password.clone();
 
-    match DATABASE!(data).login(name, password)
+    match DATABASE!(data).login(info.username, info.password)
     {
         Ok(uuid) => HttpResponse::Ok().json(response_ok_with(uuid)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -188,11 +188,8 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
 async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: ChangePasswordInfo = serde_json::from_str(&info).unwrap();
-    let name = info.username.clone();
-    let password = info.password.clone();
-    let new_password = info.new_password.clone();
 
-    match DATABASE!(data).change_password(name, password, new_password)
+    match DATABASE!(data).change_password(info.username, info.password, info.new_password)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -366,6 +363,24 @@ async fn create_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     }
 }
 
+#[post("/recreate-tournament")]
+async fn recreate_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
+{
+    #[derive(Deserialize)]
+    struct RecreateTournament
+    {
+        token: String,
+        tid:   i64,
+    }
+
+    let info: RecreateTournament = serde_json::from_str(&info).unwrap();
+    match DATABASE!(data).recreate_tournament(info.token, info.tid)
+    {
+        Ok(id) => HttpResponse::Ok().json(response_ok_with(id)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 #[post("/join-tournament")]
 async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
@@ -422,15 +437,39 @@ async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     }
 }
 
-
-#[get("/tournaments")]
-async fn get_tournaments(
+#[get("/tournament-infos")]
+async fn get_tournament_infos(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: web::Query<GetTournamentOptions>,
 ) -> HttpResponse
 {
     let info: GetTournamentOptions = info.into_inner();
-    match DATABASE!(data).get_tournaments(info)
+    match DATABASE!(data).get_tournament_infos(info)
+    {
+        Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
+#[get("/tournament-table/{id}")]
+async fn get_tournament_table(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(id): web::Path<i64>,
+) -> HttpResponse
+{
+    match DATABASE!(data).get_upper_to_lower_table(id)
+    {
+        Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+#[get("/tournament/{id}")]
+async fn get_tournament(
+    data: web::Data<Arc<Mutex<DataBase>>>,
+    web::Path(id): web::Path<i64>,
+) -> HttpResponse
+{
+    match DATABASE!(data).get_tournament_from_id(id)
     {
         Ok(tournaments) => HttpResponse::Ok().json(response_ok_with(tournaments)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -443,7 +482,7 @@ async fn get_is_admin(
     web::Path(token): web::Path<String>,
 ) -> HttpResponse
 {
-    match DATABASE!(data).get_is_admin(token.to_string())
+    match DATABASE!(data).get_is_admin(token)
     {
         Ok(val) => HttpResponse::Ok().json(response_ok_with(val)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -456,7 +495,7 @@ async fn roll_back(
     web::Path(token): web::Path<String>,
 ) -> HttpResponse
 {
-    match DATABASE!(data).admin_rollback(token.to_string())
+    match DATABASE!(data).admin_rollback(token)
     {
         Ok(_) => HttpResponse::Ok().json(response_ok()),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -675,8 +714,11 @@ async fn main() -> std::io::Result<()>
             .service(join_tournament)
             .service(leave_tournament)
             .service(register_tournament_match)
-            .service(get_tournaments)
             .service(delete_tournament)
+            .service(get_tournament_infos)
+            .service(get_tournament)
+            .service(get_tournament_table)
+            .service(recreate_tournament)
     });
 
     if cfg!(debug_assertions)

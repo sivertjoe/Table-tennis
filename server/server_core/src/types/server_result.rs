@@ -10,6 +10,8 @@ pub enum TournamentError
     WrongTournamentCount,
     AlreadyJoined,
     GameAlreadyPlayed,
+    InvalidTtype,
+    CannotRerun,
 }
 
 #[derive(Debug, PartialEq)]

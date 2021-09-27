@@ -20,8 +20,12 @@ const EditSeason = lazy(() =>
 const StatsPage = lazy(() => import('./pages/stats-page/StatsPage.js'))
 const Terminal = lazy(() => import('./pages/admin-page/terminal/Terminal.js'))
 const AdminGuard = lazy(() => import('./components/admin-guard/AdminGuard.js'))
-const CreateTournament = lazy(() => import('./pages/create-tournament/CreateTournament.js'))
-const Tournaments = lazy(() => import('./pages/tournaments/Tournaments.js'))
+const CreateTournament = lazy(() =>
+  import('./pages/create-tournament/CreateTournament.js'),
+)
+const TournamentMenu = lazy(() =>
+  import('./pages/tournamentMenu/TournamentMenu.js'),
+)
 
 const Routes = () => (
   <Switch>
@@ -55,7 +59,7 @@ const Routes = () => (
       </AdminGuard>
     </Route>
     <Route exact path="/create-tournament" component={CreateTournament} />
-    <Route exact path="/tournaments" component={Tournaments} />
+    <Route exact path="/tournaments" component={TournamentMenu} />
     <Redirect to="/" />
   </Switch>
 )

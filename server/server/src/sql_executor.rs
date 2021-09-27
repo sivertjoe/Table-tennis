@@ -1,6 +1,6 @@
 use crate::server::DataBase;
 
-fn get_row_value<'stmt>(row: &rusqlite::Row<'stmt>, index: usize) -> rusqlite::Result<String>
+fn get_row_value(row: &rusqlite::Row, index: usize) -> rusqlite::Result<String>
 {
     use rusqlite::types::ValueRef::*;
     let res = row.get_raw_checked(index)?;
@@ -9,8 +9,8 @@ fn get_row_value<'stmt>(row: &rusqlite::Row<'stmt>, index: usize) -> rusqlite::R
         Null => "NULL".to_string(),
         Integer(i) => i.to_string(),
         Real(f) => f.to_string(),
-        Text(s) => std::str::from_utf8(&s).unwrap().to_string(),
-        Blob(b) => std::str::from_utf8(&b).unwrap().to_string(),
+        Text(s) => std::str::from_utf8(s).unwrap().to_string(),
+        Blob(b) => std::str::from_utf8(b).unwrap().to_string(),
     })
 }
 

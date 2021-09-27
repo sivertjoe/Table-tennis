@@ -12,7 +12,7 @@ class TournamentList extends Component {
       info: '',
       color: 'green',
       tournament: args.tournament,
-      users: args.tournament.data.Players,
+      users: args.players,
       username: localStorage.getItem('username'),
     }
 
@@ -22,7 +22,7 @@ class TournamentList extends Component {
   }
 
   static getDerivedStateFromProps(props, state) {
-    return state.tournament.tournament.id === props.tournament.tournament.id
+    return state.tournament.id === props.tournament.id
       ? {
           ...props,
           users: state.users,
@@ -63,11 +63,11 @@ class TournamentList extends Component {
   }
 
   render() {
-    const id = this.state.tournament.tournament.id
-    const tournamentName = this.state.tournament.tournament.name
-    const numPlayers = this.state.tournament.tournament.player_count
+    const id = this.state.tournament.id
+    const tournamentName = this.state.tournament.name
+    const numPlayers = this.state.tournament.player_count
     const joined = this.state.users.some((user) => user === this.state.username)
-    const organizerName = this.state.tournament.tournament.organizer_name
+    const organizerName = this.state.tournament.organizer_name
     const name = localStorage.getItem('username')
 
     const list = this.state.users.map((name, index) => (

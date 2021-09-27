@@ -113,7 +113,7 @@ impl DataBase
             u8
         )?;
 
-        if info.len() == 0
+        if info.is_empty()
         {
             let count = SQL_TUPLE_NAMED!(
                 self,
@@ -144,7 +144,7 @@ impl DataBase
             return Ok(u);
         }
 
-        return Err(ServerError::WrongUsernameOrPassword);
+        Err(ServerError::WrongUsernameOrPassword)
     }
 
     pub fn respond_to_match(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
@@ -242,9 +242,9 @@ impl DataBase
         self._edit_users(users, action, token)
     }
 
-    pub fn get_user(&self, name: &String) -> ServerResult<User>
+    pub fn get_user(&self, name: &str) -> ServerResult<User>
     {
-        let mut user = self.get_user_without_matches_by("name", "=", name.as_str())?;
+        let mut user = self.get_user_without_matches_by("name", "=", name)?;
         user.match_history = self.get_matches(user.id)?;
         user.badges = self.get_badges(user.id)?;
         Ok(user)
@@ -383,7 +383,7 @@ impl DataBase
     {
         let sql = "select id, password_hash from users where name = :name;";
         let mut info = SQL_TUPLE_NAMED!(self, sql, named_params! {":name" : name}, i64, String)?;
-        if info.len() == 0
+        if info.is_empty()
         {
             return Err(ServerError::UserNotExist);
         }
@@ -394,7 +394,7 @@ impl DataBase
             return self.update_password(id, new_password);
         }
 
-        return Err(ServerError::PasswordNotMatch);
+        Err(ServerError::PasswordNotMatch)
     }
 
     pub fn request_reset_password(&self, name: String) -> ServerResult<()>
@@ -403,7 +403,7 @@ impl DataBase
         let user_id = self.get_user_without_matches(&name)?.id;
         let params = named_params! {":id": user_id};
         let notification = SQL_TUPLE_NAMED!(self, sql, params, i64)?;
-        if notification.len() > 0
+        if !notification.is_empty()
         {
             return Err(ServerError::ResetPasswordDuplicate);
         }
@@ -453,7 +453,7 @@ impl DataBase
 
     pub fn respond_to_new_user(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(token.clone())?
+        if !self.get_is_admin(token)?
         {
             return Err(ServerError::Unauthorized);
         }
@@ -469,7 +469,7 @@ impl DataBase
 
     pub fn respond_to_reset_password(&self, id: i64, ans: u8, token: String) -> ServerResult<()>
     {
-        if !self.get_is_admin(token.clone())?
+        if !self.get_is_admin(token)?
         {
             return Err(ServerError::Unauthorized);
         }
@@ -515,15 +515,7 @@ impl DataBase
             Some(ParamsType::Params(p)) => stmt.query_map(p, T::from_sql)?,
         };
 
-        let mut vec = Vec::new();
-        for elem in result
-        {
-            if let Ok(r) = elem
-            {
-                vec.push(r);
-            };
-        }
-        Ok(vec)
+        Ok(result.flatten().collect())
     }
 
     pub fn get_notifications(
@@ -721,7 +713,7 @@ impl DataBase
             }
         }
 
-        if errors.len() > 0
+        if !errors.is_empty()
         {
             return Err(ServerError::Critical(format!(
                 "The following errors occured: {:?}",
@@ -732,7 +724,7 @@ impl DataBase
         Ok(0)
     }
 
-    fn check_unique_name(&self, name: &String) -> ServerResult<bool>
+    fn check_unique_name(&self, name: &str) -> ServerResult<bool>
     {
         let sql = "select
              (select count(*) from users where name = :name)+
@@ -740,7 +732,7 @@ impl DataBase
         ";
 
         let count = SQL_TUPLE_NAMED!(self, sql, named_params! {":name": name}, i64)?;
-        if count.len() == 0
+        if count.is_empty()
         {
             return Err(ServerError::Critical("Could not count tables".into()));
         }
@@ -773,7 +765,7 @@ impl DataBase
             String
         )?;
 
-        if user.len() == 0
+        if user.is_empty()
         {
             return Err(ServerError::Critical("err".into())); // Should not be possible to reach this
         }
@@ -832,11 +824,11 @@ impl DataBase
                     "=",
                     &match_notification.winner.to_string(),
                 )?;
-                self.create_match_from_notification(&match_notification, &winner, user)?;
+                self.create_match_from_notification(match_notification, winner, user)?;
             };
 
-            self.delete_match_notification(&match_notification)?;
-            return Ok(());
+            self.delete_match_notification(match_notification)?;
+            Ok(())
         }
         else
         {
@@ -944,7 +936,7 @@ impl DataBase
         Ok(())
     }
 
-    fn user_have_token(&self, user_id: i64, token: &String) -> ServerResult<bool>
+    fn user_have_token(&self, user_id: i64, token: &str) -> ServerResult<bool>
     {
         let sql = "select count(*) from users where id = :id and uuid = :token";
         let c = SQL_TUPLE_NAMED!(self, sql, named_params! {":id": user_id, ":token": token}, i64)?;
@@ -964,7 +956,7 @@ impl DataBase
     {
         let sql = "select user from reset_password_notification where id = :id;";
         let user_id = SQL_TUPLE_NAMED!(self, sql, named_params! {":id" : id}, i64)?;
-        if user_id.len() == 0
+        if user_id.is_empty()
         {
             return Err(ServerError::Critical("Something went wrong".into())); // Should not be possible to reach this
         }
@@ -977,7 +969,7 @@ impl DataBase
         Ok(())
     }
 
-    fn hash(&self, word: &String) -> String
+    fn hash(&self, word: &str) -> String
     {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
@@ -1026,14 +1018,8 @@ impl DataBase
             })
         })?;
 
-        let mut vec = Vec::new();
-        for badge in badges
-        {
-            if let Ok(b) = badge
-            {
-                vec.push(b);
-            }
-        }
+
+        let mut vec: Vec<Badge> = badges.flatten().collect();
 
         let tournament_badges: Vec<TournamentBadge> =
             self.sql_many("select * from tournament_badges where pid = ?1", _params![pid])?;
@@ -1046,7 +1032,7 @@ impl DataBase
                 id: image.id, tooltip: tournament_name, name: image.name
             });
         }
-        return Ok(vec);
+        Ok(vec)
     }
 
     fn get_tournament_name(&self, tid: i64) -> ServerResult<String>
@@ -1060,6 +1046,7 @@ impl DataBase
         let sql = "select id, name, elo, user_role from users
              where user_role & :user_role = :val
              order by elo desc";
+
         let mut users: Vec<User> =
             self.sql_many(sql, _named_params! {":user_role": user_role, ":val": val})?;
         for user in &mut users
@@ -1069,9 +1056,9 @@ impl DataBase
         Ok(users)
     }
 
-    pub fn get_user_without_matches(&self, name: &String) -> ServerResult<User>
+    pub fn get_user_without_matches(&self, name: &str) -> ServerResult<User>
     {
-        self.get_user_without_matches_by("name", "=", name.as_str())
+        self.get_user_without_matches_by("name", "=", name)
     }
 
     pub fn get_user_without_matches_by(
@@ -1108,7 +1095,7 @@ impl DataBase
         reader.read_line(&mut buffer).expect("Reading line");
 
         let mut hasher = Sha256::new();
-        hasher.update(&buffer.trim_end_matches("\n"));
+        hasher.update(&buffer.trim_end_matches('\n'));
         let result = hasher.finalize();
         format!("{:x}", result)
     }
