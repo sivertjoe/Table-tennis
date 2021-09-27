@@ -7,51 +7,41 @@ import * as Api from '../../api/TournamentApi'
 
 import { default as TournamentComponenet } from '../../components/tournament/Tournament.js'
 import TournamentList from '../../components/tournament-list/TournamentList'
-import { Route, Router } from 'react-router-dom'
-import { useHistory } from 'react-router-dom'
-import { useLocation } from 'react-router-dom'
-import { useParams } from 'react-router-dom'
+import { useLocation } from 'react-router'
+
 function TournamentMenu(props) {
   const tabs = ['In progress', 'Old']
   const [activeTab, setActiveTab] = useState(tabs[0])
+  const [tournamentList, setTournamentList] = useState(undefined)
   const [selectedTournament, setSelectedTournament] = useState(undefined)
-  const [data, setData] = useState(undefined)
-  //   const [loading, data] = Api.GetTournamentInfos()
-  const [info, setInfo] = useState(undefined)
+  const location = useLocation()
   const [isDesktop, setDesktop] = useState(window.innerWidth > 1450)
-  //   let h = useHistory()
-  //   let l = useLocation()
-  //   let { match } = useParams()
-
-  //   useEffect(() => {
-  //     console.log(h)
-  //   }, [h])
-  //   useEffect(() => {
-  //     console.log(l)
-  //   }, [l])
-
-  //   useEffect(() => {
-  //     console.log(match)
-  //   }, [match])
   useEffect(() => {
-    Api.getTournamentInfosToggle('active')
-      .then((data) => setData(data))
-      .catch('ahaj')
-  }, [])
+    const updateTInfo = (state) =>
+      Api.getTournamentInfosToggle(state)
+        .then((tournaments) => {
+          setTournamentList(tournaments)
+        })
+        .catch('could not get tournamentlist')
 
-  useEffect(() => {
-    if (data) {
-      const match = new URLSearchParams(props.location.search).get('match')
-      setSelectedTournament(data.find((m) => m.id == match))
+    const id = new URLSearchParams(props.location.search).get('match')
+    if (id === selectedTournament?.tournament.id) return
+    if (id) {
+      Api.getTournament(id)
+        .then((tournament) => {
+          let state = tournament.tournament.state === 2 ? 'old' : 'active'
+          let tab = tabs[tournament.tournament.state === 2 ? 1 : 0]
+          setSelectedTournament(tournament)
+          if (tab !== activeTab || !tournamentList) updateTInfo(state)
+          if (tab !== activeTab) setActiveTab(tab)
+        })
+        .catch((err) => console.warn('jaha' + err))
+    } else {
+      setSelectedTournament(undefined)
+      let state = activeTab === tabs[1] ? 'old' : 'active'
+      updateTInfo(state)
     }
-  }, [data, props.location.search])
-
-  useEffect(() => {
-    if (selectedTournament) {
-      props.history.push({ search: '?match=' + selectedTournament?.id })
-      selectNewTournament(selectedTournament)
-    }
-  }, [selectedTournament, props.history])
+  }, [location.search])
 
   const updateMedia = () => {
     setDesktop(window.innerWidth > 1450)
@@ -66,10 +56,11 @@ function TournamentMenu(props) {
     if (tab === tabs[1]) arg = 'old'
     else arg = 'active'
 
+    setSelectedTournament(undefined)
+    props.history.push('/tournaments')
     Api.getTournamentInfosToggle(arg)
-      .then((data) => setData(data))
+      .then((tournaments) => setTournamentList(tournaments))
       .catch('ahaj')
-
     setActiveTab(tab)
   }
 
@@ -92,12 +83,13 @@ function TournamentMenu(props) {
     </div>
   )
 
-  const selectNewTournament = (tinfo) => {
-    Api.getTournament(tinfo?.id)
-      .then((info) => {
-        setInfo(info)
-      })
-      .catch((err) => console.log('jaha' + err))
+  const selectTournament = (tournamentListItem) => {
+    const id = new URLSearchParams(props.location.search).get('match')
+
+    if (id === tournamentListItem?.id) return
+    props.history.push({
+      search: '?match=' + tournamentListItem?.id,
+    })
   }
 
   const Menu = (props) => (
@@ -110,10 +102,11 @@ function TournamentMenu(props) {
               <tr
                 key={i}
                 className={
-                  selectedTournament?.name === info.name ? 'orange' : ''
+                  selectedTournament?.tournament.id === info.id ? 'orange' : ''
                 }
-                onClick={() => setSelectedTournament(info)}
+                onClick={() => selectTournament(info)}
               >
+                {/* // setSelectedTournament(info)} */}
                 <td>{info.name}</td>
                 <td>
                   {info.player_count === info.num_players
@@ -139,7 +132,6 @@ function TournamentMenu(props) {
         onClick={() => {
           if (props.history.length > 1) {
             setSelectedTournament(undefined)
-            setInfo(undefined)
             props.history.push('/tournaments')
           } else {
             props.history.goBack()
@@ -153,23 +145,25 @@ function TournamentMenu(props) {
 
   const TournamentContainer = (data) => (
     <div className={'tournament-container'}>
-      {info ? (
-        info.tournament.state > 0 ? (
-          //   <div className="center">
-          //   {name === organizerName && <DeleteTournament id={id} />}
-          // </div>
+      {selectedTournament?.tournament.name ? (
+        selectedTournament.tournament.state > 0 ? (
           <TournamentComponenet
-            matches={info.data.Games}
-            info={info.tournament}
+            matches={selectedTournament.data.Games}
+            info={selectedTournament.tournament}
+            table={selectedTournament.table}
           />
         ) : (
           <TournamentList
-            players={info.data.Players}
-            tournament={info.tournament}
+            players={selectedTournament.data.Players}
+            tournament={selectedTournament.tournament}
           />
         )
       ) : (
-        <h1>No tournament selected...</h1>
+        isDesktop && (
+          <>
+            <h1>No tournament selected...</h1>
+          </>
+        )
       )}
     </div>
     //</div>
@@ -180,21 +174,28 @@ function TournamentMenu(props) {
 
   return (
     <>
-      {!data && <h1>Loading..</h1>}
-      {data && (
+      {!tournamentList && <h1>Loading..</h1>}
+      {tournamentList && (
         <div className="tournament-grid">
-          {isDesktop && <Menu info={data} history={props.history} />}
+          {isDesktop && (
+            <>
+              <Menu info={tournamentList} history={props.history} />
+              <TournamentContainer info={tournamentList} />
+            </>
+          )}
 
           {!isDesktop && (
             <>
-              {!selectedTournament ? (
-                <Menu info={data} history={props.history} />
+              {!selectedTournament?.tournament.name ? (
+                <Menu info={tournamentList} history={props.history} />
               ) : (
-                <Arrow />
+                <>
+                  <Arrow />
+                  <TournamentContainer info={tournamentList} />
+                </>
               )}
             </>
           )}
-          <TournamentContainer info={data} />
         </div>
       )}
     </>

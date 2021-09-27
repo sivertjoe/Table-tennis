@@ -3,7 +3,8 @@ import React from 'react'
 import '../../index.css'
 import './Tournament.css'
 import * as Api from '../../api/TournamentApi'
-
+import RecreateTournament from '../delete-tournament/RecreateTournament'
+import DeleteTournament from '../delete-tournament/DeleteTournament'
 import Button from '../button/Button'
 import Modal from 'react-modal'
 import Select from 'react-select'
@@ -72,18 +73,13 @@ function ForwardUpper(
   if (match.bucket === biggest_power_of_two(info.player_count)) {
     //need one more match
     if (winner === match.player2) {
-      //   const secondFinal = Object.assign({}, finals[0])
-      //   secondFinal.bucket++
-      console.log(finals)
       finals[1].player1 = finals[0].player1
       finals[1].player2 = finals[0].player2
-      //   finals.push(secondFinal)
-      console.log(finals)
 
       setFinals([...finals])
     } else {
       //winner of finale. is done
-      setInfo({ ...info, winner: winner })
+      setInfo({ ...info, winner: winner, state: 2 })
     }
   } else if (match.bucket === biggest_power_of_two(info.player_count) + 1) {
     setInfo({ ...info, winner: winner })
@@ -282,7 +278,6 @@ function TournamentMatch(props) {
     }
 
     const matches = findFowardedBuckets(match.bucket)
-    console.log('findFowardedBuckets', matches)
     matches.forEach((m) => {
       replay = replay || isMatchPlayed(m)
     })
@@ -313,7 +308,7 @@ function TournamentMatch(props) {
 
     //makes finals able to be replayed
     if (match.bucket >= finals[0].bucket) {
-      setInfo({ ...info, winner: '' })
+      setInfo({ ...info, winner: '', state: 1 })
       if (match.bucket === finals[0].bucket) {
         finals[1].player1 = ''
         finals[1].player2 = ''
@@ -577,8 +572,6 @@ function LowerBracket(props) {
 }
 
 export const DoubleElimination = (props) => {
-  //   const [isDesktop, setDesktop] = React.useState(window.innerWidth > 1450)
-
   let numBrackets = Math.ceil(Math.log2(props.info.player_count))
   let power = Math.pow(2, numBrackets)
 
@@ -595,16 +588,11 @@ export const DoubleElimination = (props) => {
   )
   const [info, setInfo] = React.useState(props.info)
 
-  const tabs = ['Upper Bracket', 'Lower Bracket']
+  const tabs = ['Upper', 'Lower']
   const [activeTab, setActiveTab] = React.useState(tabs[0])
 
-  const [tournamentTable, setTournamentTable] = React.useState(undefined)
-  React.useEffect(() => {
-    Api.getTournamentTable(info.id)
-      .then((t) => JSON.parse(t))
-      .then((t) => setTournamentTable(t))
-      .catch((c) => console.warn('au'))
-  }, [info])
+  const tournamentTable = JSON.parse(props.table)
+
   const titlesUpper = {
     0: 'Final',
     2: 'Upperfinal',
@@ -678,10 +666,11 @@ export const DoubleElimination = (props) => {
       return activeTab === tab
     }
   }
-
+  const organizerName = props.info.organizer_name
+  const name = localStorage.getItem('username')
   return (
     <>
-      {!window.innerWidth > 1450 && <Tabs />}
+      {window.innerWidth < 1450 && <Tabs />}
       <SectionContext.Provider value={upperSection}>
         <UpperBracket selected={selectedTab(tabs[0])} />
       </SectionContext.Provider>
@@ -689,6 +678,11 @@ export const DoubleElimination = (props) => {
       <SectionContext.Provider value={lowerSection}>
         <LowerBracket selected={selectedTab(tabs[1])} />
       </SectionContext.Provider>
+
+      {name === organizerName && <DeleteTournament id={info.id} />}
+      {name === organizerName && info.state === 2 && (
+        <RecreateTournament id={info.id} />
+      )}
     </>
   )
 }

@@ -6,7 +6,7 @@ const ip = process.env.REACT_APP_IP ?? '58642'
 const apiUrl = url + ':' + ip + '/'
 
 export const GetHook = (url) => {
-  const { loading, error, data = [] } = useFetch(apiUrl + url, {}, [])
+  const { loading, data = [] } = useFetch(apiUrl + url, {}, [])
 
   if (!loading) {
     if (data.status !== 0) {

@@ -45,3 +45,9 @@ export const deleteTournament = (tid) =>
     token: localStorage.getItem('token') ?? '',
     tid: tid,
   })
+
+export const recreateTournament = (tid) =>
+  BaseApi.post('recreate-tournament', {
+    token: localStorage.getItem('token') ?? '',
+    tid: tid,
+  })
