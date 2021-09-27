@@ -162,6 +162,7 @@ impl DataBase
                 name            varchar(36),
                 prize           integer,
                 state           smallint,
+                ttype           smallint,
                 player_count    integer,
                 organizer       integer
             )",
@@ -227,6 +228,17 @@ impl DataBase
             NO_PARAMS,
         )
         .expect("Create variables images");
+
+        conn.execute(
+            "create table if not exists tournament_lookup (
+                id              integer primary key autoincrement,
+                tournament      integer,
+                _table           blob,
+                foreign key(tournament) references tournaments(id)
+            )",
+            NO_PARAMS,
+        )
+        .expect("creating tournament_lookup");
 
 
 

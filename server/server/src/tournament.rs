@@ -1,7 +1,8 @@
-use std::io::prelude::*;
+use std::{array::IntoIter, collections::HashMap, io::prelude::*};
 
 use rusqlite::params;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
 use server_core::{
     constants::*,
     types::{FromSql, *},
@@ -12,6 +13,26 @@ use crate::{
     _params,
     server::{DataBase, ParamsType},
 };
+
+#[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
+pub enum TournamentType
+{
+    SingleElimination,
+    DoubleElimination,
+}
+
+impl From<u8> for TournamentType
+{
+    fn from(n: u8) -> Self
+    {
+        match n
+        {
+            0 => TournamentType::SingleElimination,
+            1 => TournamentType::DoubleElimination,
+            _ => unreachable!(),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub struct GetTournamentOptions
@@ -49,10 +70,11 @@ pub struct CreateTournament
     name:            String,
     image:           String,
     player_count:    i64,
+    ttype:           String,
 }
 
 #[derive(Deserialize)]
-#[cfg_attr(test, derive(Clone))]
+#[cfg_attr(test, derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq))]
 pub struct RegisterTournamentMatch
 {
     organizer_token: String,
@@ -62,12 +84,29 @@ pub struct RegisterTournamentMatch
 }
 
 #[repr(u8)]
+#[cfg_attr(test, derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq))]
 pub enum TournamentState
 {
     Created,
     InProgress,
     Done,
 }
+
+impl From<u8> for TournamentState
+{
+    fn from(n: u8) -> Self
+    {
+        use TournamentState::*;
+        match n
+        {
+            0 => Created,
+            1 => InProgress,
+            2 => Done,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Serialize)]
 #[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 enum TournamentInfoState
@@ -80,17 +119,20 @@ enum TournamentInfoState
 #[cfg_attr(test, derive(Debug, PartialOrd, Ord, Eq, PartialEq))]
 struct TournamentGameInfo
 {
-    id:      i64,
-    player1: String,
-    player2: String,
-    bucket:  i64,
+    id:            i64,
+    player1:       String,
+    player2:       String,
+    bucket:        i64,
+    parent_bucket: i64,
 }
 
 #[derive(Sql)]
 struct TournamentWinner
 {
+    #[allow(dead_code)]
     id:         i64,
     player:     i64,
+    #[allow(dead_code)]
     tournament: i64,
 }
 
@@ -100,6 +142,7 @@ pub struct TournamentInfo
 {
     tournament: SendTournament,
     data:       TournamentInfoState,
+    table: Option<String>
 }
 
 #[derive(Sql)]
@@ -109,6 +152,7 @@ pub struct Tournament
     pub name:         String,
     pub prize:        i64,
     pub state:        u8,
+    pub ttype:        u8,
     pub player_count: i64,
     pub organizer:    i64,
 }
@@ -121,6 +165,7 @@ pub struct SendTournament
     prize:          String,
     player_count:   i64,
     state:          u8,
+    ttype:          u8,
     organizer_name: String,
     winner:         String,
 }
@@ -163,8 +208,8 @@ impl TournamentGame
         TournamentGame {
             id:         -1, // Will be initialized by sqlite
             tournament: tid,
-            player1:    -1,
-            player2:    -1,
+            player1:    0,
+            player2:    0,
             bucket:     bucket,
         }
     }
@@ -182,23 +227,69 @@ impl TournamentGame
 
     fn get_single(&self) -> i64
     {
-        if self.player1 != -1 { self.player1 } else { self.player2 }
+        if self.player1 != 0 { self.player1 } else { self.player2 }
     }
 
     fn is_single(&self) -> bool
     {
-        (self.player1 == -1 && self.player2 != -1) || (self.player1 != -1 && self.player2 == -1)
+        (self.player1 == 0 && self.player2 != 0) || (self.player1 != 0 && self.player2 == 0)
     }
 
     fn insert_player(&mut self, player: i64)
     {
-        if self.player1 == -1
+        if self.player1 == 0
         {
             self.player1 = player;
         }
         else
         {
             self.player2 = player;
+        }
+    }
+}
+
+struct LoserBracketGenerator(i64, i64);
+
+impl LoserBracketGenerator
+{
+    fn new(p: i64) -> Self
+    {
+        LoserBracketGenerator(p, 1)
+    }
+}
+
+impl Iterator for LoserBracketGenerator
+{
+    type Item = Vec<i64>;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        if self.0 == 1
+        {
+            None
+        }
+        else
+        {
+            let p = self.0;
+            self.0 >>= 1;
+            Some(((p / 2 - 1)..(p - 1)).rev().collect::<Self::Item>())
+        }
+    }
+}
+
+impl DoubleEndedIterator for LoserBracketGenerator
+{
+    fn next_back(&mut self) -> Option<Vec<i64>>
+    {
+        if self.1 == self.0
+        {
+            None
+        }
+        else
+        {
+            self.1 <<= 1;
+            let p = self.1;
+            Some(((p / 2 - 1)..(p - 1)).collect::<Vec<i64>>())
         }
     }
 }
@@ -215,7 +306,7 @@ impl DataBase
             .unwrap_or(1);
 
         // Use default picture
-        let prize = if info.image == ""
+        let prize = if info.image.is_empty()
         {
             self.get_default_prize()?
         }
@@ -227,7 +318,13 @@ impl DataBase
         let organizer_pid =
             self.get_user_without_matches_by("uuid", "=", &info.organizer_token)?.id;
 
-        self._create_tournament(organizer_pid, info.name, prize, info.player_count)?;
+        let ttype = match info.ttype.as_str()
+        {
+            "singleElimination" => TournamentType::SingleElimination,
+            "doubleElimination" => TournamentType::DoubleElimination,
+            _ => return Err(ServerError::Tournament(TournamentError::InvalidTtype)),
+        };
+        self._create_tournament(organizer_pid, info.name, prize, info.player_count, ttype)?;
         Ok(())
     }
 
@@ -257,7 +354,7 @@ impl DataBase
         let mut file = std::fs::File::create(&format!("{}/{}", ASSETS_PATH, &image_name))
             .expect("creating file");
 
-        let bin: Vec<&str> = image.as_str().splitn(2, ",").collect();
+        let bin: Vec<&str> = image.as_str().splitn(2, ',').collect();
         let bin = base64::decode(bin[1]).unwrap();
         file.write_all(&bin).expect("Writing into file");
 
@@ -278,6 +375,7 @@ impl DataBase
         name: String,
         prize: i64,
         player_count: i64,
+        ttype: TournamentType,
     ) -> ServerResult<()>
     {
         if player_count < 4 || player_count > 64
@@ -286,9 +384,9 @@ impl DataBase
         }
 
         self.conn.execute(
-            "insert into tournaments (name, prize, state, organizer, player_count) values (?1, \
-             ?2, ?3, ?4, ?5)",
-            params![name, prize, TournamentState::Created as i64, pid, player_count],
+            "insert into tournaments (name, prize, state, ttype, organizer, player_count) values \
+             (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![name, prize, TournamentState::Created as i64, ttype as i64, pid, player_count],
         )?;
         Ok(())
     }
@@ -308,6 +406,93 @@ impl DataBase
             params![tid, pid],
         )?;
         Ok(())
+    }
+
+    fn get_player_ids(&self, tid: i64) -> ServerResult<Vec<i64>>
+    {
+        let mut vec: Vec<i64> = Vec::new();
+        for game in self
+            .sql_many::<TournamentGame, _>(
+                "select * from tournament_games where tournament = ?1",
+                _params![tid],
+            )?
+            .into_iter()
+        {
+            if game.player1 > 0 && !vec.contains(&game.player1)
+            {
+                
+                vec.push(game.player1);
+            }
+            if game.player2 > 0 && !vec.contains(&game.player2)
+            {
+                vec.push(game.player2);
+            }
+        }
+        Ok(vec)
+    }
+
+    pub fn recreate_tournament(&self, token: String, tid: i64) -> ServerResult<i64>
+    {
+        let organizer_id = self.get_user_without_matches_by("uuid", "=", &token)?.id;
+
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![tid])?;
+        if organizer_id != tournament.organizer
+        {
+            return Err(ServerError::Tournament(TournamentError::NotOrganizer));
+        }
+
+        let players = self.get_player_ids(tournament.id)?;                     
+        let regex = regex::Regex::new(r"^(.*?)(\d+)$").unwrap();
+        println!("{}", tournament.name);
+        
+
+
+        let name = if let Some(capture) = regex.captures(&tournament.name)
+        {
+            match capture.get(1)
+            {
+                Some(s) => 
+                {
+                    
+                    let s = s.as_str();
+                    let val: i64 = match capture.get(2)
+                    {
+                        Some(v) =>  v.as_str().parse::<i64>().unwrap() + 1,
+                        _ => 2,
+                    };
+                    format!("{}{}", s, val)
+                }
+                _ => 
+                {
+                    let s = capture.get(2).unwrap().as_str();
+                    let val: i64 = s.parse::<i64>().unwrap() + 1;
+                    format!("{}", val)
+                }
+            }
+        }
+        else
+        {
+            format!("{}2", tournament.name)
+        };
+
+
+        self._create_tournament(
+            tournament.organizer,
+            name,
+            tournament.prize,
+            tournament.player_count,
+            tournament.ttype.into(),
+        )?;
+
+        let tournament = self
+            .sql_one::<Tournament, _>("select * from tournaments order by id desc limit 1", None)?;
+
+        let tid = tournament.id;
+        self.generate_tournament(tournament, players)?;
+        self.update_tournament_state(tid, TournamentState::InProgress)?;
+
+        Ok(tid)
     }
 
     pub fn join_tournament(&self, token: String, tid: i64) -> ServerResult<bool>
@@ -355,6 +540,156 @@ impl DataBase
         )
     }
 
+    fn get_all_single_tournament_games(&self, tid: i64) -> ServerResult<Vec<TournamentGame>>
+    {
+        self.sql_many::<TournamentGame, _>(
+            "select * from tournament_games where tournament = ?1 and bucket >= 0",
+            _params![tid],
+        )
+    }
+
+    fn handle_game_rerun(
+        &self,
+        game: &TournamentGame,
+        old: &TournamentMatch,
+        tournament: &Tournament,
+    ) -> ServerResult<()>
+    {
+        let delete_match = |old: &TournamentMatch| -> ServerResult<()> {
+            self.conn
+                .execute("delete from tournament_matches where id = ?1", params![old.id])?;
+            Ok(())
+        };
+        let remove_previous_tournament_winner = || -> ServerResult<()> {
+            self.conn
+                .execute("delete from tournament_winners where tournament = ?1", params![
+                    tournament.id
+                ])?;
+            self.conn
+                .execute("delete from tournament_badges where tid = ?1", params![tournament.id])?;
+
+            // The state of the tournament should now also be not done
+            self.update_tournament_state(tournament.id, TournamentState::InProgress)?;
+
+            Ok(())
+        };
+
+        let parent_has_played = |bucket: i64| -> ServerResult<bool> {
+            let next = self.get_parent_bucket(bucket, tournament);
+            
+            let id = self
+                .sql_one::<TournamentGame, _>(
+                    "select * from tournament_games where bucket = ?1 and tournament = ?2",
+                    _params![next, tournament.id],
+                )?
+                .id;
+
+            Ok(self
+                .sql_one::<TournamentMatch, _>(
+                    "select * from tournament_matches where game = ?1",
+                    _params![id],
+                )
+                .is_ok())
+        };
+
+        if tournament.ttype == TournamentType::SingleElimination as u8
+        {
+            // New tournament winner
+            if game.bucket == 0
+            {
+                remove_previous_tournament_winner()?;
+            }
+            // If was _not_ the final, so I don't think I need to do anything else..
+            delete_match(old)?;
+        }
+        else if tournament.ttype == TournamentType::DoubleElimination as u8
+        {
+            let biggest_power_of_two =
+                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+            let power = 2_i64.pow(biggest_power_of_two);
+
+            match game.bucket
+            {
+                // Winners and losers final
+                0 | -1 =>
+                {
+                    let parent_played = parent_has_played(game.bucket)?;
+
+                    if tournament.state == TournamentState::Done as u8 || parent_played
+                    {
+                        return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                    }
+                    // ooowee,,, we'll allow it (y)
+                    delete_match(old)?;
+                },
+
+                // first final
+                n if n == power =>
+                {
+                    if tournament.state == TournamentState::Done as u8
+                    {
+                        // This implies a second final has been played
+                        if parent_has_played(game.bucket)?
+                        {
+                            return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                        }
+                        // This _was_ the final
+                        else
+                        {
+                            remove_previous_tournament_winner()?;
+                            delete_match(old)?;
+                        }
+                    }
+                    else
+                    {
+                        // If it is _not_ done, and this game has already been played, it implies
+                        // there exists a second final that has NOT been played
+                        delete_match(old)?;
+                    }
+                },
+
+                // second final
+                n if n == (power + 1) =>
+                {
+                    remove_previous_tournament_winner()?;
+                    delete_match(old)?;
+                },
+
+                // winners bracket
+                _ =>
+                {
+                    let parent_played = parent_has_played(game.bucket)?;
+                    if parent_played
+                    {
+                        return Err(ServerError::Tournament(TournamentError::CannotRerun));
+                    }
+                    delete_match(old)?;
+                    if game.bucket > 0
+                    {
+                        // Reset loser bracket game OOF
+                        let pos = |i: i64| -(i + 1);
+                        let s = self.get_upper_to_lower_table(tournament.id)?;
+                        let table: Vec<[i64; 3]> = serde_json::from_str(&s).expect("Getting map");
+                        let index =
+                            table.iter().position(|b| b[0] == game.bucket).expect("Getting id");
+
+                        let sql = format!(
+                            "update tournament_games set player{} = ?1 where bucket = ?2 and \
+                             tournament = ?3",
+                            table[index][2]
+                        );
+                        self.conn.execute(&sql, params![
+                            pos(game.bucket),
+                            table[index][1],
+                            tournament.id
+                        ])?;
+                    }
+                },
+            };
+        }
+        Ok(())
+    }
+
     pub fn register_tournament_match(
         &self,
         register_game: RegisterTournamentMatch,
@@ -373,47 +708,224 @@ impl DataBase
             .get_user_without_matches_by("uuid", "=", &register_game.organizer_token)?
             .id;
 
-        if tournament.state != TournamentState::InProgress as u8
-        {
-            return Err(ServerError::Tournament(TournamentError::WrongState));
-        }
-
         if organizer_id != tournament.organizer
         {
             return Err(ServerError::Tournament(TournamentError::NotOrganizer));
         }
 
-        if game.player1 == -1 || game.player2 == -1
+        if game.player1 == 0 || game.player2 == 0
         {
             return Err(ServerError::Tournament(TournamentError::InvalidGame));
         }
 
-        if self
-            .sql_one::<TournamentMatch, _>(
-                "select * from tournament_matches where game = ?1",
-                _params![game.id],
-            )
-            .is_ok()
+        if let Ok(old) = self.sql_one::<TournamentMatch, _>(
+            "select * from tournament_matches where game = ?1",
+            _params![game.id],
+        )
         {
-            return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
+            // return Err(ServerError::Tournament(TournamentError::GameAlreadyPlayed));
+            self.handle_game_rerun(&game, &old, &tournament)?;
         }
+        match tournament.ttype.into()
+        {
+            TournamentType::SingleElimination =>
+            {
+                self.handle_single_elimination_match(&game, &register_game, &tournament)?
+            },
+            TournamentType::DoubleElimination =>
+            {
+                self.handle_double_elimination_match(&game, &register_game, &tournament)?
+            },
+        }
+        Ok(())
+    }
 
+    fn handle_double_elimination_match(
+        &self,
+        game: &TournamentGame,
+        register_game: &RegisterTournamentMatch,
+        tournament: &Tournament,
+    ) -> ServerResult<()>
+    {
+        let mut games = self.get_all_single_tournament_games(game.tournament)?;
+        let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
+        let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
+
+        self.create_match_from_game(winner_id, loser_id, game.id)?;
+
+        let biggest_power_of_two =
+            ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+        let power = 2_i64.pow(biggest_power_of_two);
+
+        match game.bucket
+        {
+            // Winners bracket final game
+            0 =>
+            {
+                self.conn.execute(
+                    "update tournament_games set player1 = ?1 where bucket = ?2 and tournament = \
+                     ?3",
+                    params![winner_id, power, tournament.id],
+                )?;
+                self.send_loser_to_losers_bracket(loser_id, game, tournament.id)?;
+            },
+            // Losers bracket final game
+            -1 =>
+            {
+                self.conn.execute(
+                    "update tournament_games set player2 = ?1 where bucket = ?2 and tournament = \
+                     ?3",
+                    params![winner_id, power, tournament.id],
+                )?;
+            },
+            // First final
+            n if n == power =>
+            {
+                // Tournament is over
+                if winner_id == game.player1
+                {
+                    self.finish_tournament(tournament, winner_id)?;
+                }
+                // Loser won, go to game #2
+                else
+                {
+                    self.conn.execute(
+                        "update tournament_games set player1 = ?1, player2 = ?2 where bucket = ?3 \
+                         and tournament = ?4",
+                        params![loser_id, winner_id, power + 1, tournament.id],
+                    )?;
+                }
+            },
+            // Second final
+            n if n == (power + 1) =>
+            {
+                self.finish_tournament(tournament, winner_id)?;
+            },
+            // Normal game
+            _ =>
+            {
+                if game.bucket > 0
+                // winners bracket match
+                {
+                    let parent = self.advance_player(&mut games, game.bucket as usize, winner_id);
+                    let game_index = games.iter().position(|g| g.bucket == parent as i64).unwrap();
+                    self.update_bucket(&games[game_index])?;
+                    self.send_loser_to_losers_bracket(loser_id, game, tournament.id)?;
+                }
+                else
+                // loser bracket match
+                {
+                    let loser_bracket_parent = self.loser_bracket_parent(game.bucket);
+
+                    let mut lgame = self.sql_one::<TournamentGame, _>(
+                        "select * from tournament_games where bucket = ?1 and tournament = ?2",
+                        _params![loser_bracket_parent, tournament.id],
+                    )?;
+
+                    // empty bracket game here
+                    if lgame.player1 == 0
+                    {
+                        let bucket = game.bucket.abs();
+                        // we are odd, but in p1
+                        if bucket & 1 == 1
+                        {
+                            lgame.player1 = winner_id;
+                        }
+                        else
+                        {
+                            lgame.player2 = winner_id;
+                        }
+                    }
+                    else
+                    {
+                        lgame.player2 = winner_id;
+                    }
+                    self.update_bucket(&lgame)?;
+                }
+            },
+        };
+
+        Ok(())
+    }
+
+    fn loser_bracket_parent(&self, bucket: i64) -> i64
+    {
+        let bucket = bucket.abs();
+        let biggest_power_of_two = (((bucket + 2) as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+        let power = 2_i64.pow(biggest_power_of_two);
+
+        let bracket_size = power / 4;
+        let x = bracket_size - 1;
+
+        let parent = |n: i64| (((n - 1) as f64) / 2.0).ceil() as i64;
+
+        if power - 2 - bracket_size > bucket
+        {
+            -(parent(bucket - x) + x)
+        }
+        else
+        {
+            -(bucket - bracket_size)
+        }
+    }
+
+    fn send_loser_to_losers_bracket(
+        &self,
+        id: i64,
+        game: &TournamentGame,
+        tid: i64,
+    ) -> ServerResult<()>
+    {
+        // OK, this guy just lost match in bucket #n, send him to loser bracket where
+        // player1 = #n - 1,
+        // right?
+        let less = -(game.bucket + 1);
+        let mut loser_bracket = self.sql_one::<TournamentGame, _>(
+            "select * from tournament_games where (player1 = ?1 or player2 = ?1) and tournament = \
+             ?2",
+            _params![less, tid],
+        )?;
+
+        if loser_bracket.player1 == less
+        {
+            loser_bracket.player1 = id;
+        }
+        else
+        {
+            loser_bracket.player2 = id;
+        }
+        self.update_bucket(&loser_bracket)
+    }
+
+    fn finish_tournament(&self, tournament: &Tournament, winner_id: i64) -> ServerResult<()>
+    {
+        self.create_tournament_winner(tournament.id, winner_id)?;
+        self.update_tournament_state(tournament.id, TournamentState::Done)?;
+        self.award_winner_with_prize(tournament.prize, winner_id, tournament.id)?;
+        Ok(())
+    }
+
+    fn handle_single_elimination_match(
+        &self,
+        game: &TournamentGame,
+        register_game: &RegisterTournamentMatch,
+        tournament: &Tournament,
+    ) -> ServerResult<()>
+    {
         let mut games = self.get_all_tournament_games(game.tournament)?;
         let winner_id = self.get_user_without_matches(&register_game.winner)?.id;
-        let loser_id = self.get_user_without_matches(&register_game.winner)?.id;
+        let loser_id = self.get_user_without_matches(&register_game.loser)?.id;
 
         self.create_match_from_game(winner_id, loser_id, game.id)?;
         // This was the last game, award some stuff
         if game.bucket == 0
         {
-            self.create_tournament_winner(tournament.id, winner_id)?;
-            self.update_tournament_state(tournament.id, TournamentState::Done)?;
-            self.award_winner_with_prize(tournament.prize, winner_id, tournament.id)?;
+            // @TODO: Check if double elim
+            self.finish_tournament(tournament, winner_id)?;
         }
         else
         {
             let game_index = games.iter().position(|g| g.bucket == game.bucket).unwrap();
-
             let parent = self.advance_player(&mut games, game_index, winner_id);
             self.update_bucket(&games[parent])?;
         }
@@ -469,22 +981,22 @@ impl DataBase
             if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
 
         *parent_player = player;
-        games[i].player1 = -1;
-        games[i].player2 = -1;
+        games[i].player1 = 0;
+        games[i].player2 = 0;
     }
 
     fn advance_player(&self, games: &mut Vec<TournamentGame>, i: usize, winner: i64) -> usize
     {
         let parent = (i - 1) / 2;
+        let game = games.iter_mut().find(|g| g.bucket == parent as i64).unwrap();
 
-        let parent_player =
-            if i & 1 == 1 { &mut games[parent].player1 } else { &mut games[parent].player2 };
+        let parent_player = if i & 1 == 1 { &mut game.player1 } else { &mut game.player2 };
 
         *parent_player = winner;
         parent
     }
 
-    fn generate_buckets(&self, tournament: &Tournament, people: &Vec<i64>) -> Vec<TournamentGame>
+    fn generate_buckets(&self, tournament: &Tournament, people: &[i64]) -> Vec<TournamentGame>
     {
         let biggest_power_of_two = ((people.len() as f32).ln() / 2.0_f32.ln()).ceil() as u32;
         let power = 2_usize.pow(biggest_power_of_two);
@@ -516,10 +1028,231 @@ impl DataBase
         Ok(())
     }
 
+    /*
+     * @NOTE:
+     * This is a little scuffed, for the TournamentGames, if the value is below 0
+     * it means that this is the position of the loser in the corresponding
+     * positive number bucket. Meaning, the loser of bucket #n will be
+     * placed in the tournament_game where player1 = -#n. BUT, since 0 is a
+     * valid bucket AND used for denoting empty game, I need to do
+     * player1 = - (#n + 1). Kind of scuffed, but it works..
+     * Use pos to get the actual number
+     */
+
+    fn create_losers_bracket(
+        &self,
+        player_count: i64,
+        tid: i64,
+    ) -> ServerResult<Vec<TournamentGame>>
+    {
+        let player_count = player_count;
+        let biggest_power_of_two = ((player_count as f32).ln() / 2.0_f32.ln()).ceil() as u32;
+        let power = 2_usize.pow(biggest_power_of_two);
+
+        let mut matches: Vec<TournamentGame> = Vec::new();
+        let mut iter = LoserBracketGenerator::new(power as i64);
+
+        // Helper functions for later
+        let pos = |i: i64| -(i + 1);
+        let get_pair = |pair: &[i64]| -> (i64, i64) {
+            match *pair
+            {
+                [a, b] => (a, b),
+                _ => unreachable!(),
+            }
+        };
+        let create_empty = |len: usize, matches: &mut Vec<TournamentGame>, bucket: &mut i64| {
+            for _ in 0..len
+            {
+                matches.push(TournamentGame::empty(tid, *bucket));
+                *bucket += 1;
+            }
+        };
+        let create_normal = |set: Vec<i64>, matches: &mut Vec<TournamentGame>, bucket: &mut i64| {
+            for p in set
+            {
+                matches.push(TournamentGame::players(tid, *bucket, pos(p), 0));
+                *bucket += 1;
+            }
+        };
+
+        // These two sections don't really follow the pattern, so just deal with them
+        // first
+        let first_section = iter.next().unwrap();
+        let second_section = iter.next().unwrap();
+
+        let mut bucket = -(power as i64 - 2);
+        for pair in first_section.chunks(2)
+        {
+            let (b1, b2) = get_pair(pair);
+            matches.push(TournamentGame::players(tid, bucket, pos(b2), pos(b1)));
+            bucket += 1;
+        }
+
+        create_normal(second_section, &mut matches, &mut bucket);
+
+        // Now that the hard coded guys left, we can finally start the pattern
+        for section in iter
+        {
+            create_empty(section.len(), &mut matches, &mut bucket);
+            create_normal(section, &mut matches, &mut bucket);
+        }
+
+
+        Ok(matches)
+    }
+
+    fn loser_forward_iterator(&self, power: i64) -> impl Iterator<Item = (i64, i64)>
+    {
+        let power = power / 2;
+        let odd_pattern = || {
+            (0..(power / 4)).scan(power / 2 - 1, |acc, _| {
+                *acc += 2;
+                Some(*acc)
+            })
+        };
+
+        let even_pattern = || {
+            (0..(power / 4)).scan(power / 2 - 2, |acc, _| {
+                *acc += 2;
+                Some(*acc)
+            })
+        };
+
+        let easy_pattern = || power..power + power / 2;
+
+        let buckets = || (power..);
+
+        (odd_pattern().chain(even_pattern()).chain(easy_pattern()))
+            .zip(buckets())
+            .map(|(i, j)| (-i, -j))
+    }
+
+    fn forward_games(
+        &self,
+        mut matches: Vec<TournamentGame>,
+        rest: i64,
+        power: i64,
+    ) -> Vec<TournamentGame>
+    {
+        let mut bucket = -(matches.len() as i64 + 1);
+        let tid = matches[0].tournament;
+        for (p1, p2) in self.loser_forward_iterator(power).take(rest as usize)
+        {
+            matches.insert(0, TournamentGame::players(tid, bucket, p1, p2));
+            bucket -= 1;
+        }
+        let mut seen = Vec::new();
+
+        for game in &mut matches
+        {
+            if seen.contains(&game.player1)
+            {
+                game.player1 = 0;
+            }
+            else
+            {
+                seen.push(game.player1);
+            }
+
+            if seen.contains(&game.player2)
+            {
+                game.player2 = 0;
+            }
+            else
+            {
+                seen.push(game.player2);
+            }
+        }
+        // Now, we have forwarded each game, just create the remaining dummy games
+        for _ in 0..power / 2 - rest
+        {
+            matches.insert(0, TournamentGame::players(tid, bucket, 0, 0));
+            bucket -= 1;
+        }
+
+        matches
+    }
+
+    fn create_upper_to_lower_table(&self, matches: &[TournamentGame]) -> ServerResult<String>
+    {
+        let pos = |i: i64| -(i + 1);
+
+
+        let vec: Vec<_> = matches
+            .iter()
+            .map(|tg| {
+                let mut vec = Vec::new();
+                if tg.player1 != 0
+                {
+                    vec.push((pos(tg.player1), tg.bucket, 1));
+                }
+                if tg.player2 != 0
+                {
+                    vec.push((pos(tg.player2), tg.bucket, 2));
+                }
+                vec
+            })
+            .flatten()
+            .collect();
+
+        Ok(json!(vec).to_string())
+    }
+
+    pub fn get_upper_to_lower_table(&self, tid: i64) -> ServerResult<String>
+    {
+        let mut stmt = self
+            .conn
+            .prepare("select _table from tournament_lookup where tournament = ?1")?;
+        let table: String =
+            stmt.query_map(params![tid], |row| row.get(0))?.next().unwrap().unwrap();
+        Ok(table)
+    }
+
     pub fn generate_tournament(&self, tournament: Tournament, people: Vec<i64>)
         -> ServerResult<()>
     {
         let games = self.generate_buckets(&tournament, &self.generate_matchups(people));
+        if tournament.ttype == TournamentType::DoubleElimination as u8
+        {
+            let biggest_power_of_two =
+                ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+
+            let power = 2_i64.pow(biggest_power_of_two);
+
+            let matches = if tournament.player_count == power
+            {
+                self.create_losers_bracket(power, tournament.id)?
+            }
+            else
+            {
+                let matches = self.create_losers_bracket(power / 2, tournament.id)?;
+                self.forward_games(matches, tournament.player_count - power / 2, power)
+            };
+            let table = self.create_upper_to_lower_table(&matches)?;
+            self.conn.execute(
+                "insert into tournament_lookup (tournament, _table) values (?1, ?2)",
+                params![tournament.id, table],
+            )?;
+
+
+            for game in matches
+            {
+                self._create_tournament_game(
+                    game.player1,
+                    game.player2,
+                    game.bucket,
+                    game.tournament,
+                )?;
+            }
+
+
+            // We will denote the final final match with n, where n is the highest power of
+            // two E.g 16, 32, 8, etc.
+
+            self._create_tournament_game(0, 0, power, tournament.id)?;
+            self._create_tournament_game(0, 0, power + 1, tournament.id)?;
+        }
 
         for bucket in games
         {
@@ -569,14 +1302,43 @@ impl DataBase
         Ok(())
     }
 
-    fn convert(&self, tg: TournamentGame) -> TournamentGameInfo
+    fn get_parent_bucket(&self, bucket: i64, tournament: &Tournament) -> i64
+    {
+        match tournament.ttype.into()
+        {
+            TournamentType::SingleElimination => (bucket - 1) / 2,
+            TournamentType::DoubleElimination =>
+            {
+                let biggest_power_of_two =
+                    ((tournament.player_count as f64).ln() / 2.0_f64.ln()).ceil() as u32;
+                let power = 2_i64.pow(biggest_power_of_two);
+                if bucket >= 0
+                {
+                    if bucket == 0
+                    {
+                        power
+                    }
+                    else if bucket == power || bucket == power + 1
+                    {
+                        power + 1
+                    }
+                    else
+                    {
+                        (bucket - 1) / 2
+                    }
+                }
+                else
+                {
+                    if bucket == -1 { power } else { self.loser_bracket_parent(bucket) }
+                }
+            },
+        }
+    }
+
+    fn convert(&self, tg: TournamentGame, tournament: &Tournament) -> TournamentGameInfo
     {
         let h = |id: i64| -> String {
-            if id == -1
-            {
-                String::from("")
-            }
-            else
+            if id > 0
             {
                 match self.get_user_without_matches_by("id", "=", &id.to_string())
                 {
@@ -584,13 +1346,20 @@ impl DataBase
                     Err(_) => String::from(""),
                 }
             }
+            else
+            {
+                String::from("")
+            }
         };
 
+
+
         TournamentGameInfo {
-            player1: h(tg.player1),
-            player2: h(tg.player2),
-            id:      tg.id,
-            bucket:  tg.bucket,
+            player1:       h(tg.player1),
+            player2:       h(tg.player2),
+            id:            tg.id,
+            bucket:        tg.bucket,
+            parent_bucket: self.get_parent_bucket(tg.bucket, tournament),
         }
     }
 
@@ -611,6 +1380,7 @@ impl DataBase
             prize:          self.get_image_name(tournament.prize)?,
             player_count:   tournament.player_count,
             state:          tournament.state,
+            ttype:          tournament.ttype,
             id:             tournament.id,
             organizer_name: self
                 .get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
@@ -632,6 +1402,7 @@ impl DataBase
          * allocate the string  for the id all the time, this is such a
          * wasted allocation
          */
+         let tid = t.id;
         if t.state == TournamentState::Created as u8
         {
             let players: Vec<String> = self
@@ -648,6 +1419,7 @@ impl DataBase
             TournamentInfo {
                 tournament: self.convert_tournament(t, None).unwrap(),
                 data:       TournamentInfoState::Players(players),
+                table: None
             }
         }
         else
@@ -659,7 +1431,7 @@ impl DataBase
                 )
                 .unwrap()
                 .into_iter()
-                .map(|tg| self.convert(tg))
+                .map(|tg| self.convert(tg, &t))
                 .collect();
 
             let mut tournament_winner = None;
@@ -677,9 +1449,11 @@ impl DataBase
                 }
             }
 
+            let table = if t.ttype == TournamentType::DoubleElimination  as u8{ Some(self.get_upper_to_lower_table(tid).unwrap()) } else { None };
             TournamentInfo {
                 tournament: self.convert_tournament(t, tournament_winner).unwrap(),
                 data:       TournamentInfoState::Games(players),
+                table: table
             }
         }
     }
@@ -701,14 +1475,91 @@ impl DataBase
         }
     }
 
+    pub fn get_tournament_from_id(&self, id: i64) -> ServerResult<TournamentInfo>
+    {
+        self.sql_one::<Tournament, _>("select * from tournaments where id = ?1", _params![id])
+            .map(|tournament| self.map_tournament_info(tournament))
+    }
+
+    fn get_players(&self, tournament: &Tournament) -> ServerResult<Vec<serde_json::Value>>
+    {
+        Ok(self
+            .sql_many::<TournamentList, _>(
+                "select * from tournament_lists where tournament = ?1",
+                _params![tournament.id],
+            )?
+            .into_iter()
+            .map(|t| {
+                serde_json::Value::String(
+                    self.get_user_without_matches_by("id", "=", &t.player.to_string())
+                        .unwrap()
+                        .name,
+                )
+            })
+            .collect())
+    }
+
+    fn get_players_and_num_players(
+        &self,
+        tournament: &Tournament,
+    ) -> ServerResult<(i64, Vec<serde_json::Value>)>
+    {
+        if tournament.state == TournamentState::Created as u8
+        {
+            let players = self.get_players(tournament)?;
+
+            Ok((players.len() as i64, players))
+        }
+        else
+        {
+            Ok((tournament.player_count, Vec::new()))
+        }
+    }
+
+    fn get_organizer_name(&self, tournament: &Tournament) -> ServerResult<serde_json::Value>
+    {
+        Ok(serde_json::Value::String(
+            self.get_user_without_matches_by("id", "=", &tournament.organizer.to_string())?
+                .name,
+        ))
+    }
+
+    pub fn get_tournament_infos(
+        &self,
+        info: GetTournamentOptions,
+    ) -> ServerResult<Vec<HashMap<&str, serde_json::Value>>>
+    {
+        self.sql_many::<Tournament, _>("select * from tournaments", None)
+            .map(|tournament| {
+                tournament
+                    .into_iter()
+                    .filter(|t| self.filter_tournaments(t, &info))
+                    .map(|t| {
+                        let (num_players, players) = self.get_players_and_num_players(&t).unwrap();
+                        let val: serde_json::Number = num_players.into();
+                        let organizer_name = self.get_organizer_name(&t).unwrap();
+                        IntoIter::new([
+                            ("name", serde_json::Value::String(t.name)),
+                            ("id", serde_json::Value::Number(t.id.into())),
+                            ("player_count", serde_json::Value::Number(t.player_count.into())),
+                            ("num_players", serde_json::Value::Number(val)),
+                            ("players", serde_json::Value::Array(players)),
+                            ("organizer_name", organizer_name),
+                        ])
+                        .collect()
+                    })
+                    .collect()
+            })
+    }
+
     pub fn get_tournaments(&self, info: GetTournamentOptions) -> ServerResult<Vec<TournamentInfo>>
     {
         let tournaments = self.sql_many::<Tournament, _>("select * from tournaments", None)?;
-        let t_infos: Vec<TournamentInfo> = tournaments
+        let t_infos = tournaments
             .into_iter()
             .filter(|t| self.filter_tournaments(t, &info))
             .map(|t| self.map_tournament_info(t))
-            .collect();
+            .collect::<Vec<TournamentInfo>>();
         Ok(t_infos)
     }
 
@@ -762,6 +1613,12 @@ impl DataBase
             }
             self.conn
                 .execute("delete from tournament_games where tournament = ?1", params![tid])?;
+
+            if tournament.ttype == TournamentType::DoubleElimination as u8
+            {
+                self.conn
+                    .execute("delete from tournament_lookup where tournament = ?1", params![tid])?;
+            }
         }
         delete_tournament(tid)?;
         Ok(())
@@ -782,8 +1639,10 @@ mod test
         let s = DataBase::new(db_file);
         create_user(&s, "Sivert");
 
-        let id_1 = s._create_tournament(1, "epic".to_string(), 3, 4);
-        let id_2 = s._create_tournament(1, "epic_2".to_string(), 3, 8);
+        let id_1 =
+            s._create_tournament(1, "epic".to_string(), 3, 4, TournamentType::SingleElimination);
+        let id_2 =
+            s._create_tournament(1, "epic_2".to_string(), 3, 8, TournamentType::SingleElimination);
         std::fs::remove_file(db_file).expect("Removing file tempH");
         assert!(id_1.is_ok());
         assert!(id_2.is_ok());
@@ -800,7 +1659,8 @@ mod test
         create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+            .unwrap();
         let res = s.join_tournament(token, 1);
 
         std::fs::remove_file(db_file).expect("Removing file tempH");
@@ -818,8 +1678,8 @@ mod test
         create_user(&s, "Markus");
         create_user(&s, "Ella");
 
-
-        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+            .unwrap();
         let _ = s.join_tournament(token.clone(), 1);
         let res = s.join_tournament(token, 1);
 
@@ -838,8 +1698,9 @@ mod test
         let token_m = create_user(&s, "Markus");
         let token_e = create_user(&s, "Ella");
 
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+            .unwrap();
 
-        let tid = s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
         let rs = s.join_tournament(token_s, 1);
         let rb = s.join_tournament(token_b, 1);
         let rm = s.join_tournament(token_m, 1);
@@ -870,7 +1731,9 @@ mod test
         let token_l = create_user(&s, "Lars");
 
 
-        let tid = s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+            .unwrap();
+
         let _ = s.join_tournament(token_s, 1);
         let _ = s.join_tournament(token_b, 1);
         let _ = s.join_tournament(token_m, 1);
@@ -890,25 +1753,26 @@ mod test
         let s = DataBase::new(db_file);
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
-        let vec4: Vec<i64> = (0..4).collect();
-        let vec8: Vec<i64> = (0..8).collect();
-        let vec16: Vec<i64> = (0..16).collect();
+        let vec4: Vec<i64> = (1..=4).collect();
+        let vec8: Vec<i64> = (1..=8).collect();
+        let vec16: Vec<i64> = (1..=16).collect();
         let vec = vec![vec4, vec8, vec16];
         let tournament = Tournament {
             id:           0,
             state:        0,
+            ttype:        0,
             player_count: 0,
             name:         String::new(),
             prize:        0,
             organizer:    0,
         };
 
-        let vec_ok = |vec| {
+        let vec_ok = |vec: Vec<i64>| {
             s.generate_buckets(&tournament, &vec)
                 .into_iter()
                 .rev()
                 .take(vec.len() / 2)
-                .all(|g| g.player1 != -1 && g.player2 != -1)
+                .all(|g| g.player1 != 0 && g.player2 != 0)
         };
 
         assert!(vec.into_iter().all(vec_ok));
@@ -924,6 +1788,7 @@ mod test
         let tournament = Tournament {
             id:           0,
             state:        0,
+            ttype:        0,
             player_count: 0,
             name:         String::new(),
             prize:        0,
@@ -934,58 +1799,58 @@ mod test
 
 
         // First check vec5
-        let vec5: Vec<i64> = (0..5).collect();
+        let vec5: Vec<i64> = (1..=5).collect();
         let vec5_ans = vec![
             //final
-            TournamentGame::players(tid, 0, -1, -1),
+            TournamentGame::players(tid, 0, 0, 0),
             // Semis
-            TournamentGame::players(tid, 1, -1, 1),
-            TournamentGame::players(tid, 2, 2, 3),
+            TournamentGame::players(tid, 1, 0, 2),
+            TournamentGame::players(tid, 2, 3, 4),
             // playoffs
-            TournamentGame::players(tid, 3, 0, 4),
-            TournamentGame::players(tid, 4, -1, -1),
-            TournamentGame::players(tid, 5, -1, -1),
-            TournamentGame::players(tid, 6, -1, -1),
+            TournamentGame::players(tid, 3, 1, 5),
+            TournamentGame::players(tid, 4, 0, 0),
+            TournamentGame::players(tid, 5, 0, 0),
+            TournamentGame::players(tid, 6, 0, 0),
         ];
         let gen5 = s.generate_buckets(&tournament, &vec5);
         assert_eq!(gen5, vec5_ans);
 
         // Check vec13
-        let vec13: Vec<i64> = (0..13).collect();
+        let vec13: Vec<i64> = (1..=13).collect();
         let vec13_ans = vec![
-            TournamentGame::players(tid, 0, -1, -1),
-            TournamentGame::players(tid, 1, -1, -1),
-            TournamentGame::players(tid, 2, -1, -1),
-            TournamentGame::players(tid, 3, -1, -1),
-            TournamentGame::players(tid, 4, -1, -1),
-            TournamentGame::players(tid, 5, -1, 5),
-            TournamentGame::players(tid, 6, 6, 7),
-            TournamentGame::players(tid, 7, 0, 8),
-            TournamentGame::players(tid, 8, 1, 9),
-            TournamentGame::players(tid, 9, 2, 10),
-            TournamentGame::players(tid, 10, 3, 11),
-            TournamentGame::players(tid, 11, 4, 12),
-            TournamentGame::players(tid, 12, -1, -1),
-            TournamentGame::players(tid, 13, -1, -1),
-            TournamentGame::players(tid, 14, -1, -1),
+            TournamentGame::players(tid, 0, 0, 0),
+            TournamentGame::players(tid, 1, 0, 0),
+            TournamentGame::players(tid, 2, 0, 0),
+            TournamentGame::players(tid, 3, 0, 0),
+            TournamentGame::players(tid, 4, 0, 0),
+            TournamentGame::players(tid, 5, 0, 6),
+            TournamentGame::players(tid, 6, 7, 8),
+            TournamentGame::players(tid, 7, 1, 9),
+            TournamentGame::players(tid, 8, 2, 10),
+            TournamentGame::players(tid, 9, 3, 11),
+            TournamentGame::players(tid, 10, 4, 12),
+            TournamentGame::players(tid, 11, 5, 13),
+            TournamentGame::players(tid, 12, 0, 0),
+            TournamentGame::players(tid, 13, 0, 0),
+            TournamentGame::players(tid, 14, 0, 0),
         ];
 
         let gen13 = s.generate_buckets(&tournament, &vec13);
         assert_eq!(gen13, vec13_ans);
 
         // Check vec6
-        let vec6: Vec<i64> = (0..6).collect();
+        let vec6: Vec<i64> = (1..=6).collect();
         let vec6_ans = vec![
             //final
-            TournamentGame::players(tid, 0, -1, -1),
+            TournamentGame::players(tid, 0, 0, 0),
             // Semis
-            TournamentGame::players(tid, 1, -1, -1),
-            TournamentGame::players(tid, 2, 2, 3),
+            TournamentGame::players(tid, 1, 0, 0),
+            TournamentGame::players(tid, 2, 3, 4),
             // playoffs
-            TournamentGame::players(tid, 3, 0, 4),
-            TournamentGame::players(tid, 4, 1, 5),
-            TournamentGame::players(tid, 5, -1, -1),
-            TournamentGame::players(tid, 6, -1, -1),
+            TournamentGame::players(tid, 3, 1, 5),
+            TournamentGame::players(tid, 4, 2, 6),
+            TournamentGame::players(tid, 5, 0, 0),
+            TournamentGame::players(tid, 6, 0, 0),
         ];
         let gen6 = s.generate_buckets(&tournament, &vec6);
         assert_eq!(gen6, vec6_ans);
@@ -1003,14 +1868,16 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
         create_tournament_image(&s);
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
         let _ = s.join_tournament(token_m, 1);
         let _ = s.join_tournament(token_e, 1);
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
         let _ = s.join_tournament(token_s, 2);
         let _ = s.join_tournament(token_b, 2);
 
@@ -1039,7 +1906,6 @@ mod test
                     assert_eq!(t.tournament.name, "Epic");
                     assert_eq!(vec.len(), 2);
                 },
-                _ => unreachable!(),
             };
         };
         assert_func(first);
@@ -1054,10 +1920,10 @@ mod test
     {
         let winner_name = s
             .get_user_without_matches_by("id", "=", &game.player1.to_string())
-            .unwrap()
+            .expect(&format!("{:?}", game))
             .name;
         let loser_name = s
-            .get_user_without_matches_by("id", "=", &game.player1.to_string())
+            .get_user_without_matches_by("id", "=", &game.player2.to_string())
             .unwrap()
             .name;
 
@@ -1080,7 +1946,8 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 3, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 3, 4, TournamentType::SingleElimination)
+            .unwrap();
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
         let _ = s.join_tournament(token_m, 1);
@@ -1102,7 +1969,7 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res.is_ok());
-        let mut game = TournamentGame::players(1, 0, winner_id, -1);
+        let mut game = TournamentGame::players(1, 0, winner_id, 0);
         game.id = 1;
         assert_eq!(new_games[0], game);
     }
@@ -1119,7 +1986,8 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
         create_tournament_image(&s);
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
@@ -1168,7 +2036,7 @@ mod test
     }
 
     #[test]
-    fn test_cannot_register_same_game_twice()
+    fn test_can_register_same_game_twice()
     {
         let db_file = "tempT15.db";
         let s = DataBase::new(db_file);
@@ -1179,7 +2047,8 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
         let _ = s.join_tournament(token_m, 1);
@@ -1195,10 +2064,7 @@ mod test
         std::fs::remove_file(db_file).expect("Removing file tempH");
 
         assert!(res1.is_ok());
-        assert!(
-            res2.is_err()
-                && res2.unwrap_err() == ServerError::Tournament(TournamentError::GameAlreadyPlayed)
-        );
+        assert!(res2.is_ok());
     }
 
     #[test]
@@ -1213,7 +2079,8 @@ mod test
         let token_e = create_user(&s, "Ella");
 
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
         let _ = s.join_tournament(token_s.clone(), 1);
         let _ = s.join_tournament(token_b.clone(), 1);
         let _ = s.join_tournament(token_m, 1);
@@ -1248,17 +2115,18 @@ mod test
         let token_m = create_user(&s, "Markus");
         let token_e = create_user(&s, "Ella");
 
-        s._create_tournament(1, "Epic".to_string(), 1, 4).unwrap();
-        s.join_tournament(token_s.clone(), 1);
-        s.join_tournament(token_b.clone(), 1);
-        s.join_tournament(token_m, 1);
-        s.join_tournament(token_e, 1);
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::SingleElimination)
+            .unwrap();
+        s.join_tournament(token_s.clone(), 1).expect("joining tournament");
+        s.join_tournament(token_b.clone(), 1).expect("joining tournament");
+        s.join_tournament(token_m, 1).expect("joining tournament");
+        s.join_tournament(token_e, 1).expect("joining tournament");
         let tid = 1;
 
         let games = s.get_all_tournament_games(1).unwrap();
         let first_game = reg_tournament_match_from_tournament_game(&s, &games[1], token_s.clone());
 
-        s.register_tournament_match(first_game.clone());
+        s.register_tournament_match(first_game.clone()).expect("regestering match");
 
         s._delete_tournament(1).unwrap();
 
@@ -1287,5 +2155,228 @@ mod test
         assert!(tournament.is_err());
         assert_eq!(games.len(), 0);
         assert_eq!(matches.len(), 0);
+    }
+
+
+    #[test]
+    fn create_losers_bracket_correct_length()
+    {
+        let db_file = "tempT18";
+        let s = DataBase::new(db_file);
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
+            .unwrap();
+
+        let games = s.create_losers_bracket(8, 1).unwrap();
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(games.len(), 6);
+    }
+
+    #[test]
+    fn can_create_double_elimination_tournament()
+    {
+        let db_file = "tempT19";
+        let s = DataBase::new(db_file);
+        s._create_tournament(1, "Epic".to_string(), 1, 4, TournamentType::DoubleElimination)
+            .unwrap();
+
+        s.create_losers_bracket(8, 1).unwrap();
+        let tournament = s.sql_one::<Tournament, _>("select * from tournaments", None).unwrap();
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        let ttype: TournamentType = tournament.ttype.into();
+        assert_eq!(ttype, TournamentType::DoubleElimination);
+    }
+
+    #[test]
+    fn can_run_double_elimination_tournament() -> ServerResult<()>
+    {
+        let run_tournament = |s: &DataBase, player_count: i64, id: i64| {
+            let run_game = |i: isize, token: &String| {
+                let game = s
+                    .get_all_tournament_games(id)
+                    .unwrap()
+                    .into_iter()
+                    .find(|g| g.bucket == i as i64)
+                    .expect(&format!("Grabbing bucket {}", i));
+
+                let register_game =
+                    reg_tournament_match_from_tournament_game(&s, &game, token.clone());
+
+                let res1 = s.register_tournament_match(register_game);
+                res1
+            };
+            let users: Vec<String> = if player_count == 4
+            {
+                (1..=player_count).map(|n| create_user(s, &n.to_string())).collect()
+            }
+            else
+            {
+                let get_token = |n: i64| -> ServerResult<String> {
+                    use rusqlite::NO_PARAMS;
+
+                    use crate::SQL_TUPLE;
+                    let res: Vec<_> =
+                        SQL_TUPLE!(s, &format!("select uuid from users where id = {}", n), String)
+                            .unwrap();
+                    Ok(res.first().unwrap().0.clone())
+                };
+                (1..=(player_count / 2))
+                    .map(|n| get_token(n).expect("Getting token"))
+                    .chain(
+                        ((player_count / 2) + 1..=player_count)
+                            .map(|n| create_user(s, &n.to_string())),
+                    )
+                    .collect()
+            };
+
+
+            let token = users.first().clone().unwrap();
+            let create_tournament = CreateTournament {
+                organizer_token: token.clone(),
+                name:            player_count.to_string(),
+                image:           "".to_string(),
+                player_count:    player_count,
+                ttype:           "doubleElimination".to_string(),
+            };
+
+            s.create_tournament(create_tournament).expect("Creating tournament");
+
+            users.iter().for_each(|token| {
+                s.join_tournament(token.clone(), id).expect("joining tournament");
+            });
+
+            let games: Vec<isize> = (0..=player_count - 2)
+                .rev()
+                .map(|i| i as isize)
+                .chain((1..=player_count - 2).rev().map(|i| -(i as isize)))
+                .chain(vec![player_count as isize]) // final
+                .collect();
+
+            games.into_iter().map(|g| run_game(g, &token)).all(|r| r.is_ok())
+        };
+        let db_file = "tempT20.db";
+        let s = DataBase::new(db_file);
+
+
+        for (id, p) in (2..=6).enumerate()
+        {
+            let pow = 2_i64.pow(p as u32);
+            assert_eq!(run_tournament(&s, pow, (id + 1) as i64), true);
+        }
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        Ok(())
+    }
+
+
+    #[test]
+    fn loser_bracket_parent_function()
+    {
+        let db_file = "tempT21.db";
+        let db = DataBase::new(db_file);
+
+        let test_size = |n| // n: e.g 32
+        {
+            if n == 4
+            {
+                return db.loser_bracket_parent(2) == -1;
+            }
+            let stop: i64 = (n / 2) - 2;
+            let start = stop - (n / 8) + 1;
+
+            let mut vec = Vec::new();
+            let mut s = n / 2 - 1;
+            for i in start..=stop
+            {
+                for _ in 0..2
+                {
+                    vec.push(db.loser_bracket_parent(s) == -i);
+                    s += 1;
+                }
+            }
+
+            for i in (stop + 1)..(stop + 1) + n / 4
+            {
+                vec.push(db.loser_bracket_parent(s) == -i);
+                s += 1;
+            }
+            vec.into_iter().all(|b| b)
+        };
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+
+        for i in 2..=6
+        {
+            let pow = 2_i64.pow(i as u32);
+            assert!(test_size(pow));
+        }
+    }
+
+    #[test]
+    fn can_forward_games_in_double_elimination()
+    {
+        let db_file = "tempT22.db";
+        let s = DataBase::new(db_file);
+        let player_count = 13;
+        let users = (1..=player_count)
+            .map(|n| create_user(&s, &n.to_string()))
+            .collect::<Vec<String>>();
+
+        let token = users.first().clone().unwrap();
+        let create_tournament = CreateTournament {
+            organizer_token: token.clone(),
+            name:            "Epic".to_string(),
+            image:           "".to_string(),
+            player_count:    player_count,
+            ttype:           "doubleElimination".to_string(),
+        };
+
+        s.create_tournament(create_tournament).expect("Creating tournament");
+
+        users.iter().for_each(|token| {
+            s.join_tournament(token.clone(), 1).expect("joining tournament");
+        });
+
+
+
+        //assert!(false);
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+    }
+
+    #[test]
+    fn test_recreate_tournament()
+    {
+        let db_file = "tempT23.db";
+        let s = DataBase::new(db_file);
+        let player_count = 13;
+        let users = (1..=player_count)
+            .map(|n| create_user(&s, &n.to_string()))
+            .collect::<Vec<String>>();
+
+        let token = users.first().clone().unwrap();
+        let create_tournament = CreateTournament {
+            organizer_token: token.clone(),
+            name:            "Epic".to_string(),
+            image:           "".to_string(),
+            player_count:    player_count,
+            ttype:           "doubleElimination".to_string(),
+        };
+
+        s.create_tournament(create_tournament).expect("Creating tournament");
+
+        users.iter().for_each(|token| {
+            s.join_tournament(token.clone(), 1).expect("joining tournament");
+        });
+
+
+        s.recreate_tournament(token.clone(), 1).unwrap();
+
+        let _ = s
+            .sql_one::<Tournament, _>("select * from tournaments where id = 2", None)
+            .unwrap();
+        let players = s.get_player_ids(2).unwrap();
+
+
+        std::fs::remove_file(db_file).expect("Removing file tempH");
+        assert_eq!(players.len() as i64, player_count);
     }
 }
