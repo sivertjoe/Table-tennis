@@ -142,7 +142,7 @@ pub struct TournamentInfo
 {
     tournament: SendTournament,
     data:       TournamentInfoState,
-    table: Option<String>
+    table:      Option<String>,
 }
 
 #[derive(Sql)]
@@ -420,7 +420,6 @@ impl DataBase
         {
             if game.player1 > 0 && !vec.contains(&game.player1)
             {
-                
                 vec.push(game.player1);
             }
             if game.player2 > 0 && !vec.contains(&game.player2)
@@ -442,33 +441,32 @@ impl DataBase
             return Err(ServerError::Tournament(TournamentError::NotOrganizer));
         }
 
-        let players = self.get_player_ids(tournament.id)?;                     
+        let players = self.get_player_ids(tournament.id)?;
         let regex = regex::Regex::new(r"^(.*?)(\d+)$").unwrap();
         println!("{}", tournament.name);
-        
+
 
 
         let name = if let Some(capture) = regex.captures(&tournament.name)
         {
             match capture.get(1)
             {
-                Some(s) => 
+                Some(s) =>
                 {
-                    
                     let s = s.as_str();
                     let val: i64 = match capture.get(2)
                     {
-                        Some(v) =>  v.as_str().parse::<i64>().unwrap() + 1,
+                        Some(v) => v.as_str().parse::<i64>().unwrap() + 1,
                         _ => 2,
                     };
                     format!("{}{}", s, val)
-                }
-                _ => 
+                },
+                _ =>
                 {
                     let s = capture.get(2).unwrap().as_str();
                     let val: i64 = s.parse::<i64>().unwrap() + 1;
                     format!("{}", val)
-                }
+                },
             }
         }
         else
@@ -576,7 +574,7 @@ impl DataBase
 
         let parent_has_played = |bucket: i64| -> ServerResult<bool> {
             let next = self.get_parent_bucket(bucket, tournament);
-            
+
             let id = self
                 .sql_one::<TournamentGame, _>(
                     "select * from tournament_games where bucket = ?1 and tournament = ?2",
@@ -1402,7 +1400,7 @@ impl DataBase
          * allocate the string  for the id all the time, this is such a
          * wasted allocation
          */
-         let tid = t.id;
+        let tid = t.id;
         if t.state == TournamentState::Created as u8
         {
             let players: Vec<String> = self
@@ -1419,7 +1417,7 @@ impl DataBase
             TournamentInfo {
                 tournament: self.convert_tournament(t, None).unwrap(),
                 data:       TournamentInfoState::Players(players),
-                table: None
+                table:      None,
             }
         }
         else
@@ -1449,11 +1447,18 @@ impl DataBase
                 }
             }
 
-            let table = if t.ttype == TournamentType::DoubleElimination  as u8{ Some(self.get_upper_to_lower_table(tid).unwrap()) } else { None };
+            let table = if t.ttype == TournamentType::DoubleElimination as u8
+            {
+                Some(self.get_upper_to_lower_table(tid).unwrap())
+            }
+            else
+            {
+                None
+            };
             TournamentInfo {
                 tournament: self.convert_tournament(t, tournament_winner).unwrap(),
                 data:       TournamentInfoState::Games(players),
-                table: table
+                table:      table,
             }
         }
     }
