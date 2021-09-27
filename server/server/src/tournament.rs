@@ -1,4 +1,4 @@
-use std::{array::IntoIter, collections::HashMap, io::prelude::*};
+use std::{collections::HashMap, io::prelude::*};
 
 use rusqlite::params;
 use serde_derive::{Deserialize, Serialize};
@@ -1538,14 +1538,15 @@ impl DataBase
                         let (num_players, players) = self.get_players_and_num_players(&t).unwrap();
                         let val: serde_json::Number = num_players.into();
                         let organizer_name = self.get_organizer_name(&t).unwrap();
-                        IntoIter::new([
+                        vec![
                             ("name", serde_json::Value::String(t.name)),
                             ("id", serde_json::Value::Number(t.id.into())),
                             ("player_count", serde_json::Value::Number(t.player_count.into())),
                             ("num_players", serde_json::Value::Number(val)),
                             ("players", serde_json::Value::Array(players)),
                             ("organizer_name", organizer_name),
-                        ])
+                        ]
+                        .into_iter()
                         .collect()
                     })
                     .collect()
