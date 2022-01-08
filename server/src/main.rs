@@ -641,7 +641,7 @@ fn get_builder() -> openssl::ssl::SslAcceptorBuilder
         .set_private_key_file("db/privkey.pem", SslFiletype::PEM)
         .expect("failed to open/read key.pem");
     builder
-        .set_certificate_chain_file("db/cert.pem")
+        .set_certificate_chain_file("db/fullchain.pem")
         .expect("failed to open/read cert.pem");
     builder
 }
