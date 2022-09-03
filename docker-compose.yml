@@ -16,10 +16,10 @@ services:
       - '58642:58642'
     volumes:
       - type: bind
-        source: ~/db/db.db
+        source: /home/table-tennis/db/db.db
         target: /db.db
       - type: bind
-        source: ~/db
+        source: /home/table-tennis/db
         target: /db
   website-dev:
     build:
@@ -37,10 +37,11 @@ services:
       - '38642:58642'
     volumes:
       - type: bind
-        source: ~/db-development/db.db
+        source: /home/table-tennis/db-development/db.db
         target: /db.db
       - type: bind
         source: ~/db-development
+        source: /home/table-tennis/db-development
         target: /db
 
 networks:

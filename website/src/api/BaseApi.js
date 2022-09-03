@@ -2,8 +2,7 @@ import { ApiError, errorMap } from './ApiErrors'
 import useFetch from 'use-http'
 
 const url = process.env.REACT_APP_URL ?? 'http://localhost'
-const ip = process.env.REACT_APP_IP ?? '58642'
-const apiUrl = url + ':' + ip + '/'
+const apiUrl = url + '/api/'
 
 export const GetHook = (url) => {
   const { loading, data = [] } = useFetch(apiUrl + url, {}, [])

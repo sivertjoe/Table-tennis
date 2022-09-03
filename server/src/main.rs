@@ -6,7 +6,6 @@ use std::{
 use actix_cors::Cors;
 use actix_files::Files;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::json;
@@ -84,7 +83,7 @@ fn response_ok() -> serde_json::Value
 }
 
 
-#[post("/create-user")]
+#[post("api/create-user")]
 async fn create_user(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
@@ -101,7 +100,7 @@ struct Variable
     variable: String,
 }
 
-#[post("admin/get-variable")]
+#[post("api/admin/get-variable")]
 async fn get_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: Variable = serde_json::from_str(&info).unwrap();
@@ -121,7 +120,7 @@ struct EditVariable
     token:    String,
 }
 
-#[post("admin/set-variable")]
+#[post("api/admin/set-variable")]
 async fn set_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: EditVariable = serde_json::from_str(&info).unwrap();
@@ -134,7 +133,7 @@ async fn set_variable(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
 }
 
 
-#[post("/edit-users")]
+#[post("api/edit-users")]
 async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: EditUsersInfo = serde_json::from_str(&info).unwrap();
@@ -147,7 +146,7 @@ async fn edit_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
 }
 
 
-#[post("/request-reset-password")]
+#[post("api/request-reset-password")]
 async fn request_reset_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
     -> HttpResponse
 {
@@ -160,7 +159,7 @@ async fn request_reset_password(data: web::Data<Arc<Mutex<DataBase>>>, info: Str
 }
 
 
-#[post("/register-match")]
+#[post("api/register-match")]
 async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: MatchInfo = serde_json::from_str(&info).unwrap();
@@ -172,7 +171,7 @@ async fn register_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> 
     }
 }
 
-#[post("/login")]
+#[post("api/login")]
 async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: LoginInfo = serde_json::from_str(&info).unwrap();
@@ -184,7 +183,7 @@ async fn login(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpRespo
     }
 }
 
-#[post("/change-password")]
+#[post("api/change-password")]
 async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: ChangePasswordInfo = serde_json::from_str(&info).unwrap();
@@ -197,7 +196,7 @@ async fn change_password(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
 }
 
 
-#[get("/active-users")]
+#[get("api/active-users")]
 async fn get_active_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_non_inactive_users()
@@ -207,7 +206,7 @@ async fn get_active_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
-#[get("/users")]
+#[get("api/users")]
 async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_users()
@@ -218,7 +217,7 @@ async fn get_users(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 }
 
 
-#[get("/all-users/{token}")]
+#[get("api/all-users/{token}")]
 async fn get_all_users(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(token): web::Path<String>,
@@ -231,7 +230,7 @@ async fn get_all_users(
     }
 }
 
-#[get("/notifications")]
+#[get("api/notifications")]
 async fn get_notifications(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: web::Query<NotificationInfo>,
@@ -252,7 +251,7 @@ async fn get_notifications(
     )
 }
 
-#[post("/notifications")]
+#[post("api/notifications")]
 async fn respond_to_notification(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: String,
@@ -268,7 +267,7 @@ async fn respond_to_notification(
     )
 }
 
-#[get("/history")]
+#[get("api/history")]
 async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_history()
@@ -278,7 +277,7 @@ async fn get_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
-#[post("/stats")]
+#[post("api/stats")]
 async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: StatsUsers = serde_json::from_str(&info).unwrap();
@@ -289,7 +288,7 @@ async fn get_stats(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpR
     }
 }
 
-#[post("delete-match")]
+#[post("api/delete-match")]
 async fn delete_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: DeleteMatchInfo = serde_json::from_str(&info).unwrap();
@@ -300,7 +299,7 @@ async fn delete_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Ht
     }
 }
 
-#[post("/edit-match")]
+#[post("api/edit-match")]
 async fn edit_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: NewEditMatchInfo = serde_json::from_str(&info).unwrap();
@@ -311,7 +310,7 @@ async fn edit_match(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Http
     }
 }
 
-#[get("/edit-history")]
+#[get("api/edit-history")]
 async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_edit_match_history()
@@ -321,7 +320,7 @@ async fn get_edit_history(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
     }
 }
 
-#[get("/user/{name}")]
+#[get("api/user/{name}")]
 async fn get_profile(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(name): web::Path<String>,
@@ -340,7 +339,7 @@ struct Users
     users: Vec<String>,
 }
 
-#[post("/get-multiple-users")]
+#[post("api/get-multiple-users")]
 async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: Users = serde_json::from_str(&info).unwrap();
@@ -352,7 +351,7 @@ async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String)
 }
 
 
-#[post("/create-tournament")]
+#[post("api/create-tournament")]
 async fn create_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: CreateTournament = serde_json::from_str(&info).unwrap();
@@ -363,7 +362,7 @@ async fn create_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     }
 }
 
-#[post("/recreate-tournament")]
+#[post("api/recreate-tournament")]
 async fn recreate_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     #[derive(Deserialize)]
@@ -381,7 +380,7 @@ async fn recreate_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String
     }
 }
 
-#[post("/join-tournament")]
+#[post("api/join-tournament")]
 async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: JoinTournament = serde_json::from_str(&info).unwrap();
@@ -392,7 +391,7 @@ async fn join_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) ->
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
-#[post("/register-tournament-match")]
+#[post("api/register-tournament-match")]
 async fn register_tournament_match(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: String,
@@ -407,7 +406,7 @@ async fn register_tournament_match(
     }
 }
 
-#[post("/delete-tournament")]
+#[post("api/delete-tournament")]
 async fn delete_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     #[derive(Deserialize)]
@@ -425,7 +424,7 @@ async fn delete_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) 
     }
 }
 
-#[post("/leave-tournament")]
+#[post("api/leave-tournament")]
 async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: JoinTournament = serde_json::from_str(&info).unwrap();
@@ -437,7 +436,7 @@ async fn leave_tournament(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -
     }
 }
 
-#[get("/tournament-infos")]
+#[get("api/tournament-infos")]
 async fn get_tournament_infos(
     data: web::Data<Arc<Mutex<DataBase>>>,
     info: web::Query<GetTournamentOptions>,
@@ -451,7 +450,7 @@ async fn get_tournament_infos(
     }
 }
 
-#[get("/tournament-table/{id}")]
+#[get("api/tournament-table/{id}")]
 async fn get_tournament_table(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(id): web::Path<i64>,
@@ -463,7 +462,7 @@ async fn get_tournament_table(
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
-#[get("/tournament/{id}")]
+#[get("api/tournament/{id}")]
 async fn get_tournament(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(id): web::Path<i64>,
@@ -476,7 +475,7 @@ async fn get_tournament(
     }
 }
 
-#[get("/is-admin/{token}")]
+#[get("api/is-admin/{token}")]
 async fn get_is_admin(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(token): web::Path<String>,
@@ -489,7 +488,7 @@ async fn get_is_admin(
     }
 }
 
-#[get("/admin/roll-back/{token}")]
+#[get("api/admin/roll-back/{token}")]
 async fn roll_back(
     data: web::Data<Arc<Mutex<DataBase>>>,
     web::Path(token): web::Path<String>,
@@ -502,7 +501,7 @@ async fn roll_back(
     }
 }
 
-#[get("/season_length")]
+#[get("api/season_length")]
 async fn get_season_length(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_season_length()
@@ -520,7 +519,7 @@ struct EditSeasonLength
 }
 
 
-#[post("/season_length")]
+#[post("api/season_length")]
 async fn set_season_length(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: EditSeasonLength = serde_json::from_str(&info).unwrap();
@@ -568,25 +567,25 @@ fn change_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String, val: i64) 
     }
 }
 
-#[post("/start_season")]
+#[post("api/start_season")]
 async fn start_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     change_season(data, info, START_SEASON)
 }
 
-#[post("/stop_season")]
+#[post("api/stop_season")]
 async fn stop_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     change_season(data, info, STOP_SEASON)
 }
 
-#[post("/cancel_season")]
+#[post("api/cancel_season")]
 async fn cancel_season(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     change_season(data, info, CANCEL_SEASON)
 }
 
-#[get("/leaderboard_info")]
+#[get("api/leaderboard_info")]
 async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     let s = DATABASE!(data);
@@ -599,7 +598,7 @@ async fn get_leaderboard_info(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResp
     }
 }
 
-#[get("season_start")]
+#[get("api/season_start")]
 async fn get_season_start_date(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
 {
     match DATABASE!(data).get_season_start()
@@ -616,7 +615,7 @@ struct SqlCommand
     command: String,
 }
 
-#[post("admin/execute-sql")]
+#[post("api/admin/execute-sql")]
 async fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
     let info: SqlCommand = serde_json::from_str(&info).unwrap();
@@ -633,19 +632,6 @@ async fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
         Err(e) => HttpResponse::Ok().json(response_error(e)),
     }
 }
-
-fn get_builder() -> openssl::ssl::SslAcceptorBuilder
-{
-    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file("db/privkey.pem", SslFiletype::PEM)
-        .expect("failed to open/read key.pem");
-    builder
-        .set_certificate_chain_file("db/fullchain.pem")
-        .expect("failed to open/read cert.pem");
-    builder
-}
-
 
 fn handle_args(data: &Arc<Mutex<DataBase>>)
 {
@@ -675,11 +661,11 @@ async fn main() -> std::io::Result<()>
 
     let assets_path = if cfg!(debug_assertions) { "assets" } else { "./db/assets" };
 
-    let server = HttpServer::new(move || {
+    HttpServer::new(move || {
         App::new()
             .data(data.clone())
             .wrap(Cors::default().allow_any_header().allow_any_origin().allow_any_method())
-            .service(Files::new("/assets", assets_path).show_files_listing())
+            .service(Files::new("api/assets", assets_path).show_files_listing())
             .service(create_user)
             .service(edit_users)
             .service(edit_match)
@@ -719,16 +705,8 @@ async fn main() -> std::io::Result<()>
             .service(get_tournament)
             .service(get_tournament_table)
             .service(recreate_tournament)
-    });
-
-    if cfg!(debug_assertions)
-    {
-        server.bind(format!("0.0.0.0:{}", PORT))?
-    }
-    else
-    {
-        server.bind_openssl(format!("0.0.0.0:{}", PORT), get_builder())?
-    }
+    })
+    .bind(format!("0.0.0.0:{}", PORT))?
     .run()
     .await
 }
