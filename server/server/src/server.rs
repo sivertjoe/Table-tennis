@@ -272,7 +272,7 @@ impl DataBase
         self.get_users_with_user_role(USER_ROLE_INACTIVE | USER_ROLE_SOFT_INACTIVE, 0)
     }
 
-    pub fn get_multiple_users(&self, users: Vec<String>) -> ServerResult<Vec<User>>
+    pub fn get_multiple_users(&self, users: Vec<String>, season: Option<u32>) -> ServerResult<Vec<User>>
     {
         let list = format!("{:?}", users).as_str().replace("[", "(").replace("]", ")");
         let sql = format!("select id, name, elo, user_role from users where name in {}", list);
@@ -280,7 +280,11 @@ impl DataBase
         let mut users = self.sql_many::<User, _>(sql, None)?;
         for user in &mut users
         {
-            user.match_history = self.get_matches(user.id)?;
+            user.match_history = if let Some(season) = season {
+                self.get_matches_from_season(user.id, season)?
+            } else {
+                self.get_matches(user.id)?
+            }
         }
         Ok(users)
     }
@@ -985,6 +989,19 @@ impl DataBase
         Ok(())
     }
 
+    fn get_matches_from_season(&self, id: i64, season: u32) -> ServerResult<Vec<Match>> {
+        let sql = format!(
+            "select a.name as winner, b.name as loser, elo_diff, winner_elo, loser_elo, epoch, {} \
+             as season
+                from old_matches
+                inner join users as a on a.id = winner
+                inner join users as b on b.id = loser
+                where season = :season and (winner = :id or loser = :id)
+                order by epoch desc",
+            season
+        );
+        self.sql_many(sql, _named_params! {":id" : id, ":season": season})
+    }
     fn get_matches(&self, id: i64) -> ServerResult<Vec<Match>>
     {
         let current_season = self.get_latest_season_number()?;
@@ -1673,7 +1690,7 @@ mod test
         create_user(&s, "Bernt");
 
         let vec = vec!["Lars".to_string(), "Bernt".to_string()];
-        let users = s.get_multiple_users(vec.clone()).unwrap();
+        let users = s.get_multiple_users(vec.clone(), None).unwrap();
         std::fs::remove_file(db_file).expect("Removing file tempH");
         users.into_iter().for_each(|u| assert!(vec.contains(&u.name)));
     }

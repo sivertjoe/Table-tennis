@@ -13,6 +13,8 @@ export const registerMatch = (winner, loser, token) =>
 
 export const getSeasonLength = () => BaseApi.get('season_length')
 
+export const getSeasons = () => BaseApi.get('get-seasons')
+
 export const getLeaderboardInfo = () => BaseApi.get('leaderboard_info')
 
 export const getStats = (user1, user2) =>

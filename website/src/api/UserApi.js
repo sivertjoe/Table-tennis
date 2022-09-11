@@ -6,10 +6,16 @@ export const getUser = (username) => BaseApi.get('user/' + username)
 
 export const getActiveUsers = () => BaseApi.get('active-users')
 
-export const getMultipleUsers = (users) =>
-  BaseApi.post('get-multiple-users', {
-    users: users,
-  })
+export const getMultipleUsers = (users, season) => {
+    const obj = {
+        users: users
+    }
+
+    if (season !== undefined && season !== '') {
+        obj.season = season
+    }
+  return BaseApi.post('get-multiple-users', obj)
+}
 
 export const register = (username, password) =>
   BaseApi.post('create-user', {

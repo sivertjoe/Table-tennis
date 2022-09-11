@@ -51,6 +51,8 @@ class GraphToolTip extends Component {
 class EloGraph extends Component {
   x = 0
   userList = []
+  seasons = []
+  selectedSeason = { value: '', label: 'latest' }
 
   periods = [
     {
@@ -67,6 +69,12 @@ class EloGraph extends Component {
     },
     {
       value: 'month',
+      label: 'This Month',
+      ticks: 'every 2 day',
+      date: getPreviousDate(30),
+    },
+    {
+      value: 'season',
       label: 'This Season',
       ticks: 'every 2 day',
       date: getPreviousDate(30),
@@ -80,6 +88,7 @@ class EloGraph extends Component {
     this.changePeriod = this.changePeriod.bind(this)
     this.genLayers = this.genLayers.bind(this)
     this.addUser = this.addUser.bind(this)
+    this.changeSeason = this.changeSeason.bind(this)
     UserApi.getMultipleUsers(args.users)
       .then((users) => (this.users = users))
       .catch((error) => (this.error = error.message))
@@ -97,10 +106,29 @@ class EloGraph extends Component {
         const start = new Date(date)
         this.periods[2].date = start
       })
-      .catch((e) => {
+      .catch((_e) => {
         const start = new Date(0)
         this.periods[2].date = start
       })
+
+    MatchApi.getSeasons()
+      .then((seasons) => (this.seasons = seasons))
+      .catch((_e) => console.error('Could not fetch seasonss'))
+      .finally(() => {
+        this.setState({})
+      })
+  }
+  changeSeason(e) {
+    this.selectedSeason = e
+    UserApi.getMultipleUsers(
+      this.users.map((user) => user.name),
+      e.value,
+    )
+      .then((users) => {
+        this.users = users
+      })
+      .catch((err) => console.warn(err))
+      .finally(() => this.setState({}))
   }
 
   changePeriod(e) {
@@ -113,7 +141,10 @@ class EloGraph extends Component {
       this.users = []
       this.setState({})
     } else {
-      UserApi.getMultipleUsers(e.map((user) => user.value))
+      UserApi.getMultipleUsers(
+        e.map((user) => user.value),
+        this.selectedSeason.value,
+      )
         .then((users) => {
           this.users = users
         })
@@ -125,10 +156,15 @@ class EloGraph extends Component {
   orderMatches(users) {
     let items = {}
     users.forEach((user) => {
-      items[user.name] = []
-      user._match_history = user.match_history.filter(
-        (match) => match.epoch >= this.selectedPeriod.date.getTime(),
-      )
+      if (this.selectedPeriod.label === 'This Season') {
+        items[user.name] = []
+        user._match_history = user.match_history
+      } else {
+        items[user.name] = []
+        user._match_history = user.match_history.filter(
+          (match) => match.epoch >= this.selectedPeriod.date.getTime(),
+        )
+      }
     })
 
     let min_x = 0
@@ -291,6 +327,21 @@ class EloGraph extends Component {
               label: user.name,
             }))}
             isMulti={true}
+          />
+        </div>
+        <h2>Season</h2>
+        <div className="inputs">
+          <Select
+            className="selectorElo first-selector"
+            onChange={this.changeSeason}
+            options={[
+              { value: '', label: 'latest' },
+              ...this.seasons.map((season) => ({
+                value: season,
+                label: season,
+              })),
+            ]}
+            value={this.selectedSeason}
           />
         </div>
         <div style={{ width: '100%', height: '600px' }}>

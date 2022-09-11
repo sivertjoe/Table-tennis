@@ -6,7 +6,7 @@ use server_core::{
 };
 
 use super::{season::Season, server::DataBase};
-use crate::GET_OR_CREATE_DB_VAR;
+use crate::{GET_OR_CREATE_DB_VAR, SQL_TUPLE};
 
 impl DataBase
 {
@@ -64,6 +64,14 @@ impl DataBase
     {
         self.sql_one::<Season, _>("select * from seasons order by id desc", None)
             .map(|season| season.start_epoch)
+    }
+
+    pub fn get_seasons(&self) -> ServerResult<Vec<i64>> {
+        let v: Vec<i64> = 
+            SQL_TUPLE!(self, "select id from seasons order by id desc", i64)?
+                .into_iter()
+                .map(|s| s.0).collect();
+        Ok(v)
     }
 }
 

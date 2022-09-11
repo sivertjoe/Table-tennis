@@ -337,13 +337,15 @@ async fn get_profile(
 struct Users
 {
     users: Vec<String>,
+    season: Option<u32>,
 }
 
 #[post("api/get-multiple-users")]
 async fn get_multiple_users(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> HttpResponse
 {
+    println!("{}", info);
     let info: Users = serde_json::from_str(&info).unwrap();
-    match DATABASE!(data).get_multiple_users(info.users)
+    match DATABASE!(data).get_multiple_users(info.users, info.season)
     {
         Ok(users) => HttpResponse::Ok().json(response_ok_with(users)),
         Err(e) => HttpResponse::Ok().json(response_error(e)),
@@ -633,6 +635,16 @@ async fn execute_sql(data: web::Data<Arc<Mutex<DataBase>>>, info: String) -> Htt
     }
 }
 
+#[get("api/get-seasons")]
+async fn get_seasons(data: web::Data<Arc<Mutex<DataBase>>>) -> HttpResponse
+{
+    match DATABASE!(data).get_seasons()
+    {
+        Ok(v) => HttpResponse::Ok().json(response_ok_with(v)),
+        Err(e) => HttpResponse::Ok().json(response_error(e)),
+    }
+}
+
 fn handle_args(data: &Arc<Mutex<DataBase>>)
 {
     let vec = std::env::args().collect::<Vec<String>>();
@@ -705,6 +717,7 @@ async fn main() -> std::io::Result<()>
             .service(get_tournament)
             .service(get_tournament_table)
             .service(recreate_tournament)
+            .service(get_seasons)
     })
     .bind(format!("0.0.0.0:{}", PORT))?
     .run()
