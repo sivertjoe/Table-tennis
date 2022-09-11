@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@nivo/core": "^0.64.0",
-    "@nivo/line": "^0.64.0",
+    "@nivo/core": "0.80.0",
+    "@nivo/line": "0.80.0",
     "@testing-library/jest-dom": "^5.11.5",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
@@ -22,8 +22,8 @@
   "scripts": {
     "start": "REACT_APP_URL=http://localhost REACT_APP_IP=58642 react-scripts start",
     "build:local": "REACT_APP_URL=http://localhost REACT_APP_IP=58642 react-scripts build",
-    "build:dev": "REACT_APP_URL=https://sivert.dev REACT_APP_IP=38642 react-scripts build",
-    "build:prod": "REACT_APP_URL=https://sivert.dev REACT_APP_IP=58642 react-scripts build --prod"
+    "build:dev": "REACT_APP_URL=https://sivert.dev react-scripts build",
+    "build:prod": "REACT_APP_URL=https://sivert.dev react-scripts build --prod"
   },
   "eslintConfig": {
     "extends": [
