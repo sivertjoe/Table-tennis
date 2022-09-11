@@ -2,7 +2,18 @@ import { ApiError, errorMap } from './ApiErrors'
 import useFetch from 'use-http'
 
 const url = process.env.REACT_APP_URL ?? 'http://localhost'
-const apiUrl = url + '/api/'
+const port = process.env.REACT_APP_IP ?? ''
+
+// Production code does not use port.
+const getUrl = () => {
+    if (port !== '') {
+        return url + ':' + port + '/api/'
+    } else {
+        return url + '/api/'
+    }
+}
+
+const apiUrl = getUrl()
 
 export const GetHook = (url) => {
   const { loading, data = [] } = useFetch(apiUrl + url, {}, [])
